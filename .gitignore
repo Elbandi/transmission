@@ -17,6 +17,8 @@ transmission.spec
 INSTALL
 aclocal.m4
 autom4te.cache/
+.pc
+*-stamp
 
 cli/transmissioncli
 
@@ -29,6 +31,7 @@ install-sh
 ltmain.sh
 missing
 mkinstalldirs
+intltool-*
 
 error.log
 
@@ -66,6 +69,7 @@ po/Makefile.in.in
 po/POTFILES
 po/stamp-it
 po/*.gmo
+po/.intltool-merge-cache
 
 third-party/libevent/aclocal.m4
 third-party/libevent/autom4te.cache/
@@ -87,4 +91,15 @@ third-party/libevent/test/test-eof
 third-party/libevent/test/test-init
 third-party/libevent/test/test-time
 third-party/libevent/test/test-weof
+third-party/miniupnp/miniupnpcstrings.h
 
+debian/files
+debian/stamp-patched
+debian/tmp/
+debian/transmission-cli/
+debian/transmission-common/
+debian/transmission-daemon/
+debian/transmission-gtk/
+debian/transmission/
+debian/*.substvars
+debian/*.debhelper*
