@@ -532,6 +532,17 @@ addField( const tr_torrent * tor, tr_benc * d, const char * key )
         tr_bencDictAddInt( tmp, "fromPex",      f[TR_PEER_FROM_PEX] );
         tr_bencDictAddInt( tmp, "fromTracker",  f[TR_PEER_FROM_TRACKER] );
     }
+    else if( tr_streq( key, keylen, "availablepeersFrom" ) )
+    {
+        tr_benc *   tmp = tr_bencDictAddDict( d, key, 6 );
+        const int * f = st->availablepeersFrom;
+        tr_bencDictAddInt( tmp, "fromCache",    f[TR_PEER_FROM_RESUME] );
+        tr_bencDictAddInt( tmp, "fromDht",      f[TR_PEER_FROM_DHT] );
+        tr_bencDictAddInt( tmp, "fromIncoming", f[TR_PEER_FROM_INCOMING] );
+        tr_bencDictAddInt( tmp, "fromLtep",     f[TR_PEER_FROM_LTEP] );
+        tr_bencDictAddInt( tmp, "fromPex",      f[TR_PEER_FROM_PEX] );
+        tr_bencDictAddInt( tmp, "fromTracker",  f[TR_PEER_FROM_TRACKER] );
+    }
     else if( tr_streq( key, keylen, "peersGettingFromUs" ) )
         tr_bencDictAddInt( d, key, st->peersGettingFromUs );
     else if( tr_streq( key, keylen, "peersKnown" ) )
