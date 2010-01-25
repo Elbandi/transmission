@@ -465,6 +465,8 @@ addField( const tr_torrent * tor, tr_benc * d, const char * key )
         tr_bencDictAddInt( d, key, inf->dateCreated );
     else if( tr_streq( key, keylen, "desiredAvailable" ) )
         tr_bencDictAddInt( d, key, st->desiredAvailable );
+    else if( tr_streq( key, keylen, "dhtAnnounceTime" ) )
+        tr_bencDictAddInt( d, key, st->dhtAnnounceTime );
     else if( tr_streq( key, keylen, "doneDate" ) )
         tr_bencDictAddInt( d, key, st->doneDate );
     else if( tr_streq( key, keylen, "downloadDir" ) )

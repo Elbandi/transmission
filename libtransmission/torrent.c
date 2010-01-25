@@ -934,6 +934,7 @@ tr_torrentStat( tr_torrent * tor )
     memcpy( s->errorString, tor->errorString, sizeof( s->errorString ) );
 
     s->manualAnnounceTime = tr_announcerNextManualAnnounce( tor );
+    s->dhtAnnounceTime = MIN( tor->dhtAnnounceAt, tor->dhtAnnounce6At );
 
     tr_peerMgrTorrentStats( tor,
                             &s->peersKnown,
