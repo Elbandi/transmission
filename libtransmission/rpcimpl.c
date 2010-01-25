@@ -594,6 +594,18 @@ addField (tr_torrent       * const tor,
         tr_variantDictAddInt (d, key, tr_torrentGetPriority (tor));
         break;
 
+      case TR_KEY_blockCount:
+        tr_variantDictAddInt (d, key, tor->blockCount);
+        break;
+
+      case TR_KEY_blockSize:
+        tr_variantDictAddInt (d, key, tor->blockSize);
+        break;
+
+      case TR_KEY_blockComplete:
+        tr_variantDictAddInt (d, key, tr_bitfieldCountTrueBits (&tor->completion.blockBitfield));
+        break;
+
       case TR_KEY_comment:
         tr_variantDictAddStr (d, key, inf->comment ? inf->comment : "");
         break;

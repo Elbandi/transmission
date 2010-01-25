@@ -681,6 +681,9 @@ static const tr_quark details_keys[] = {
     TR_KEY_activityDate,
     TR_KEY_addedDate,
     TR_KEY_bandwidthPriority,
+    TR_KEY_blockCount,
+    TR_KEY_blockSize,
+    TR_KEY_blockComplete,
     TR_KEY_comment,
     TR_KEY_corruptEver,
     TR_KEY_creator,
@@ -1024,6 +1027,12 @@ printDetails (tr_variant * top)
                 printf ("  Comment: %s\n", str);
             if (tr_variantDictFindStr (t, TR_KEY_creator, &str, NULL) && str && *str)
                 printf ("  Creator: %s\n", str);
+            if (tr_variantDictFindInt (t, TR_KEY_blockCount, &i))
+                printf ("  Block Count: %" PRId64 "\n", i);
+            if (tr_variantDictFindInt (t, TR_KEY_blockSize, &i))
+                printf ("  Block Size: %" PRId64 "\n", i);
+            if (tr_variantDictFindInt (t, TR_KEY_blockComplete, &i))
+                printf ("  Block Complete: %" PRId64 "\n", i);
             if (tr_variantDictFindInt (t, TR_KEY_pieceCount, &i))
                 printf ("  Piece Count: %" PRId64 "\n", i);
             if (tr_variantDictFindInt (t, TR_KEY_pieceSize, &i))
