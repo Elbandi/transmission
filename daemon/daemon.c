@@ -131,6 +131,9 @@ static const struct tr_option options[] =
     { 'r', "rpc-bind-address", "Where to listen for RPC connections", "r", 1, "<ipv4 addr>" },
     { 953, "global-seedratio", "All torrents, unless overridden by a per-torrent setting, should seed until a specific ratio", "gsr", 1, "ratio" },
     { 954, "no-global-seedratio", "All torrents, unless overridden by a per-torrent setting, should seed regardless of ratio", "GSR", 0, NULL },
+#ifdef HAVE_SYSLOG
+    { 's', "syslog", "Force use of syslog", "s", 0, NULL },
+#endif
     { 'x', "pid-file", "Enable PID file", "x", 1, "<pid-file>" },
     { 0, NULL, NULL, NULL, 0, NULL }
 };
@@ -387,6 +390,9 @@ main (int argc, char ** argv)
     bool boolVal;
     bool loaded;
     bool foreground = false;
+#ifdef HAVE_SYSLOG
+    bool usesyslog = false;
+#endif
     bool dumpSettings = false;
     const char * configDir = NULL;
     const char * pid_filename;
@@ -442,6 +448,10 @@ main (int argc, char ** argv)
                       break;
             case 'g': /* handled above */
                       break;
+#ifdef HAVE_SYSLOG
+            case 's': usesyslog = true;
+                      break;
+#endif
             case 'V': /* version */
                       fprintf (stderr, "%s %s\n", MY_NAME, LONG_VERSION_STRING);
                       exit (0);
@@ -609,6 +619,7 @@ main (int argc, char ** argv)
     }
 
 #ifdef HAVE_SYSLOG
+    foreground &= !usesyslog;
     if (!foreground)
         openlog (MY_NAME, LOG_CONS|LOG_PID, LOG_DAEMON);
 #endif
