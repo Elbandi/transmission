@@ -1723,6 +1723,7 @@ typedef struct tr_stat
     /** How many peers we found out about from the tracker, or from pex,
         or from incoming connections, or from our resume file. */
     int    peersFrom[TR_PEER_FROM__MAX];
+    int    availablepeersFrom[TR_PEER_FROM__MAX];
 
     /** Number of peers that are sending data to us. */
     int    peersSendingToUs;
