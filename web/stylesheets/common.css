@@ -541,7 +541,7 @@ div#torrent_inspector {
 	top: 97px;
 	bottom: 22px;
 	right: 0px;
-	width: 350px;
+	width: 450px;
 	background-color: #ddd;
 	border-left: 1px solid #888;
 	z-index: 2;
@@ -601,12 +601,12 @@ div#inspector_tabs {
 }
 .inspector_row > .inspector_label {
 	display: table-cell;
-	width: 100px; /* this + the next 230 == inspector_container_with */
+	width: 200px; /* this + the next 230 == inspector_container_with */
 }
 .inspector_row > div {
 	display: table-cell;
 	padding-top: 10px;
-	width: 230px; /* inspector_container_width==330 - inspector_label_width==100 */
+	width: 230px; /* inspector_container_width==430 - inspector_label_width==200 */
 }
 
 /* Trackers Inspector Tab */
