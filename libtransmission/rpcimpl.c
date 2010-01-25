@@ -739,6 +739,42 @@ setFileDLs( tr_torrent * tor,
 }
 
 static const char*
+setTrackers( tr_torrent * tor, tr_benc * list )
+{
+    const char *         str;
+    int                  i, tier, n = tr_bencListSize( list );
+    int                  trackerCount = 0;
+    tr_tracker_info *    trackers = tr_new0( tr_tracker_info, n );
+
+    for( i = tier = 0; i < n; ++i )
+    {
+        if( tr_bencGetStr( tr_bencListChild( list, i ), &str ) )
+        {
+	    if( !*str )
+	        ++tier;
+	    else
+	    {
+                trackers[trackerCount].tier = tier;
+                trackers[trackerCount++].announce = tr_strdup( str );
+	    }
+        }
+    }
+
+    /* set the tracker list */
+    if( tr_torrentSetAnnounceList( tor, trackers, trackerCount ) )
+        str = "trackerlist contains invalid URLs";
+    else
+        str = NULL;
+
+    /* cleanup */
+    for( i = 0; i < trackerCount; ++i )
+        tr_free( trackers[i].announce );
+    tr_free( trackers );
+
+    return str;
+}
+
+static const char*
 torrentSet( tr_session               * session,
             tr_benc                  * args_in,
             tr_benc                  * args_out UNUSED,
@@ -787,6 +823,8 @@ torrentSet( tr_session               * session,
             tr_torrentSetRatioLimit( tor, d );
         if( tr_bencDictFindInt( args_in, "seedRatioMode", &tmp ) )
             tr_torrentSetRatioMode( tor, tmp );
+        if( !errmsg && tr_bencDictFindList( args_in, "trackers", &files ) )
+	    errmsg = setTrackers( tor, files);
         notify( session, TR_RPC_TORRENT_CHANGED, tor );
     }
 
