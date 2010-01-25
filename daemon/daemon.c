@@ -97,6 +97,9 @@ static const struct tr_option options[] =
     { 'r', "rpc-bind-address", "Where to listen for RPC connections", "r", 1, "<ipv4 address>" },
     { 953, "global-seedratio", "All torrents, unless overridden by a per-torrent setting, should seed until a specific ratio", "gsr", 1, "ratio" },
     { 954, "no-global-seedratio", "All torrents, unless overridden by a per-torrent setting, should seed regardless of ratio", "GSR", 0, NULL },
+#ifdef HAVE_SYSLOG
+    { 's', "syslog", "Force use of syslog", "s", 0, NULL },
+#endif
     { 0, NULL, NULL, NULL, 0, NULL }
 };
 
@@ -281,6 +284,9 @@ main( int argc, char ** argv )
     tr_bool boolVal;
     tr_bool loaded;
     tr_bool foreground = FALSE;
+#ifdef HAVE_SYSLOG
+    tr_bool usesyslog = FALSE;
+#endif
     tr_bool dumpSettings = FALSE;
     const char * configDir = NULL;
     dtr_watchdir * watchdir = NULL;
@@ -330,6 +336,10 @@ main( int argc, char ** argv )
                       break;
             case 'g': /* handled above */
                       break;
+#ifdef HAVE_SYSLOG
+            case 's': usesyslog = TRUE;
+                      break;
+#endif
 	    case 'V': /* version */
 		      fprintf(stderr, "Transmission %s\n", LONG_VERSION_STRING);
 		      exit( 0 );
@@ -450,6 +460,7 @@ main( int argc, char ** argv )
     }
 
 #ifdef HAVE_SYSLOG
+    foreground &= !usesyslog;
     if( !foreground )
         openlog( MY_NAME, LOG_CONS, LOG_DAEMON );
 #endif
