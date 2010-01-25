@@ -40,7 +40,7 @@
 #define DEFAULT_HOST "localhost"
 #define DEFAULT_PORT atoi(TR_DEFAULT_RPC_PORT_STR)
 
-enum { TAG_SESSION, TAG_STATS, TAG_LIST, TAG_DETAILS, TAG_FILES, TAG_PEERS };
+enum { TAG_SESSION, TAG_STATS, TAG_LIST, TAG_DETAILS, TAG_FILES, TAG_PEERS, TAG_DISKSTATUS };
 
 static const char*
 getUsage( void )
@@ -77,6 +77,7 @@ static tr_option opts[] =
     { 'b', "debug",                 "Print debugging information", "b",  0, NULL },
     { 'd', "downlimit",             "Set the maximum global download speed in KB/s", "d",  1, "<speed>" },
     { 'D', "no-downlimit",          "Don't limit the global download speed", "D",  0, NULL },
+    { 979, "diskstatus",            "Get the disk status", "ds", 0, NULL },
     { 910, "encryption-required",   "Encrypt all peer connections", "er", 0, NULL },
     { 911, "encryption-preferred",  "Prefer encrypted peer connections", "ep", 0, NULL },
     { 912, "encryption-tolerated",  "Prefer unencrypted peer connections", "et", 0, NULL },
@@ -748,6 +749,11 @@ readargs( int argc, const char ** argv )
             case 978:
                 tr_bencDictAddStr( &top, "method", "session-set" );
                 addDays( args, TR_PREFS_KEY_ALT_SPEED_TIME_DAY, optarg );
+                break;
+
+            case 979:
+                tr_bencDictAddStr( &top, "method", "diskstatus-get" );
+                tr_bencDictAddInt( &top, "tag", TAG_DISKSTATUS );
                 break;
 
             case 980:
@@ -1696,6 +1702,74 @@ printTorrentList( tr_benc * top )
     }
 }
 
+static void
+printDiskStatus( tr_benc * top )
+{
+    tr_benc *args;
+    if( ( tr_bencDictFindDict( top, "arguments", &args ) ) )
+    {
+        int64_t      i;
+        char buf[32];
+
+        printf( "BLOCK STATUS\n" );
+        if( tr_bencDictFindInt( args, "block-used", &i ) )
+        {
+	    if( i >= 0 )
+                strlsize( buf, i * 1024, sizeof( buf ) );
+	    else
+		strcpy( buf, "NA" );
+            printf( "  Used: %s\n", buf );
+        }
+        if( tr_bencDictFindInt( args, "block-soft", &i ) )
+        {
+	    if( i >= 0 )
+                strlsize( buf, i * 1024, sizeof( buf ) );
+	    else
+		strcpy( buf, "NA" );
+            printf( "  Soft: %s\n", buf );
+        }
+        if( tr_bencDictFindInt( args, "block-timeleft", &i ) )
+            printf( "  Time Left: %" PRId64 "\n", i );
+        if( tr_bencDictFindInt( args, "block-hard", &i ) )
+        {
+	    if( i >= 0 )
+                strlsize( buf, i * 1024, sizeof( buf ) );
+	    else
+		strcpy( buf, "NA" );
+            printf( "  Hard: %s\n", buf );
+        }
+        printf( "\n" );
+
+        printf( "FILE STATUS\n" );
+        if( tr_bencDictFindInt( args, "file-used", &i ) )
+        {
+	    if( i >= 0 )
+                strlsize( buf, i * 1024, sizeof( buf ) );
+	    else
+		strcpy( buf, "NA" );
+            printf( "  Used: %s\n", buf );
+        }
+        if( tr_bencDictFindInt( args, "file-soft", &i ) )
+        {
+	    if( i >= 0 )
+                strlsize( buf, i * 1024, sizeof( buf ) );
+	    else
+		strcpy( buf, "NA" );
+            printf( "  Soft: %s\n", buf );
+        }
+        if( tr_bencDictFindInt( args, "file-timeleft", &i ) )
+            printf( "  Time Left: %" PRId64 "\n", i );
+        if( tr_bencDictFindInt( args, "file-hard", &i ) )
+        {
+	    if( i >= 0 )
+                strlsize( buf, i * 1024, sizeof( buf ) );
+	    else
+		strcpy( buf, "NA" );
+            printf( "  Hard: %s\n", buf );
+        }
+    }
+}
+
 static int
 processResponse( const char * host,
                  int          port,
@@ -1740,6 +1814,9 @@ processResponse( const char * host,
 
             case TAG_PEERS:
                 printPeers( &top ); break;
+
+            case TAG_DISKSTATUS:
+                printDiskStatus( &top ); break;
 
             default:
                 if( !tr_bencDictFindStr( &top, "result", &str ) )
