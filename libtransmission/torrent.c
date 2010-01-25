@@ -521,6 +521,9 @@ getBlockSize( uint32_t pieceSize )
 static void refreshCurrentDir( tr_torrent * tor );
 
 static void
+torrentQueue( tr_torrent * tor );
+
+static void
 torrentInitFromInfo( tr_torrent * tor )
 {
     uint64_t t;
@@ -688,7 +691,7 @@ torrentInit( tr_torrent * tor, const tr_ctor * ctor )
     tor->tiersSubscription = tr_announcerSubscribe( tor->tiers, onTrackerResponse, tor );
 
     if( doStart )
-        torrentStart( tor );
+        torrentQueue( tor );
 
     tr_sessionUnlock( session );
 }
@@ -889,6 +892,8 @@ tr_torrentGetActivity( tr_torrent * tor )
         return TR_STATUS_CHECK;
     if( tor->verifyState == TR_VERIFY_WAIT )
         return TR_STATUS_CHECK_WAIT;
+    if( tor->isQueued )
+        return TR_STATUS_QUEUED;
     if( !tor->isRunning )
         return TR_STATUS_STOPPED;
     if( tor->completeness == TR_LEECH )
@@ -1327,6 +1332,7 @@ checkAndStartImpl( void * vtor )
         const time_t now = tr_time( );
         tor->isRunning = TRUE;
         tor->needsSeedRatioCheck = TRUE;
+        tor->needsRunningCheck = TRUE;
         tor->error = TR_STAT_OK;
         tor->errorString[0] = '\0';
         tor->completeness = tr_cpGetStatus( &tor->completion );
@@ -1352,6 +1358,16 @@ checkAndStartCB( tr_torrent * tor )
 }
 
 static void
+torrentQueue( tr_torrent * tor )
+{
+    if( ( tr_torrentGetActivity( tor ) == TR_STATUS_STOPPED ) || ( tr_torrentGetActivity( tor ) == TR_STATUS_QUEUED ) )
+    {
+        tr_torinf( tor, "Queueing Torrent");
+        tor->isQueued = 1;
+    }
+}
+
+static void
 torrentStart( tr_torrent * tor )
 {
     assert( tr_isTorrent( tor ) );
@@ -1371,8 +1387,10 @@ torrentStart( tr_torrent * tor )
         tor->peer_id = tr_peerIdNew( );
 
         tor->isRunning = 1;
+        tor->isQueued = 0;
         tr_torrentSetDirty( tor );
         tor->preVerifyTotal = tr_cpHaveTotal( &tor->completion );
+
         tr_verifyAdd( tor, checkAndStartCB );
     }
 
@@ -1381,6 +1399,13 @@ torrentStart( tr_torrent * tor )
 
 void
 tr_torrentStart( tr_torrent * tor )
+{
+    if( tr_isTorrent( tor ) )
+        torrentQueue( tor );
+}
+
+void
+tr_torrentForceStart( tr_torrent * tor )
 {
     if( tr_isTorrent( tor ) )
         torrentStart( tor );
@@ -1427,7 +1452,7 @@ verifyTorrent( void * vtor )
     tr_verifyRemove( tor );
 
     /* if the torrent's running, stop it & set the restart-after-verify flag */
-    if( tor->startAfterVerify || tor->isRunning ) {
+    if( tor->startAfterVerify || tor->isRunning || tor->isQueued ) {
         tr_torrentStop( tor );
         tor->startAfterVerify = TRUE;
     }
@@ -1486,6 +1511,8 @@ tr_torrentStop( tr_torrent * tor )
         tr_sessionLock( tor->session );
 
         tor->isRunning = 0;
+        tor->isQueued = 0;
+
         tr_torrentSetDirty( tor );
         tr_runInEventThread( tor->session, stopTorrent, tor );
 
@@ -1525,6 +1552,8 @@ tr_torrentFree( tr_torrent * tor )
         tr_session * session = tor->session;
         assert( tr_isSession( session ) );
         tr_sessionLock( session );
+
+        tor->isQueued = 0;
 
         tr_torrentClearCompletenessCallback( tor );
         tr_runInEventThread( session, closeTorrent, tor );
@@ -1638,6 +1667,7 @@ tr_torrentRecheckCompleteness( tr_torrent * tor )
 
         tor->completeness = completeness;
         tor->needsSeedRatioCheck = TRUE;
+        tor->needsRunningCheck = TRUE;
         tr_fdTorrentClose( tor->session, tor->uniqueId );
 
         /* if the torrent is a seed now,
@@ -2469,7 +2499,7 @@ setLocation( void * vdata )
 
         /* if the torrent is running, stop it and set a flag to
          * restart after we're done */
-        if( tor->isRunning )
+        if( tor->isRunning || tor->isQueued )
         {
             tr_torrentStop( tor );
             tor->startAfterVerify = TRUE;
