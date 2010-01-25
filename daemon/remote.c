@@ -88,6 +88,7 @@ static tr_option opts[] =
     { 920, "session-info",          "Show the session's details", "si", 0, NULL },
     { 921, "session-stats",         "Show the session's statistics", "st", 0, NULL },
     { 'l', "list",                  "List all torrents", "l",  0, NULL },
+    { 'L', "labels",                "Labels the current torrent(s)", "L",  1, "<label>" },
     { 960, "move",                  "Move current torrent's data to a new folder", NULL, 1, "<path>" },
     { 961, "find",                  "Tell Transmission where to find a torrent's data", NULL, 1, "<path>" },
     { 'm', "portmap",               "Enable portmapping via NAT-PMP or UPnP", "m",  0, NULL },
@@ -282,6 +283,35 @@ addDays( tr_benc * args, const char * key, const char * arg )
 }
 
 static void
+addLabels( tr_benc *    args,
+           const char * key,
+           const char * arg )
+{
+    tr_benc * labels = tr_bencDictAddList( args, key, 100 );
+
+    if( arg )
+    {
+        const char * walk;
+
+        walk = arg;
+        while( walk && *walk )
+        {
+            const char * pch = strchr( walk, ',' );
+            char * str;
+            if( pch ) {
+                str = tr_strndup( walk, pch-walk);
+                walk = pch + 1;
+            } else {
+                str = tr_strdup ( walk );
+                walk += strlen( walk );
+            }
+            tr_bencListAddStr( labels, str );
+            tr_free( str );
+        }
+    }
+}
+
+static void
 addFiles( tr_benc *    args,
           const char * key,
           const char * arg )
@@ -334,6 +364,7 @@ static const char * details_keys[] = {
     "honorsSessionLimits",
     "id",
     "isPrivate",
+    "labels",
     "leftUntilDone",
     "name",
     "peersConnected",
@@ -492,6 +523,12 @@ readargs( int argc, const char ** argv )
                 fields = tr_bencDictAddList( args, "fields", n );
                 for( i = 0; i < n; ++i )
                     tr_bencListAddStr( fields, list_keys[i] );
+                break;
+
+            case 'L':
+                tr_bencDictAddStr( &top, "method", "torrent-set" );
+                addIdArg( args, id );
+                addLabels( args, "labels", optarg );
                 break;
 
             case 'm':
@@ -1208,6 +1245,23 @@ printDetails( tr_benc * top )
                 printf( "  Name: %s\n", str );
             if( tr_bencDictFindStr( t, "hashString", &str ) )
                 printf( "  Hash: %s\n", str );
+            if( tr_bencDictFindList( t, "labels", &l ) )
+            {
+                int i, n = tr_bencListSize( l );
+                const char *str;
+                printf( "  Labels: ");
+                for (i = 0; i < n; i++)
+                {
+                    if( tr_bencGetStr( tr_bencListChild( l, i ), &str ) )
+                    {
+                        if ( i == 0 )
+                            printf( "%s", str);
+                        else
+                            printf( ", %s", str);
+                    }
+                }
+                printf( "\n" );
+            }
             printf( "\n" );
 
             printf( "TRANSFER\n" );
