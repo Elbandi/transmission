@@ -689,6 +689,7 @@ static const tr_quark details_keys[] = {
     TR_KEY_creator,
     TR_KEY_dateCreated,
     TR_KEY_desiredAvailable,
+    TR_KEY_dhtAnnounceTime,
     TR_KEY_doneDate,
     TR_KEY_downloadDir,
     TR_KEY_downloadedEver,
@@ -985,6 +986,11 @@ printDetails (tr_variant * top)
                         "  Web Seeds: downloading from %" PRId64 " of %"
                         PRId64
                         " web seeds\n", i, n);
+            }
+            if (tr_variantDictFindInt (t, TR_KEY_dhtAnnounceTime, &i) && i)
+            {
+                const time_t tt = i;
+                printf ("  Next DHT announce:  %s", ctime (&tt));
             }
             printf ("\n");
 

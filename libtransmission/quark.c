@@ -85,6 +85,7 @@ static const struct tr_key_struct my_static[] =
   { "desiredAvailable", 16 },
   { "destination", 11 },
   { "dht-enabled", 11 },
+  { "dhtAnnounceTime", 15 },
   { "display-name", 12 },
   { "dnd", 3 },
   { "done-date", 9 },

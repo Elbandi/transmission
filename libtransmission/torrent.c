@@ -1273,6 +1273,7 @@ tr_torrentStat (tr_torrent * tor)
   tr_strlcpy (s->errorString, tor->errorString, sizeof (s->errorString));
 
   s->manualAnnounceTime = tr_announcerNextManualAnnounce (tor);
+  s->dhtAnnounceTime = MIN (tor->dhtAnnounceAt, tor->dhtAnnounce6At);
   s->peersConnected      = swarm_stats.peerCount;
   s->peersSendingToUs    = swarm_stats.activePeerCount[TR_DOWN];
   s->peersGettingFromUs  = swarm_stats.activePeerCount[TR_UP];

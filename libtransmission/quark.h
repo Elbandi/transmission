@@ -83,6 +83,7 @@ enum
   TR_KEY_desiredAvailable,
   TR_KEY_destination,
   TR_KEY_dht_enabled,
+  TR_KEY_dhtAnnounceTime,
   TR_KEY_display_name,
   TR_KEY_dnd,
   TR_KEY_done_date,

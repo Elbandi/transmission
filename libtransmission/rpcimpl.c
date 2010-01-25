@@ -626,6 +626,10 @@ addField (tr_torrent       * const tor,
         tr_variantDictAddInt (d, key, st->desiredAvailable);
         break;
 
+      case TR_KEY_dhtAnnounceTime:
+        tr_variantDictAddInt (d, key, st->dhtAnnounceTime);
+        break;
+
       case TR_KEY_doneDate:
         tr_variantDictAddInt (d, key, st->doneDate);
         break;
