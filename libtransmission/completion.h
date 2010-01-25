@@ -136,6 +136,9 @@ bool  tr_cpFileIsComplete (const tr_completion * cp, tr_file_index_t);
 
 void* tr_cpCreatePieceBitfield (const tr_completion * cp, size_t * byte_count);
 
+tr_piece_index_t
+tr_cpCompletePieceBitfield( const tr_completion * cp );
+
 static inline void
 tr_cpInvalidateDND (tr_completion * cp)
 {

@@ -786,6 +786,10 @@ addField (tr_torrent       * const tor,
         tr_variantDictAddInt (d, key, inf->pieceSize);
         break;
 
+      case TR_KEY_pieceComplete:
+        tr_variantDictAddInt (d, key, tr_cpCompletePieceBitfield (&tor->completion));
+        break;
+
       case TR_KEY_priorities:
         {
           tr_file_index_t i;

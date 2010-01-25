@@ -243,6 +243,7 @@ static const struct tr_key_struct my_static[] =
   { "pex-enabled", 11 },
   { "piece", 5 },
   { "piece length", 12 },
+  { "pieceComplete", 13 },
   { "pieceCount", 10 },
   { "pieceSize", 9 },
   { "pieces", 6 },
