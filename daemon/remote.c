@@ -338,6 +338,9 @@ static const char * details_keys[] = {
     "peersGettingFromUs",
     "peersSendingToUs",
     "peer-limit",
+    "blockCount",
+    "blockSize",
+    "blockComplete", 
     "pieceCount",
     "pieceSize",
     "rateDownload",
@@ -1430,6 +1433,12 @@ printDetails( tr_benc * top )
                 printf( "  Comment: %s\n", str );
             if( tr_bencDictFindStr( t, "creator", &str ) && str && *str )
                 printf( "  Creator: %s\n", str );
+            if( tr_bencDictFindInt( t, "blockCount", &i ) )
+                printf( "  Block Count: %" PRId64 "\n", i );
+            if( tr_bencDictFindInt( t, "blockSize", &i ) )
+                printf( "  Block Size: %" PRId64 "\n", i );
+            if( tr_bencDictFindInt( t, "blockComplete", &i ) )
+                printf( "  Block Complete: %" PRId64 "\n", i );
             if( tr_bencDictFindInt( t, "pieceCount", &i ) )
                 printf( "  Piece Count: %" PRId64 "\n", i );
             if( tr_bencDictFindInt( t, "pieceSize", &i ) )
