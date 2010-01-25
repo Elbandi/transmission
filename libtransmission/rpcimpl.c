@@ -667,6 +667,14 @@ addField (const tr_torrent * const tor,
         tr_bencDictAddInt (d, key, inf->pieceCount);
     else if (tr_streq (key, keylen, "pieceSize"))
         tr_bencDictAddInt (d, key, inf->pieceSize);
+    else if (tr_streq (key, keylen, "blockCount"))
+        tr_bencDictAddInt (d, key, tor->blockCount);
+    else if (tr_streq (key, keylen, "blockSize"))
+        tr_bencDictAddInt (d, key, tor->blockSize);
+    else if (tr_streq (key, keylen, "blockComplete"))
+    {
+        tr_bencDictAddInt (d, key, tr_bitfieldCountTrueBits (&tor->completion.blockBitfield));
+    }
     else if (tr_streq (key, keylen, "priorities"))
     {
         tr_file_index_t i;
