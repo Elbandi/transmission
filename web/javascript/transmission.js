@@ -867,6 +867,22 @@ Transmission.prototype =
 		this.updateButtonStates( );
 		this.togglePeriodicSessionRefresh(true);
 	},
+    
+	updateQuotas: function( quotas )
+	{
+		// remember them for later
+		this._quotas = quotas;
+
+		setInnerHTML( $('div#torrent_global_quota_used')[0], Math.formatBytes(quotas['block-used'] * 1024) );
+		if (quotas['block-used'] >= quotas['block-soft'])
+		{
+		    setInnerHTML( $('div#torrent_global_quota_soft')[0], Math.formatBytes(quotas['block-soft'] * 1024)+' ('+quotas['block-timeleft']+' hours left)' );
+		} else {
+		    setInnerHTML( $('div#torrent_global_quota_soft')[0], Math.formatBytes(quotas['block-soft'] * 1024) );
+		}
+		setInnerHTML( $('div#torrent_global_quota_hard')[0], Math.formatBytes(quotas['block-hard'] * 1024) );
+
+	},
 
 	/*
 	 * Process got some new session data from the server
@@ -1381,6 +1397,7 @@ Transmission.prototype =
 
 	refreshTorrents: function(ids) {
 		var tr = this;
+		this.remote.loadQuotas( );
 		if (!ids)
 		  ids = 'recently-active';
 
