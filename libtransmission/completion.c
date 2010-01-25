@@ -295,6 +295,26 @@ tr_cpCreatePieceBitfield (const tr_completion * cp, size_t * byte_count)
     return ret;
 }
 
+tr_piece_index_t
+tr_cpCompletePieceBitfield( const tr_completion * cp )
+{
+    tr_piece_index_t ret = 0;
+    const tr_piece_index_t n = cp->tor->info.pieceCount;
+
+    if( tr_cpHasAll( cp ) )
+        return n;
+    else if( tr_cpHasNone( cp ) )
+        return 0;
+    else {
+        tr_piece_index_t i;
+        for( i=0; i<n; ++i )
+            if( tr_cpPieceIsComplete( cp, i ) )
+                ret++;
+    }
+
+    return ret;
+}
+
 double
 tr_cpPercentComplete (const tr_completion * cp)
 {
