@@ -618,6 +618,7 @@ torrentInit( tr_torrent * tor, const tr_ctor * ctor )
     tor->session   = session;
     tor->uniqueId = nextUniqueId++;
     tor->magicNumber = TORRENT_MAGIC_NUMBER;
+    tor->labels = tr_ptrArrayNew( );
 
     tr_sha1( tor->obfuscatedHash, "req2", 4,
              tor->info.hash, SHA_DIGEST_LENGTH,
@@ -1307,6 +1308,7 @@ freeTorrent( tr_torrent * tor )
     session->torrentCount--;
 
     tr_bandwidthFree( tor->bandwidth );
+    tr_ptrArrayFree( tor->labels, (PtrArrayForeachFunc)tr_free );
 
     tr_metainfoFree( inf );
     tr_free( tor );

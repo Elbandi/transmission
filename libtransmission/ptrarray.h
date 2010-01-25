@@ -42,6 +42,13 @@ extern const tr_ptrArray TR_PTR_ARRAY_INIT;
 /** @brief Destructor to free a tr_ptrArray's internal memory */
 void tr_ptrArrayDestruct( tr_ptrArray*, PtrArrayForeachFunc func );
 
+tr_ptrArray * tr_ptrArrayNew( void );
+
+tr_ptrArray * tr_ptrArrayDup( tr_ptrArray* );
+
+void tr_ptrArrayFree( tr_ptrArray         * array,
+                      PtrArrayForeachFunc   func );
+
 /** @brief Iterate through each item in a tr_ptrArray */
 void tr_ptrArrayForeach( tr_ptrArray         * array,
                          PtrArrayForeachFunc   func );
@@ -55,6 +62,10 @@ void*         tr_ptrArrayNth( tr_ptrArray   * array,
     @return the pointer that's been removed from the array
     @see tr_ptrArrayBack() */
 void* tr_ptrArrayPop( tr_ptrArray * array );
+
+void  tr_ptrArrayErase( tr_ptrArray  * array,
+                        int            begin,
+                        int            end );
 
 /** @brief Return the last item in a tr_ptrArray
     @return the last item in a tr_ptrArray, or NULL if the array is empty
