@@ -16,6 +16,7 @@ Torrent._StatusChecking        = 2;
 Torrent._StatusDownloading     = 4;
 Torrent._StatusSeeding         = 8;
 Torrent._StatusPaused          = 16;
+Torrent._StatusQueued          = 32;
 Torrent._InfiniteTimeRemaining = 215784000; // 999 Hours - may as well be infinite
 
 Torrent._RatioUseGlobal        = 0;
@@ -224,6 +225,7 @@ Torrent.prototype =
 	isActive: function() { return this.state() != Torrent._StatusPaused; },
 	isDownloading: function() { return this.state() == Torrent._StatusDownloading; },
 	isSeeding: function() { return this.state() == Torrent._StatusSeeding; },
+	isQueued: function() { return this.state() == Torrent._StatusQueued; },
 	name: function() { return this._name; },
 	peersSendingToUs: function() { return this._peers_sending_to_us; },
 	peersGettingFromUs: function() { return this._peers_getting_from_us; },
@@ -246,6 +248,7 @@ Torrent.prototype =
 			case Torrent._StatusPaused:         return 'Paused';
 			case Torrent._StatusChecking:       return 'Verifying local data';
 			case Torrent._StatusWaitingToCheck: return 'Waiting to verify';
+			case Torrent._StatusQueued:         return 'Queued to start';
 			default:                            return 'error';
 		}
 	},
@@ -655,6 +658,9 @@ Torrent.prototype =
 				break;
 			case Prefs._FilterPaused:
 				pass = !this.isActive();
+				break;
+			case Prefs._FilterQueued:
+				pass = this.isQueued();
 				break;
 			default:
 				pass = true;
