@@ -10,6 +10,7 @@
  * $Id$
  */
 
+#define _GNU_SOURCE
 #ifdef WIN32
  #include <windows.h>
  #include <shlobj.h> /* for CSIDL_APPDATA, CSIDL_MYDOCUMENTS */
@@ -34,6 +35,12 @@
 
 #include <sys/stat.h>
 #include <sys/types.h>
+#ifndef WIN32
+#include <unistd.h> /* geteuid */
+#include <mntent.h> /* setmntent */
+#include <sys/quota.h>
+#include <sys/statvfs.h>
+#endif
 #ifdef WIN32
 #include <libgen.h>
 #endif
@@ -660,6 +667,92 @@ tr_getClutchDir( const tr_session * session UNUSED )
 
     return s;
 }
+
+static char *getdevice(const char *path)
+{
+#ifdef WIN32
+    static char root[MAX_PATH];
+    if (GetVolumePathName( path , root, MAX_PATH))
+        return &root;
+    return NULL;
+#else
+    struct stat statbuf;
+    int pathmaj, pathmin;
+    FILE *mntfp;
+    struct mntent *mntent;
+
+    if (stat(path, &statbuf))
+	return NULL;
+    pathmaj = (int) (statbuf.st_dev >> 8);
+    pathmin = (int) (statbuf.st_dev & 0x00FF);
+
+    mntfp = setmntent("/etc/mtab", "r");
+    if (!mntfp)
+	return NULL;
+    while ( (mntent=getmntent(mntfp)) != NULL ) {
+	if (stat(mntent->mnt_fsname, &statbuf))
+	    continue;
+	if ((pathmaj == (int) (statbuf.st_rdev >> 8)) && (pathmin == (int) (statbuf.st_rdev & 0x00FF)))
+	    break;
+    }
+    endmntent(mntfp);
+    return mntent?mntent->mnt_fsname:NULL;
+#endif
+}
+
+void
+tr_getDiskStatus( const tr_session * session,
+		  int *              block_used, 
+		  int * 	     block_soft,
+		  int *              block_hard,
+		  int *              block_timeleft )
+{
+#ifndef WIN32
+    int uid = geteuid( );
+    struct dqblk quota;
+    struct statvfs stat;
+#endif
+    char *path = getdevice( tr_sessionGetDownloadDir( session ) );
+
+    if (path)
+    {
+#ifdef WIN32
+        ULARGE_INTEGER uliTotal, uliFree;
+        if (GetDiskFreeSpaceEx(path, &uliFree, &uliTotal, NULL))
+        {
+            *block_used = (uliTotal.QuadPart - uliFree.QuadPart) / 1024;
+            *block_hard = *block_soft = uliTotal.QuadPart / 1024;
+            *block_timeleft = 0;
+            return;
+        }
+#else
+        if (!quotactl(QCMD(Q_GETQUOTA, USRQUOTA), path, uid, (char *)&quota))
+        {
+            if (quota.dqb_bsoftlimit || quota.dqb_bhardlimit)
+            {
+                *block_used = quota.dqb_curspace / 1024;
+                *block_soft = quota.dqb_bsoftlimit;
+                *block_hard = quota.dqb_bhardlimit;
+                if (quota.dqb_btime > time(NULL))
+                    *block_timeleft = (quota.dqb_btime - time(NULL)) / 3600;
+                else
+                    *block_timeleft = 0;
+                return;
+            }
+        }
+        if (!statvfs( tr_sessionGetDownloadDir( session ), &stat ))
+        {
+            int div = stat.f_bsize / 1024;
+            *block_used = (stat.f_blocks - stat.f_bavail) * div;
+            *block_soft = stat.f_blocks * div;
+            *block_hard = stat.f_blocks * div;
+            *block_timeleft = 0;
+    	    return;
+        }
+#endif
+    }
+}
+
 
 /***
 ****
