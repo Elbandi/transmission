@@ -1,4 +1,4 @@
 qt_client_use_system_libevent.patch
 libnatpmp_freebsd_ftbfs.patch
 dont_build_libevent.patch
-debian-changes-1.82-1
+use_old_intltool.patch

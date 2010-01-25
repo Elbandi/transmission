@@ -4,6 +4,8 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
+include /usr/share/quilt/quilt.make
+
 CFLAGS = -Wall -g
 
 # These are used for cross-compiling and for saving the configure script
@@ -64,18 +66,16 @@ config-clean:
 
 	$(RM) config-stamp
 
-configure: configure-stamp
+configure: patch configure-stamp
 configure-stamp:
 	dh_testdir
 
+	./autogen.sh
 	./configure \
 		--host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
 		--prefix=/usr \
 		--mandir=/usr/share/man \
 		CFLAGS="$(CFLAGS)" LDFLAGS="-Wl,-z,defs,--as-needed"
-
-	# Qt client
-	( cd qt && qmake-qt4 qtr.pro )
 
 	touch $@
 
@@ -84,9 +84,6 @@ build-stamp: configure
 	dh_testdir
 
 	$(MAKE) $(TRANSMISSION_MAKEFLAGS)
-	
-	# Qt client
-	( cd qt && $(MAKE) )
 
 	touch $@
 
@@ -94,12 +91,9 @@ distclean:
 #	# touch config.status to prevent execution of autoconf
 	[ ! -f Makefile ] || ( touch config.status && $(MAKE) distclean )
 
-clean: config-clean distclean
+clean: config-clean distclean unpatch
 	dh_testdir
 	dh_testroot
-	
-	# QT client
-	[ ! -f qt/Makefile ] || ( cd qt && $(MAKE) clean )
 	
 	dh_clean 
 
@@ -110,9 +104,6 @@ install: build
 	dh_installdirs
 
 	$(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
-
-	# Qt client
-	( cd qt && INSTALL_ROOT=$(CURDIR)/debian/tmp/usr $(MAKE) install )
 
 #	# clean RPATH from transmission binary (costela - 2007-10-27)
 	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmission
@@ -154,7 +145,7 @@ binary-arch: build install
 	dh_testdir
 	dh_testroot
 	dh_link -a
-	dh_installinit -a
+	dh_installinit -a --noscripts
 	dh_installmenu -a
 	dh_installman -a
 	dh_installmime -a

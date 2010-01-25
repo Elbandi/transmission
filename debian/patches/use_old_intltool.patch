@@ -1,0 +1,13 @@
+Index: transmission-1.82/configure.ac
+===================================================================
+--- transmission-1.82.orig/configure.ac	2010-01-23 18:13:20.000000000 +0100
++++ transmission-1.82/configure.ac	2010-01-23 18:19:23.000000000 +0100
+@@ -349,7 +349,7 @@ dnl it should be safe to re-edit 0.40 back down to 0.23
+ use_nls=no
+ if test "x$enable_nls" = "xyes" ; then
+     use_nls=yes
+-    IT_PROG_INTLTOOL([0.40.0],[no-xml])
++    IT_PROG_INTLTOOL([0.37.0],[no-xml])
+     AC_CHECK_HEADERS([libintl.h])
+     GETTEXT_PACKAGE=transmission
+     AC_SUBST(GETTEXT_PACKAGE)

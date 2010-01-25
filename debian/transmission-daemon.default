@@ -2,7 +2,7 @@
 # sourced by /etc/init.d/transmission-daemon
 
 # change to 0 to disable daemon
-ENABLE_DAEMON=1
+ENABLE_DAEMON=0
 
 # this directory stores some runtime information, like torrent files and config
 CONFIG_DIR="/var/lib/transmission-daemon/info" 
