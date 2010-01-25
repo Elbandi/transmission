@@ -58,6 +58,7 @@ const char * tr_getClutchDir( const tr_session * );
 
 /** @} */
 
+void                tr_getDiskStatus( const tr_session *, int *, int *, int *, int *);
 
 /**
  * @addtogroup utils Utilities

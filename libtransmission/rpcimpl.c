@@ -10,6 +10,7 @@
  * $Id$
  */
 
+#define _GNU_SOURCE
 #include <assert.h>
 #include <ctype.h> /* isdigit */
 #include <stdlib.h> /* strtol */
@@ -1314,6 +1315,31 @@ sessionGet( tr_session               * s,
     return NULL;
 }
 
+static const char*
+diskstatusGet( tr_session               * session,
+               tr_benc                  * args_in UNUSED,
+               tr_benc                  * args_out,
+               struct tr_rpc_idle_data  * idle_data )
+{
+    tr_benc *    d = args_out;
+    int block_used = -1, block_soft = -1, block_hard = -1, block_timeleft = -1;
+
+    assert( idle_data == NULL );
+
+    tr_getDiskStatus(session, &block_used, &block_soft, &block_hard, &block_timeleft);
+    tr_bencDictAddInt( d, "block-used", block_used );
+    tr_bencDictAddInt( d, "block-soft", block_soft );
+    tr_bencDictAddInt( d, "block-timeleft", block_timeleft );
+    tr_bencDictAddInt( d, "block-hard", block_hard );
+    /* not supported yet */
+    tr_bencDictAddInt( d, "file-used", -1 );
+    tr_bencDictAddInt( d, "file-soft", -1 );
+    tr_bencDictAddInt( d, "file-leftday", -1 );
+    tr_bencDictAddInt( d, "file-hard", -1 );
+
+    return NULL;
+}
+
 /***
 ****
 ***/
@@ -1328,6 +1354,7 @@ static struct method
 }
 methods[] =
 {
+    { "diskstatus-get",        TRUE,  diskstatusGet       },
     { "port-test",             FALSE, portTest            },
     { "blocklist-update",      FALSE, blocklistUpdate     },
     { "session-get",           TRUE,  sessionGet          },
