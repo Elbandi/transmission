@@ -663,6 +663,7 @@ static const char * details_keys[] = {
     "creator",
     "dateCreated",
     "desiredAvailable",
+    "dhtAnnounceTime"
     "doneDate",
     "downloadDir",
     "downloadedEver",
@@ -962,6 +963,11 @@ printDetails (tr_benc * top)
                         "  Web Seeds: downloading from %" PRId64 " of %"
                         PRId64
                         " web seeds\n", i, n);
+            }
+            if (tr_bencDictFindInt (t, "dhtAnnounceTime", &i) && i)
+            {
+                const time_t tt = i;
+                printf ("  Next DHT announce:  %s", ctime (&tt));
             }
             printf ("\n");
 
