@@ -113,8 +113,24 @@ li#remove div div.toolbar_image, li#remove.disabled div:active div.toolbar_image
 	background-position: left -32px;
 }
 
+li#removedata div div.toolbar_image, li#removedata.disabled div:active div.toolbar_image {
+	background-position: left -32px;
+}
+
+li#verify div div.toolbar_image, li#verify.disabled div:active div.toolbar_image {
+	background-position: left -96px;
+}
+
 li#remove div:active div.toolbar_image {
 	background-position: right -32px;
+}
+
+li#removedata div:active div.toolbar_image {
+	background-position: right -32px;
+}
+
+li#verify div:active div.toolbar_image {
+	background-position: right -96px;
 }
 
 li#resume_selected div div.toolbar_image, li#resume_selected.disabled div:active div.toolbar_image {
