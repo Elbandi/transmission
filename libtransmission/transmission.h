@@ -1774,6 +1774,8 @@ typedef struct tr_stat
         or 0 if you can't */
     time_t manualAnnounceTime;
 
+    time_t dhtAnnounceTime;
+
 #define TR_RATIO_NA  -1
 #define TR_RATIO_INF -2
     /** TR_RATIO_INF, TR_RATIO_NA, or a regular ratio */
