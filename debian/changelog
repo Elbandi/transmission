@@ -1,3 +1,15 @@
+transmission (1.82-1elbandi1) unstable; urgency=low
+
+  [ Andras Elso ]
+  * Set trackers over rpc
+  * T remote get/set the labels
+  * Torrent label feature
+  * torrent peers global limit
+  * T remote add peer feature
+  * Can add peer to torrent
+
+ -- Elbandi <ea333@freemail.hu>  Mon, 25 Jan 2010 23:26:31 +0100
+
 transmission (1.82-1elbandi0) unstable; urgency=low
 
   [ Elbandi ]
