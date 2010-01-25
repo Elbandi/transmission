@@ -1,0 +1,36 @@
+Index: transmission-1.82/third-party/Makefile.am
+===================================================================
+--- transmission-1.82.orig/third-party/Makefile.am	2010-01-23 16:11:29.000000000 +0100
++++ transmission-1.82/third-party/Makefile.am	2010-01-23 18:17:09.000000000 +0100
+@@ -1,4 +1,4 @@
+-SUBDIRS = libnatpmp miniupnp libevent dht
++SUBDIRS = libnatpmp miniupnp dht
+ 
+ EXTRA_DIST = \
+   macosx-libevent-config.h \
+Index: transmission-1.82/configure
+===================================================================
+--- transmission-1.82.orig/configure	2010-01-23 18:13:20.000000000 +0100
++++ transmission-1.82/configure	2010-01-23 18:19:23.000000000 +0100
+@@ -1058,7 +1058,7 @@
+ LIBGCONF_LIBS
+ DBUS_GLIB_CFLAGS
+ DBUS_GLIB_LIBS'
+-ac_subdirs_all='third-party/libevent'
++#ac_subdirs_all='third-party/libevent'
+ 
+ # Initialize some variables set by options.
+ ac_init_help=
+Index: transmission-1.82/third-party/Makefile.in
+===================================================================
+--- transmission-1.82.orig/third-party/Makefile.in	2010-01-23 16:12:24.000000000 +0100
++++ transmission-1.82/third-party/Makefile.in	2010-01-23 18:17:32.000000000 +0100
+@@ -278,7 +278,7 @@
+ top_builddir = @top_builddir@
+ top_srcdir = @top_srcdir@
+ transmissionlocaledir = @transmissionlocaledir@
+-SUBDIRS = libnatpmp miniupnp libevent dht
++SUBDIRS = libnatpmp miniupnp dht
+ EXTRA_DIST = \
+   macosx-libevent-config.h \
+   macosx-libevent-event-config.h

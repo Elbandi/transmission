@@ -1,0 +1,13 @@
+Index: transmission-1.77/qt/qtr.pro
+===================================================================
+--- transmission-1.77.orig/qt/qtr.pro	2010-01-05 17:32:03.000000000 +0100
++++ transmission-1.77/qt/qtr.pro	2010-01-05 18:11:06.000000000 +0100
+@@ -17,7 +17,7 @@
+ LIBS += $${TRANSMISSION_TOP}/third-party/dht/libdht.a
+ LIBS += $${TRANSMISSION_TOP}/third-party/miniupnp/libminiupnp.a
+ LIBS += $${TRANSMISSION_TOP}/third-party/libnatpmp/libnatpmp.a
+-LIBS += $${TRANSMISSION_TOP}/third-party/libevent/.libs/libevent.a
++LIBS += -levent
+ 
+ TRANSLATIONS += transmission_en.ts transmission_ru.ts
+ 

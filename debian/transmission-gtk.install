@@ -1,0 +1,5 @@
+usr/bin/transmission
+usr/share/locale
+usr/share/applications
+usr/share/icons
+debian/lintian/transmission-gtk usr/share/lintian/overrides

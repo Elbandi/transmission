@@ -1,0 +1,173 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+CFLAGS = -Wall -g
+
+# These are used for cross-compiling and for saving the configure script
+# from having to guess our platform (since we know it already)
+DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
+DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
+
+# DEB_BUILD_OPTIONS
+################################################################################
+
+# noop
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+ CFLAGS += -O0
+else
+ CFLAGS += -O2
+endif
+
+ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
+ CFLAGS += --ggdb3
+endif
+
+# parallel
+ifneq (,$(findstring parallel,$(DEB_BUILD_OPTIONS)))
+ TRANSMISSION_MAKEFLAGS += -j$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+endif
+
+# nostrip is handled by dh_strip
+
+################################################################################
+
+config: config-stamp
+config-stamp:
+	dh_testdir
+
+	if [ -r /usr/share/misc/config.sub ] && [ ! -f config.sub.backup ]; then \
+		mv -v config.sub config.sub.backup; \
+		cp -f /usr/share/misc/config.sub $(CURDIR)/config.sub; \
+	fi
+
+	if [ -r /usr/share/misc/config.guess ] && [ ! -f config.guess.backup ]; then \
+		mv -v config.guess config.guess.backup; \
+		cp -f /usr/share/misc/config.guess $(CURDIR)/config.guess; \
+	fi
+
+	touch $@
+
+config-clean:
+	dh_testdir
+	dh_testroot
+
+	if [ -f config.sub.backup ]; then \
+		mv -fv config.sub.backup config.sub; \
+	fi
+
+	if [ -f config.guess.backup ]; then \
+		mv -fv config.guess.backup config.guess; \
+	fi
+
+	$(RM) config-stamp
+
+configure: configure-stamp
+configure-stamp:
+	dh_testdir
+
+	./configure \
+		--host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		CFLAGS="$(CFLAGS)" LDFLAGS="-Wl,-z,defs,--as-needed"
+
+	# Qt client
+	( cd qt && qmake-qt4 qtr.pro )
+
+	touch $@
+
+build: config build-stamp
+build-stamp: configure
+	dh_testdir
+
+	$(MAKE) $(TRANSMISSION_MAKEFLAGS)
+	
+	# Qt client
+	( cd qt && $(MAKE) )
+
+	touch $@
+
+distclean:
+#	# touch config.status to prevent execution of autoconf
+	[ ! -f Makefile ] || ( touch config.status && $(MAKE) distclean )
+
+clean: config-clean distclean
+	dh_testdir
+	dh_testroot
+	
+	# QT client
+	[ ! -f qt/Makefile ] || ( cd qt && $(MAKE) clean )
+	
+	dh_clean 
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_prep
+	dh_installdirs
+
+	$(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
+
+	# Qt client
+	( cd qt && INSTALL_ROOT=$(CURDIR)/debian/tmp/usr $(MAKE) install )
+
+#	# clean RPATH from transmission binary (costela - 2007-10-27)
+	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmission
+	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmission-daemon
+	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmission-remote
+	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmissioncli
+
+UPSTREAM_VERSION=$(shell dpkg-parsechangelog | perl -ne '{ print $$1."\n" if /Version: (.*)-.*/; }')
+
+transmission-$(UPSTREAM_VERSION).tar.bz2:
+	[ ! -f transmission-$(UPSTREAM_VERSION).tar.gz ] \
+		&& wget http://download.m0k.org/transmission/files/transmission-$(UPSTREAM_VERSION).tar.bz2
+transmission-$(UPSTREAM_VERSION): transmission-$(UPSTREAM_VERSION).tar.bz2
+	tar -xjf transmission-$(UPSTREAM_VERSION).tar.bz2
+transmission_$(UPSTREAM_VERSION).orig.tar.gz: transmission-$(UPSTREAM_VERSION)
+	tar -cf - transmission-$(UPSTREAM_VERSION) | gzip -9 > transmission_$(UPSTREAM_VERSION).orig.tar.gz
+get-orig-source: transmission_$(UPSTREAM_VERSION).orig.tar.gz
+	$(RM) transmission-$(UPSTREAM_VERSION).tar.bz2
+	$(RM) -r transmission-$(UPSTREAM_VERSION)
+
+# Build architecture-independent files here.
+binary-indep: build install
+	dh_testdir
+	dh_testroot
+	dh_link -i
+	dh_installchangelogs -p transmission-common NEWS
+	dh_installdocs -p transmission-common
+	dh_installexamples -p transmission-common
+	dh_install -i -X LICENSE # extra copy in web dir - costela 2008-08-15
+	dh_compress -i
+	dh_fixperms -i
+	dh_installdeb -i
+	dh_gencontrol -i
+	dh_md5sums -i
+	dh_builddeb -i
+
+# Build architecture-dependent files here.
+binary-arch: build install
+	dh_testdir
+	dh_testroot
+	dh_link -a
+	dh_installinit -a
+	dh_installmenu -a
+	dh_installman -a
+	dh_installmime -a
+	dh_install --list-missing -a
+	dh_icons -a
+	dh_strip -a
+	dh_compress -a
+	dh_fixperms -a
+	dh_installdeb -a
+	dh_shlibdeps -a
+	dh_gencontrol -a
+	dh_md5sums -a
+	dh_builddeb -a
+
+binary: binary-indep binary-arch
+.PHONY: config config-clean configure build clean binary-indep binary-arch binary install

@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+case "$1" in
+  remove|purge)
+    if [ "$1" = "purge" -a -d /var/lib/transmission-daemon/info ]; then
+      rm -rf /var/lib/transmission-daemon/info/*
+    fi
+    getent passwd debian-transmission > /dev/null 2>&1 && deluser --system --quiet debian-transmission
+    dpkg-statoverride --quiet --remove /var/lib/transmission-daemon/info || true
+    dpkg-statoverride --quiet --remove /var/lib/transmission-daemon/downloads || true
+    dpkg-statoverride --quiet --remove /etc/transmission-daemon/settings.json || true
+  ;;
+esac
+
+#DEBHELPER#

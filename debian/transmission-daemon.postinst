@@ -1,0 +1,33 @@
+#!/bin/sh
+
+set -e
+
+test $DEBIAN_SCRIPT_DEBUG && set -v -x
+
+case "$1" in
+  configure|upgrade)
+    if getent passwd debian-transmission > /dev/null; then
+      if ! getent group debian-transmission > /dev/null; then
+        addgroup --system --quiet debian-transmission #fix for missing --group adduser call in 1.40-1
+      fi
+    else
+      adduser --system --group --no-create-home --quiet debian-transmission
+    fi
+
+    if ! dpkg-statoverride --list /var/lib/transmission-daemon/info > /dev/null ; then
+      dpkg-statoverride --quiet --update --add debian-transmission debian-transmission 4750 /var/lib/transmission-daemon/info
+    fi
+
+    if ! dpkg-statoverride --list /var/lib/transmission-daemon/downloads > /dev/null ; then
+      dpkg-statoverride --quiet --update --add debian-transmission debian-transmission 4775 /var/lib/transmission-daemon/downloads
+    fi
+    
+    if ! dpkg-statoverride --list /etc/transmission-daemon/settings.json > /dev/null ; then
+      dpkg-statoverride --quiet --update --add debian-transmission debian-transmission 4750 /etc/transmission-daemon/settings.json
+    fi
+  ;;
+esac
+
+#DEBHELPER#
+
+exit 0;

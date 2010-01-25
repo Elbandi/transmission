@@ -1,0 +1,11 @@
+--- transmission/third-party/libnatpmp/getgateway.c
++++ transmission.new/third-party/libnatpmp/getgateway.c
+@@ -31,7 +31,7 @@
+ #undef USE_SYSCTL_NET_ROUTE
+ #endif
+
+-#ifdef BSD
++#if defined(BSD) || defined(__FreeBSD_kernel__)
+ #undef USE_PROC_NET_ROUTE
+ #define USE_SOCKET_ROUTE
+ #undef USE_SYSCTL_NET_ROUTE
