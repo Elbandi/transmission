@@ -145,6 +145,8 @@ const char* tr_getDefaultDownloadDir( void );
 
 #define TR_DEFAULT_BIND_ADDRESS_IPV4       "0.0.0.0"
 #define TR_DEFAULT_BIND_ADDRESS_IPV6            "::"
+#define TR_DEFAULT_MAX_SEED_ACTIVE_STR          "20"
+#define TR_DEFAULT_MAX_DOWNLOAD_ACTIVE_STR      "20"
 #define TR_DEFAULT_OPEN_FILE_LIMIT_STR          "32"
 #define TR_DEFAULT_RPC_WHITELIST         "127.0.0.1"
 #define TR_DEFAULT_RPC_PORT_STR               "9091"
@@ -169,6 +171,8 @@ const char* tr_getDefaultDownloadDir( void );
 #define TR_PREFS_KEY_INCOMPLETE_DIR             "incomplete-dir"
 #define TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED     "incomplete-dir-enabled"
 #define TR_PREFS_KEY_LAZY_BITFIELD              "lazy-bitfield-enabled"
+#define TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE        "max-download-active"
+#define TR_PREFS_KEY_MAX_SEED_ACTIVE            "max-seed-active"
 #define TR_PREFS_KEY_MSGLEVEL                   "message-level"
 #define TR_PREFS_KEY_OPEN_FILE_LIMIT            "open-file-limit"
 #define TR_PREFS_KEY_PEER_LIMIT_GLOBAL          "peer-limit-global"
@@ -726,6 +730,8 @@ tr_torrent ** tr_sessionLoadTorrents( tr_session  * session,
 
 int tr_sessionGetActiveTorrentCount( tr_session * session );
 
+int tr_sessionGetDownloadTorrentCount( tr_session * session,
+                                       tr_bool      seed );
 /** @} */
 
 /**
@@ -1018,6 +1024,9 @@ void tr_torrentRemove( tr_torrent * torrent );
 
 /** @brief Start a torrent */
 void tr_torrentStart( tr_torrent * torrent );
+
+/** @brief Start a torrent / ignore active torrent limits */
+void tr_torrentForceStart( tr_torrent * );
 
 /** @brief Stop (pause) a torrent */
 void tr_torrentStop( tr_torrent * torrent );
@@ -1609,7 +1618,8 @@ typedef enum
     TR_STATUS_CHECK        = ( 1 << 1 ), /* Checking files */
     TR_STATUS_DOWNLOAD     = ( 1 << 2 ), /* Downloading */
     TR_STATUS_SEED         = ( 1 << 3 ), /* Seeding */
-    TR_STATUS_STOPPED      = ( 1 << 4 )  /* Torrent is stopped */
+    TR_STATUS_STOPPED      = ( 1 << 4 ), /* Torrent is stopped */
+    TR_STATUS_QUEUED       = ( 1 << 5 )  /* Torrent is queued */
 }
 tr_torrent_activity;
 

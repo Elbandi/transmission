@@ -297,6 +297,7 @@ Prefs._FilterAll          = 'all';
 Prefs._FilterSeeding      = 'seeding';
 Prefs._FilterDownloading  = 'downloading';
 Prefs._FilterPaused       = 'paused';
+Prefs._FilterQueued       = 'queued';
 
 Prefs._SortDirection      = 'sort_direction';
 Prefs._SortAscending      = 'ascending';
