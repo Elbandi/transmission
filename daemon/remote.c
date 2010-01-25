@@ -126,6 +126,7 @@ static tr_option opts[] =
     { 'x', "pex",                   "Enable peer exchange (PEX)", "x",  0, NULL },
     { 'X', "no-pex",                "Disable peer exchange (PEX)", "X",  0, NULL },
     { 940, "peer-info",             "List the current torrent(s)' peers", "pi",  0, NULL },
+    { 941, "add-peer",              "Add peer", "apr", 1, "<ip:port>" },
     {   0, NULL,                    NULL, NULL, 0, NULL }
 };
 
@@ -655,6 +656,12 @@ readargs( int argc, const char ** argv )
                 addIdArg( args, id );
                 fields = tr_bencDictAddList( args, "fields", 1 );
                 tr_bencListAddStr( fields, "peers" );
+                break;
+
+            case 941:
+                tr_bencDictAddStr( &top, "method", "torrent-set" );
+                addIdArg( args, id );
+                tr_bencDictAddStr( args, "add-peer", optarg );
                 break;
 
             case 950:
