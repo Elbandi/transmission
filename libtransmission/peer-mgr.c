@@ -2104,7 +2104,8 @@ tr_peerMgrTorrentStats( tr_torrent       * tor,
                         int              * setmeWebseedsSendingToUs,
                         int              * setmePeersSendingToUs,
                         int              * setmePeersGettingFromUs,
-                        int              * setmePeersFrom )
+                        int              * setmePeersFrom,
+                        int              * setmeAvailablePeersFrom )
 {
     int i, size;
     const Torrent * t = tor->torrentPeers;
@@ -2124,12 +2125,17 @@ tr_peerMgrTorrentStats( tr_torrent       * tor,
     *setmeWebseedsSendingToUs  = 0;
 
     for( i=0; i<TR_PEER_FROM__MAX; ++i )
+    {
         setmePeersFrom[i] = 0;
+        setmeAvailablePeersFrom[i] = 0;
+    }
 
     for( i=0; i<size; ++i )
     {
         const tr_peer * peer = peers[i];
         const struct peer_atom * atom = peer->atom;
+
+        ++setmeAvailablePeersFrom[atom->from];
 
         if( peer->io == NULL ) /* not connected */
             continue;
