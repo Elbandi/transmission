@@ -1,3 +1,15 @@
+transmission (1.83-0) unstable; urgency=low
+
+  * new upstream release
+    - Fix 1.80 announce error that caused uploads and downloads to periodically freeze
+    - Fix 1.80 announce timeout error that caused "no response from tracker" message
+    - Fix 1.80 "file not found" error message that stopped some torrents
+    - Fix 1.82 crash when adding new torrents via their ftp URL
+    - Fix 1.80 crash when receiving invalid request messages from peers
+    - Fix 1.82 error when updating the blocklist
+
+ -- Andras Elso <ea333@freemail.hu>  Sat, 30 Jan 2010 04:05:28 +0100
+
 transmission (1.82-1) unstable; urgency=low
 
   * new upstream release
