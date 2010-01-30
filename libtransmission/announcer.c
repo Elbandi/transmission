@@ -410,7 +410,7 @@ tierNew( tr_torrent * tor )
     t->scrapeIntervalSec = DEFAULT_SCRAPE_INTERVAL_SEC;
     t->announceIntervalSec = DEFAULT_ANNOUNCE_INTERVAL_SEC;
     t->announceMinIntervalSec = DEFAULT_ANNOUNCE_MIN_INTERVAL_SEC;
-    t->scrapeAt = now;
+    t->scrapeAt = now + tr_cryptoWeakRandInt( 60*10 );
     t->tor = tor;
 
     return t;
@@ -679,7 +679,7 @@ createAnnounceURL( const tr_announcer     * announcer,
                               strchr( ann, '?' ) ? '&' : '?',
                               torrent->info.hashEscaped,
                               torrent->peer_id,
-                              tr_sessionGetPeerPort( announcer->session ),
+                              (int)tr_sessionGetPeerPort( announcer->session ),
                               torrent->uploadedCur,
                               torrent->downloadedCur,
                               tr_cpLeftUntilComplete( &torrent->completion ),
@@ -1264,9 +1264,10 @@ onAnnounceDone( tr_session   * session,
 
         if( responseCode == 0 )
         {
-            dbgmsg( tier, "No response from tracker... retrying in two minutes." );
+            const int interval = 120 + tr_cryptoWeakRandInt( 120 );
+            dbgmsg( tier, "No response from tracker... retrying in %d seconds.", interval );
             tier->manualAnnounceAllowedAt = ~(time_t)0;
-            tierSetNextAnnounce( tier, tier->announceEvent, now + 120 );
+            tierSetNextAnnounce( tier, tier->announceEvent, now + interval );
         }
         else if( 200 <= responseCode && responseCode <= 299 )
         {
