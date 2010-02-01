@@ -103,6 +103,7 @@ static tr_option opts[] =
     { 'r', "remove",                "Remove the current torrent(s)", "r",  0, NULL },
     { 930, "peers",                 "Set the current torrent(s)' maximum number of peers each", "pr", 1, "<max>" },
     { 931, "global-peers",          "Set the global maximum number of peers", "gpr", 1, "<max>" },
+    { 932, "torrent-peers",         "Set the global maximum number of peers for torrent", "tpr", 1, "<max>" },
     { 'R', "remove-and-delete",     "Remove the current torrent(s) and delete local data", NULL, 0, NULL },
     { 950, "seedratio",             "Let the current torrent(s) seed until a specific ratio", "sr", 1, "ratio" },
     { 951, "seedratio-default",     "Let the current torrent(s) use the global seedratio settings", "srd", 0, NULL },
@@ -318,6 +319,7 @@ static const char * details_keys[] = {
     "corruptEver",
     "creator",
     "dateCreated",
+    "dhtAnnounceTime"
     "doneDate",
     "downloadDir",
     "downloadedEver",
@@ -338,6 +340,9 @@ static const char * details_keys[] = {
     "peersGettingFromUs",
     "peersSendingToUs",
     "peer-limit",
+    "blockCount",
+    "blockSize",
+    "blockComplete", 
     "pieceCount",
     "pieceSize",
     "rateDownload",
@@ -647,6 +652,11 @@ readargs( int argc, const char ** argv )
             case 931:
                 tr_bencDictAddStr( &top, "method", "session-set" );
                 tr_bencDictAddInt( args, TR_PREFS_KEY_PEER_LIMIT_GLOBAL, atoi(optarg) );
+                break;
+
+            case 932:
+                tr_bencDictAddStr( &top, "method", "session-set" );
+                tr_bencDictAddInt( args, TR_PREFS_KEY_PEER_LIMIT_TORRENT, atoi(optarg) );
                 break;
 
             case 940:
@@ -1269,6 +1279,11 @@ printDetails( tr_benc * top )
                         PRId64
                         " web seeds\n", i, n );
             }
+            if( tr_bencDictFindInt( t, "dhtAnnounceTime", &i ) && i )
+            {
+                const time_t tt = i;
+                printf( "  Next DHT announce:  %s", ctime( &tt ) );
+            }
             printf( "\n" );
 
             printf( "HISTORY\n" );
@@ -1430,6 +1445,12 @@ printDetails( tr_benc * top )
                 printf( "  Comment: %s\n", str );
             if( tr_bencDictFindStr( t, "creator", &str ) && str && *str )
                 printf( "  Creator: %s\n", str );
+            if( tr_bencDictFindInt( t, "blockCount", &i ) )
+                printf( "  Block Count: %" PRId64 "\n", i );
+            if( tr_bencDictFindInt( t, "blockSize", &i ) )
+                printf( "  Block Size: %" PRId64 "\n", i );
+            if( tr_bencDictFindInt( t, "blockComplete", &i ) )
+                printf( "  Block Complete: %" PRId64 "\n", i );
             if( tr_bencDictFindInt( t, "pieceCount", &i ) )
                 printf( "  Piece Count: %" PRId64 "\n", i );
             if( tr_bencDictFindInt( t, "pieceSize", &i ) )
