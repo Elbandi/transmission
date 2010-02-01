@@ -3124,6 +3124,19 @@ bandwidthPulse( int foo UNUSED, short bar UNUSED, void * vmgr )
         if( tor->isRunning && ( tor->error == TR_STAT_LOCAL_ERROR ))
             tr_torrentStop( tor );
 
+    /* possibly stop torrents that reached the limit */
+    tor = NULL;
+    while(( tor = tr_torrentNext( mgr->session, tor ))) {
+        if( tor->needsRunningCheck ) {
+            tor->needsRunningCheck = FALSE;
+            if ( tr_sessionActiveTorrentLimitReached ( mgr->session , tor ) )
+            {
+                tr_torrentStop( tor );
+                tr_torrentStart( tor );
+            }
+        }
+    }
+
     tr_timerAddMsec( mgr->bandwidthTimer, BANDWIDTH_PERIOD_MSEC );
     managerUnlock( mgr );
 }

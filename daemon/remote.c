@@ -92,6 +92,8 @@ static tr_option opts[] =
     { 961, "find",                  "Tell Transmission where to find a torrent's data", NULL, 1, "<path>" },
     { 'm', "portmap",               "Enable portmapping via NAT-PMP or UPnP", "m",  0, NULL },
     { 'M', "no-portmap",            "Disable portmapping", "M",  0, NULL },
+    { 935, "download-active",       "Set the max active download torrent(s)", "md", 1, "<max>" },
+    { 936, "seed-active",           "Set the max active seed torrent(s)", "ms", 1, "<max>" },
     { 'n', "auth",                  "Set authentication info", "n",  1, "<username:password>" },
     { 'N', "netrc",                 "Set authentication info from a .netrc file", "N",  1, "<filename>" },
     { 'o', "dht",                   "Enable distributed hash tables (DHT)", "o", 0, NULL },
@@ -660,6 +662,16 @@ readargs( int argc, const char ** argv )
                 tr_bencDictAddInt( args, TR_PREFS_KEY_PEER_LIMIT_TORRENT, atoi(optarg) );
                 break;
 
+            case 935:
+                tr_bencDictAddStr( &top, "method", "session-set" );
+                tr_bencDictAddInt( args, TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE, atoi(optarg) );
+                break;
+
+            case 936:
+                tr_bencDictAddStr( &top, "method", "session-set" );
+                tr_bencDictAddInt( args, TR_PREFS_KEY_MAX_SEED_ACTIVE, atoi(optarg) );
+                break;
+
             case 940:
                 tr_bencDictAddStr( &top, "method", "torrent-get" );
                 tr_bencDictAddInt( &top, "tag", TAG_PEERS );
@@ -1069,6 +1081,10 @@ printSession( tr_benc * top )
             printf( "  Peer exchange allowed: %s\n", ( boolVal ? "Yes" : "No" ) );
         if( tr_bencDictFindStr( args,  TR_PREFS_KEY_ENCRYPTION, &str ) )
             printf( "  Encryption: %s\n", str );
+        if( tr_bencDictFindInt( args, "max-download-active", &i ) )
+            printf( "  Max download active: %" PRId64 "\n", i );
+        if( tr_bencDictFindInt( args, "max-seed-active", &i ) )
+            printf( "  Max seed active: %" PRId64 "\n", i );
         printf( "\n" );
 
         {
