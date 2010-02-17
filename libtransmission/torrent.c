@@ -934,6 +934,7 @@ tr_torrentStat( tr_torrent * tor )
     memcpy( s->errorString, tor->errorString, sizeof( s->errorString ) );
 
     s->manualAnnounceTime = tr_announcerNextManualAnnounce( tor );
+    s->dhtAnnounceTime = MIN( tor->dhtAnnounceAt, tor->dhtAnnounce6At );
 
     tr_peerMgrTorrentStats( tor,
                             &s->peersKnown,
@@ -942,7 +943,8 @@ tr_torrentStat( tr_torrent * tor )
                             &s->webseedsSendingToUs,
                             &s->peersSendingToUs,
                             &s->peersGettingFromUs,
-                            s->peersFrom );
+                            s->peersFrom,
+                            s->availablepeersFrom );
 
     now = tr_date( );
     d = tr_peerMgrGetWebseedSpeed( tor, now );

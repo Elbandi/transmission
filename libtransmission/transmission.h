@@ -1722,6 +1722,7 @@ typedef struct tr_stat
     /** How many peers we found out about from the tracker, or from pex,
         or from incoming connections, or from our resume file. */
     int    peersFrom[TR_PEER_FROM__MAX];
+    int    availablepeersFrom[TR_PEER_FROM__MAX];
 
     /** Number of peers that are sending data to us. */
     int    peersSendingToUs;
@@ -1772,6 +1773,8 @@ typedef struct tr_stat
         allow you to manually ask for more peers,
         or 0 if you can't */
     time_t manualAnnounceTime;
+
+    time_t dhtAnnounceTime;
 
 #define TR_RATIO_NA  -1
 #define TR_RATIO_INF -2
