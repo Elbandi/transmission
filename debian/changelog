@@ -1,3 +1,27 @@
+transmission (1.90-0elbandi1) unstable; urgency=low
+
+  [ Andras Elso ]
+  * Set trackers over rpc
+  * T remote get/set the labels
+  * Torrent label feature
+  * T remote add peer feature
+  * Can add peer to torrent
+  * torrent peers global limit
+  * Enlarge torrent_inspector width
+  * Put back the removedata and verify button to webclient toolbar
+  * get the availablePeersFrom over rpc
+  * Next DHT announce query over rpc
+  * pieces complete count over rpc
+  * Block status over rpc
+  * Daemon can force use of syslog
+  * Change two paramter in transmission remote
+  * Queue torrents
+  * WebClient query the diskstatus too
+  * T remote query the diskstatus
+  * Allow query diskstatus over rpc
+
+ -- Andras Elso <ea333@freemail.hu>  Wed, 17 Feb 2010 17:14:14 +0100
+
 transmission (1.90-0) unstable; urgency=low
 
   * new upstream release
