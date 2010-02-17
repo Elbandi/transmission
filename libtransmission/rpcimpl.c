@@ -302,6 +302,19 @@ torrentVerify( tr_session               * session,
 ***/
 
 static void
+addLabels( const tr_torrent * tor,
+           tr_benc *          list )
+{
+    int            i;
+    int            labelsCount = tr_ptrArraySize( tor->labels );
+
+    tr_bencInitList( list, labelsCount );
+
+    for( i = 0; i < labelsCount; ++i )
+        tr_bencListAddStr( list, tr_ptrArrayNth( tor->labels, i ) );
+}
+
+static void
 addFileStats( const tr_torrent * tor, tr_benc * list )
 {
     tr_file_index_t i;
@@ -501,6 +514,8 @@ addField( const tr_torrent * tor, tr_benc * d, const char * key )
         tr_bencDictAddInt( d, key, st->id );
     else if( tr_streq( key, keylen, "isPrivate" ) )
         tr_bencDictAddBool( d, key, tr_torrentIsPrivate( tor ) );
+    else if( tr_streq( key, keylen, "labels" ) )
+        addLabels( tor, tr_bencDictAdd( d, key ) );
     else if( tr_streq( key, keylen, "leftUntilDone" ) )
         tr_bencDictAddInt( d, key, st->leftUntilDone );
     else if( tr_streq( key, keylen, "manualAnnounceTime" ) )
@@ -691,6 +706,23 @@ torrentGet( tr_session               * session,
 ****
 ***/
 
+static void
+setLabels( tr_torrent * tor,
+           tr_benc    * list )
+{
+    int i;
+    const char * str;
+    const int n = tr_bencListSize( list );
+    tr_ptrArrayForeach( tor->labels, (PtrArrayForeachFunc)tr_free );
+    tr_ptrArrayClear( tor->labels );
+    for (i = 0; i < n; i++)
+    {
+	if (tr_bencGetStr( tr_bencListChild( list, i ), &str ) ) {
+	    tr_ptrArrayAppend( tor->labels, tr_strdup( str ) );
+	}
+    }
+}
+
 static const char*
 setFilePriorities( tr_torrent * tor,
                    int          priority,
@@ -818,6 +850,8 @@ torrentSet( tr_session               * session,
         if( tr_bencDictFindInt( args_in, "bandwidthPriority", &tmp ) )
             if( tr_isPriority( tmp ) )
                 tr_torrentSetPriority( tor, tmp );
+        if( tr_bencDictFindList( args_in, "labels", &files ) )
+            setLabels( tor, files );
         if( !errmsg && tr_bencDictFindList( args_in, "files-unwanted", &files ) )
             errmsg = setFileDLs( tor, FALSE, files );
         if( !errmsg && tr_bencDictFindList( args_in, "files-wanted", &files ) )
