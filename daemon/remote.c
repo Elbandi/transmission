@@ -40,7 +40,7 @@
 #define DEFAULT_HOST "localhost"
 #define DEFAULT_PORT atoi(TR_DEFAULT_RPC_PORT_STR)
 
-enum { TAG_SESSION, TAG_STATS, TAG_LIST, TAG_DETAILS, TAG_FILES, TAG_PEERS };
+enum { TAG_SESSION, TAG_STATS, TAG_LIST, TAG_DETAILS, TAG_FILES, TAG_PEERS, TAG_PORTTEST };
 
 static const char*
 getUsage( void )
@@ -72,6 +72,7 @@ static tr_option opts[] =
     { 976, "alt-speed-time-begin",  "Time to start using the alt speed limits (in hhmm)", NULL,  1, "<time>" },
     { 977, "alt-speed-time-end",    "Time to stop using the alt speed limits (in hhmm)", NULL,  1, "<time>" },
     { 978, "alt-speed-days",        "Numbers for any/all days of the week - eg. \"1-7\"", NULL,  1, "<days>" },
+    { 963, "blocklist-update",      "Blocklist update", NULL, 0, NULL },
     { 'c', "incomplete-dir",        "Where to store new torrents until they're complete", "c", 1, "<dir>" },
     { 'C', "no-incomplete-dir",     "Don't store incomplete torrents in a different location", "C", 0, NULL },
     { 'b', "debug",                 "Print debugging information", "b",  0, NULL },
@@ -96,6 +97,7 @@ static tr_option opts[] =
     { 'o', "dht",                   "Enable distributed hash tables (DHT)", "o", 0, NULL },
     { 'O', "no-dht",                "Disable distributed hash tables (DHT)", "O", 0, NULL },
     { 'p', "port",                  "Port for incoming peers (Default: " TR_DEFAULT_PEER_PORT_STR ")", "p", 1, "<port>" },
+    { 962, "port-test",             "Port testing", "pt", 0, NULL },
     { 'P', "random-port",           "Random port for incomping peers", "P", 0, NULL },
     { 900, "priority-high",         "Set the files' priorities as high", "ph", 1, "<files>" },
     { 901, "priority-normal",       "Set the files' priorities as normal", "pn", 1, "<files>" },
@@ -343,6 +345,8 @@ static const char * details_keys[] = {
     "rateDownload",
     "rateUpload",
     "recheckProgress",
+    "seedRatioMode",
+    "seedRatioLimit",
     "sizeWhenDone",
     "startDate",
     "status",
@@ -701,6 +705,15 @@ readargs( int argc, const char ** argv )
                 addIdArg( args, id );
                 break;
 
+            case 962:
+                tr_bencDictAddStr( &top, "method", "port-test" );
+                tr_bencDictAddInt( &top, "tag", TAG_PORTTEST );
+                break;
+
+            case 963:
+                tr_bencDictAddStr( &top, "method", "blocklist-update" );
+                break;
+
             case 970:
                 tr_bencDictAddStr( &top, "method", "session-set" );
                 tr_bencDictAddBool( args, TR_PREFS_KEY_ALT_SPEED_ENABLED, TRUE );
@@ -1042,7 +1055,9 @@ printSession( tr_benc * top )
             printf( "  RPC minimum version: %" PRId64 "\n", i );
         printf( "\n" );
 
-        printf( "TRANSFER\n" );
+        printf( "CONFIG\n" );
+        if( tr_bencDictFindStr( args, "config-dir", &str ) )
+            printf( "  Configuration directory: %s\n", str );
         if( tr_bencDictFindStr( args,  TR_PREFS_KEY_DOWNLOAD_DIR, &str ) )
             printf( "  Download directory: %s\n", str );
         if( tr_bencDictFindInt( args, TR_PREFS_KEY_PEER_PORT, &i ) )
@@ -1056,8 +1071,9 @@ printSession( tr_benc * top )
         printf( "\n" );
 
         {
-            tr_bool altEnabled, altTimeEnabled, upEnabled, downEnabled;
+            tr_bool altEnabled, altTimeEnabled, upEnabled, downEnabled, seedRatioLimited;
             int64_t altDown, altUp, altBegin, altEnd, altDay, upLimit, downLimit, peerLimit;
+            double seedRatioLimit;
 
             if( tr_bencDictFindInt ( args, TR_PREFS_KEY_ALT_SPEED_DOWN, &altDown ) &&
                 tr_bencDictFindBool( args, TR_PREFS_KEY_ALT_SPEED_ENABLED, &altEnabled ) &&
@@ -1070,12 +1086,20 @@ printSession( tr_benc * top )
                 tr_bencDictFindInt ( args, TR_PREFS_KEY_DSPEED, &downLimit ) &&
                 tr_bencDictFindBool( args, TR_PREFS_KEY_DSPEED_ENABLED, &downEnabled ) &&
                 tr_bencDictFindInt ( args, TR_PREFS_KEY_USPEED, &upLimit ) &&
-                tr_bencDictFindBool( args, TR_PREFS_KEY_USPEED_ENABLED, &upEnabled ) )
+                tr_bencDictFindBool( args, TR_PREFS_KEY_USPEED_ENABLED, &upEnabled ) &&
+                tr_bencDictFindReal( args, "seedRatioLimit", &seedRatioLimit ) &&
+                tr_bencDictFindBool( args, "seedRatioLimited", &seedRatioLimited) )
             {
                 char buf[128];
 
                 printf( "LIMITS\n" );
                 printf( "  Peer limit: %" PRId64 "\n", peerLimit );
+
+                if( seedRatioLimited )
+                    tr_snprintf( buf, sizeof( buf ), "%.2f", seedRatioLimit );
+                else
+                    tr_strlcpy( buf, "Unlimited", sizeof( buf ) );
+                printf( "  Default seed ratio limit: %s\n", buf );
 
                 if( altEnabled )
                     tr_snprintf( buf, sizeof( buf ), "%"PRId64" KB/s", altUp );
@@ -1175,6 +1199,7 @@ printDetails( tr_benc * top )
             char         buf2[512];
             int64_t      i, j, k;
             tr_bool      boolVal;
+            double       d;
 
             printf( "NAME\n" );
             if( tr_bencDictFindInt( t, "id", &i ) )
@@ -1229,6 +1254,22 @@ printDetails( tr_benc * top )
                 printf( "  Uploaded: %s\n", buf );
                 strlratio( buf, j, i, sizeof( buf ) );
                 printf( "  Ratio: %s\n", buf );
+            }
+            if( tr_bencDictFindInt( t, "seedRatioMode", &i))
+            {
+                switch( i ) {
+                    case TR_RATIOLIMIT_GLOBAL: 
+                        printf( "  Ratio Limit: Default\n" );
+                        break;
+                    case TR_RATIOLIMIT_SINGLE:
+                        if( tr_bencDictFindReal( t, "seedRatioLimit", &d))
+                            printf( "  Ratio Limit: %.2f\n", d );
+                        break;
+                    case TR_RATIOLIMIT_UNLIMITED:
+                        printf( "  Ratio Limit: Unlimited\n" );
+                        break;
+                    default: break;
+                }
             }
             if( tr_bencDictFindInt( t, "corruptEver", &i ) )
             {
@@ -1311,6 +1352,7 @@ printDetails( tr_benc * top )
                     int64_t lastAnnounceStartTime;
                     tr_bool lastAnnounceSucceeded;
                     int64_t lastAnnounceTime;
+                    tr_bool lastAnnounceTimedOut;
                     const char * lastScrapeResult;
                     tr_bool lastScrapeSucceeded;
                     int64_t lastScrapeStartTime;
@@ -1335,6 +1377,7 @@ printDetails( tr_benc * top )
                         tr_bencDictFindInt ( t, "lastAnnounceStartTime", &lastAnnounceStartTime ) &&
                         tr_bencDictFindBool( t, "lastAnnounceSucceeded", &lastAnnounceSucceeded ) &&
                         tr_bencDictFindInt ( t, "lastAnnounceTime", &lastAnnounceTime ) &&
+                        tr_bencDictFindBool( t, "lastAnnounceTimedOut", &lastAnnounceTimedOut ) &&
                         tr_bencDictFindStr ( t, "lastScrapeResult", &lastScrapeResult ) &&
                         tr_bencDictFindInt ( t, "lastScrapeStartTime", &lastScrapeStartTime ) &&
                         tr_bencDictFindBool( t, "lastScrapeSucceeded", &lastScrapeSucceeded ) &&
@@ -1362,6 +1405,8 @@ printDetails( tr_benc * top )
                                 if( lastAnnounceSucceeded )
                                     printf( "  Got a list of %'d peers %s ago\n",
                                             (int)lastAnnouncePeerCount, buf );
+                                else if( lastAnnounceTimedOut )
+                                    printf( "  Peer list request timed out; will retry\n" );
                                 else
                                     printf( "  Got an error \"%s\" %s ago\n",
                                             lastAnnounceResult, buf );
@@ -1602,6 +1647,19 @@ printPeers( tr_benc * top )
 }
 
 static void
+printPortTest( tr_benc * top )
+{
+    tr_benc *args;
+    if( ( tr_bencDictFindDict( top, "arguments", &args ) ) )
+    {
+        tr_bool      boolVal;
+
+        if( tr_bencDictFindBool( args, "port-is-open", &boolVal ) )
+            printf( "Port is open: %s\n", ( boolVal ? "Yes" : "No" ) );
+    }
+}
+
+static void
 printTorrentList( tr_benc * top )
 {
     tr_benc *args, *list;
@@ -1725,6 +1783,9 @@ processResponse( const char * host,
 
             case TAG_PEERS:
                 printPeers( &top ); break;
+
+            case TAG_PORTTEST:
+                printPortTest( &top ); break;
 
             default:
                 if( !tr_bencDictFindStr( &top, "result", &str ) )

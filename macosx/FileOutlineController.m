@@ -379,7 +379,7 @@ typedef enum
         NSMutableIndexSet * itemIndexes = [NSMutableIndexSet indexSet];
         for (NSInteger i = [indexSet firstIndex]; i != NSNotFound; i = [indexSet indexGreaterThanIndex: i])
             [itemIndexes addIndexes: [[fOutline itemAtRow: i] indexes]];
-            
+        
         return [fTorrent canChangeDownloadCheckForFiles: itemIndexes];
     }
     

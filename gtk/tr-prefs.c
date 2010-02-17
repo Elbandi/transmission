@@ -297,6 +297,10 @@ torrentPage( GObject * core )
     w = new_check_button( s, PREF_KEY_TRASH_ORIGINAL, core );
     hig_workarea_add_wide_control( t, &row, w );
 
+    s = _( "Append \"._part\" to incomplete files' names" );
+    w = new_check_button( s, TR_PREFS_KEY_RENAME_PARTIAL_FILES, core );
+    hig_workarea_add_wide_control( t, &row, w );
+
     s = _( "Keep _incomplete torrents in:" );
     l = new_check_button( s, TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED, core );
     w = new_path_chooser_button( TR_PREFS_KEY_INCOMPLETE_DIR, core );
@@ -1019,7 +1023,7 @@ trackerPage( GObject * core )
     page->proxy_auth_widgets = g_slist_append( page->proxy_auth_widgets, w );
 
     s = _( "Pass_word:" );
-    w = new_entry( TR_PREFS_KEY_RPC_PASSWORD, core );
+    w = new_entry( TR_PREFS_KEY_PROXY_PASSWORD, core );
     gtk_entry_set_visibility( GTK_ENTRY( w ), FALSE );
     page->proxy_auth_widgets = g_slist_append( page->proxy_auth_widgets, w );
     w = hig_workarea_add_row( t, &row, s, w, NULL );

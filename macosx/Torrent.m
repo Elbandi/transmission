@@ -197,6 +197,11 @@ int trashDataFile(const char * filename)
     return [@"Torrent: " stringByAppendingString: [self name]];
 }
 
+- (id) copyWithZone: (NSZone *) zone
+{
+    return [self retain];
+}
+
 - (void) closeRemoveTorrent
 {
     //allow the file to be index by Time Machine
@@ -565,7 +570,7 @@ int trashDataFile(const char * filename)
 
 - (NSString *) name
 {
-    return fInfo->name != NULL ? [NSString stringWithUTF8String: fInfo->name] : @"";
+    return fInfo->name != NULL ? [NSString stringWithUTF8String: fInfo->name] : fHashString;
 }
 
 - (BOOL) isFolder
@@ -588,18 +593,19 @@ int trashDataFile(const char * filename)
     int count;
     tr_tracker_stat * stats = tr_torrentTrackers(fHandle, &count);
     
-    NSMutableArray * trackers = [NSMutableArray arrayWithCapacity: (count > 0 ? count + stats[count-1].tier : 0)];
+    NSMutableArray * trackers = [NSMutableArray arrayWithCapacity: (count > 0 ? count + (stats[count-1].tier + 1) : 0)];
     
     int prevTier = -1;
     for (int i=0; i < count; ++i)
     {
         if (stats[i].tier != prevTier)
         {
-            [trackers addObject: [NSNumber numberWithInteger: stats[i].tier]];
+            [trackers addObject: [NSDictionary dictionaryWithObjectsAndKeys: [NSNumber numberWithInteger: stats[i].tier + 1], @"Tier",
+                                    [self name], @"Name", nil]];
             prevTier = stats[i].tier;
         }
         
-        TrackerNode * tracker = [[TrackerNode alloc] initWithTrackerStat: &stats[i]];
+        TrackerNode * tracker = [[TrackerNode alloc] initWithTrackerStat: &stats[i] torrent: self];
         [trackers addObject: tracker];
         [tracker release];
     }
@@ -857,8 +863,9 @@ int trashDataFile(const char * filename)
     for (int i = 0; i < totalPeers; i++)
     {
         tr_peer_stat * peer = &peers[i];
-        NSMutableDictionary * dict = [NSMutableDictionary dictionaryWithCapacity: 10];
+        NSMutableDictionary * dict = [NSMutableDictionary dictionaryWithCapacity: 11];
         
+        [dict setObject: [self name] forKey: @"Name"];
         [dict setObject: [NSNumber numberWithInt: peer->from] forKey: @"From"];
         [dict setObject: [NSString stringWithUTF8String: peer->addr] forKey: @"IP"];
         [dict setObject: [NSNumber numberWithInt: peer->port] forKey: @"Port"];
@@ -888,15 +895,15 @@ int trashDataFile(const char * filename)
 
 - (NSArray *) webSeeds
 {
-    const NSInteger webSeedCount = fInfo->webseedCount;
-    NSMutableArray * webSeeds = [NSMutableArray arrayWithCapacity: webSeedCount];
+    NSMutableArray * webSeeds = [NSMutableArray arrayWithCapacity: fInfo->webseedCount];
     
     float * dlSpeeds = tr_torrentWebSpeeds(fHandle);
     
-    for (NSInteger i = 0; i < webSeedCount; i++)
+    for (NSInteger i = 0; i < fInfo->webseedCount; i++)
     {
-        NSMutableDictionary * dict = [NSMutableDictionary dictionaryWithCapacity: 2];
+        NSMutableDictionary * dict = [NSMutableDictionary dictionaryWithCapacity: 3];
         
+        [dict setObject: [self name] forKey: @"Name"];
         [dict setObject: [NSString stringWithUTF8String: fInfo->webseeds[i]] forKey: @"Address"];
         
         if (dlSpeeds[i] != -1.0)
@@ -1336,7 +1343,7 @@ int trashDataFile(const char * filename)
     BOOL onState = NO, offState = NO;
     for (NSUInteger index = [indexSet firstIndex]; index != NSNotFound; index = [indexSet indexGreaterThanIndex: index])
     {
-        if (tr_torrentGetFileDL(fHandle, index) || ![self canChangeDownloadCheckForFile: index])
+        if (!fInfo->files[index].dnd || ![self canChangeDownloadCheckForFile: index])
             onState = YES;
         else
             offState = YES;
@@ -1375,7 +1382,7 @@ int trashDataFile(const char * filename)
 - (BOOL) hasFilePriority: (tr_priority_t) priority forIndexes: (NSIndexSet *) indexSet
 {
     for (NSUInteger index = [indexSet firstIndex]; index != NSNotFound; index = [indexSet indexGreaterThanIndex: index])
-        if (priority == tr_torrentGetFilePriority(fHandle, index) && [self canChangeDownloadCheckForFile: index])
+        if (priority == fInfo->files[index].priority && [self canChangeDownloadCheckForFile: index])
             return YES;
     return NO;
 }
@@ -1390,24 +1397,26 @@ int trashDataFile(const char * filename)
         if (![self canChangeDownloadCheckForFile: index])
             continue;
         
-        const tr_priority_t priority = tr_torrentGetFilePriority(fHandle, index);
-        if (priority == TR_PRI_LOW)
+        const tr_priority_t priority = fInfo->files[index].priority;
+        switch (priority)
         {
-            if (low)
-                continue;
-            low = YES;
-        }
-        else if (priority == TR_PRI_HIGH)
-        {
-            if (high)
-                continue;
-            high = YES;
-        }
-        else
-        {
-            if (normal)
-                continue;
-            normal = YES;
+            case TR_PRI_LOW:
+                if (low)
+                    continue;
+                low = YES;
+                break;
+            case TR_PRI_NORMAL:
+                if (normal)
+                    continue;
+                normal = YES;
+                break;
+            case TR_PRI_HIGH:
+                if (high)
+                    continue;
+                high = YES;
+                break;
+            default:
+                NSAssert2(NO, @"Unknown priority %d for file index %d", priority, index);
         }
         
         [priorities addObject: [NSNumber numberWithInteger: priority]];
@@ -1561,7 +1570,7 @@ int trashDataFile(const char * filename)
             result = tr_ctorSetMetainfoFromFile(ctor, [path UTF8String]);
         
         if (result != TR_PARSE_OK && magnetAddress)
-            result = tr_ctorSetMagnet(ctor, [magnetAddress UTF8String]);
+            result = tr_ctorSetMetainfoFromMagnetLink(ctor, [magnetAddress UTF8String]);
         
         //backup - shouldn't be needed after upgrade to 1.70
         if (result != TR_PARSE_OK && hashString)

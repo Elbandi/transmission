@@ -40,12 +40,13 @@
 #include "fdlimit.h"
 #include "ConvertUTF.h"
 #include "list.h"
+#include "net.h"
 #include "utils.h"
 #include "platform.h"
 #include "version.h"
 
 
-int                   messageLevel = 0;
+int                   messageLevel = TR_MSG_INF;
 static tr_lock *      messageLock = NULL;
 static tr_bool        messageQueuing = FALSE;
 static tr_msg_list *  messageQueue = NULL;
@@ -212,11 +213,13 @@ tr_getLogTimeStr( char * buf, int buflen )
     char           tmp[64];
     struct tm      now_tm;
     struct timeval tv;
+    time_t         seconds;
     int            milliseconds;
 
     gettimeofday( &tv, NULL );
 
-    tr_localtime_r( &tv.tv_sec, &now_tm );
+    seconds = tv.tv_sec;
+    tr_localtime_r( &seconds, &now_tm );
     strftime( tmp, sizeof( tmp ), "%H:%M:%S", &now_tm );
     milliseconds = (int)( tv.tv_usec / 1000 );
     tr_snprintf( buf, buflen, "%s.%03d", tmp, milliseconds );
@@ -281,7 +284,8 @@ tr_msg( const char * file, int line,
     char buf[1024];
     va_list ap;
 
-    tr_lockLock( messageLock );
+    if( messageLock != NULL )
+        tr_lockLock( messageLock );
 
     /* build the text message */
     *buf = '\0';
@@ -339,7 +343,9 @@ tr_msg( const char * file, int line,
         }
     }
 
-    tr_lockUnlock( messageLock );
+    if( messageLock != NULL )
+        tr_lockUnlock( messageLock );
+
     errno = err;
 }
 
@@ -928,6 +934,12 @@ tr_httpIsValidURL( const char * url )
             return FALSE;
 
     return tr_httpParseURL( url, -1, NULL, NULL, NULL ) == 0;
+}
+
+tr_bool tr_addressIsIP( const char * address )
+{
+    tr_address tempAddr;
+    return tr_pton(address, &tempAddr) != NULL;
 }
 
 int

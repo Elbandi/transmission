@@ -25,13 +25,14 @@
 #import "TrackerCell.h"
 #import "NSApplicationAdditions.h"
 #import "TrackerNode.h"
+#import "utils.h"
 
 #define PADDING_HORIZONAL 3.0
 #define PADDING_STATUS_HORIZONAL 3.0
-#define ICON_SIZE 14.0
+#define ICON_SIZE 16.0
 #define PADDING_BETWEEN_ICON_AND_NAME 4.0
 #define PADDING_ABOVE_ICON 1.0
-#define PADDING_ABOVE_NAME 2.0
+#define PADDING_ABOVE_NAME 1.0
 #define PADDING_BETWEEN_LINES 1.0
 #define PADDING_BETWEEN_LINES_ON_SAME_LINE 4.0
 #define COUNT_WIDTH 40.0
@@ -75,7 +76,7 @@ NSMutableSet * fTrackerIconLoading;
         [paragraphStyle setLineBreakMode: NSLineBreakByTruncatingTail];
         
         fNameAttributes = [[NSMutableDictionary alloc] initWithObjectsAndKeys:
-                            [NSFont messageFontOfSize: 11.0], NSFontAttributeName,
+                            [NSFont messageFontOfSize: 12.0], NSFontAttributeName,
                             paragraphStyle, NSParagraphStyleAttributeName, nil];
         
         fStatusAttributes = [[NSMutableDictionary alloc] initWithObjectsAndKeys:
@@ -194,15 +195,20 @@ NSMutableSet * fTrackerIconLoading;
 - (NSImage *) favIcon
 {
     NSURL * address = [NSURL URLWithString: [(TrackerNode *)[self objectValue] fullAnnounceAddress]];
-    NSArray * hostComponents = [[address host] componentsSeparatedByString: @"."];
+    NSString * host = [address host];
+    
+    //don't try to parse ip address
+    const BOOL separable = !tr_addressIsIP([host UTF8String]);
+    
+    NSArray * hostComponents = separable ? [host componentsSeparatedByString: @"."] : nil;
     
     //let's try getting the tracker address without using any subdomains
     NSString * baseAddress;
-    if ([hostComponents count] > 1)
+    if (separable && [hostComponents count] > 1)
         baseAddress = [NSString stringWithFormat: @"http://%@.%@",
-                        [hostComponents objectAtIndex: [hostComponents count] - 2], [hostComponents lastObject]];
+                        [hostComponents objectAtIndex: [hostComponents count]-2], [hostComponents lastObject]];
     else
-        baseAddress = [NSString stringWithFormat: @"http://%@", [hostComponents lastObject]];
+        baseAddress = [NSString stringWithFormat: @"http://%@", host];
     
     id icon = [fTrackerIconCache objectForKey: baseAddress];
     if (!icon && ![fTrackerIconLoading containsObject: baseAddress])

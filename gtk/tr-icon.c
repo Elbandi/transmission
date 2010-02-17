@@ -12,9 +12,14 @@
 
 #include <glib/gi18n.h>
 #include <gtk/gtk.h>
+#ifdef HAVE_LIBAPPINDICATOR
+ #include <libappindicator/app-indicator.h>
+#endif
 #include "actions.h"
 #include "tr-icon.h"
 #include "util.h"
+
+#define MY_NAME "transmission"
 
 #ifndef STATUS_ICON_SUPPORTED
 
@@ -31,6 +36,12 @@ tr_icon_refresh( gpointer vicon UNUSED )
 
 #else
 
+#ifdef HAVE_LIBAPPINDICATOR
+void
+tr_icon_refresh( gpointer vindicator UNUSED )
+{
+}
+#else
 static void
 activated( GtkStatusIcon   * self      UNUSED,
            gpointer          user_data UNUSED )
@@ -107,7 +118,38 @@ tr_icon_refresh( gpointer vicon )
     gtk_status_icon_set_tooltip( GTK_STATUS_ICON( icon ), tip );
 #endif
 }
+#endif
 
+#ifdef HAVE_LIBAPPINDICATOR
+gpointer
+tr_icon_new( TrCore * core)
+{
+    GtkWidget * w;
+    const char * icon_name;
+    AppIndicator * indicator;
+    GtkIconTheme * theme = gtk_icon_theme_get_default( );
+
+    /* if the tray's icon is a 48x48 file, use it;
+     * otherwise, use the fallback builtin icon */
+    if( !gtk_icon_theme_has_icon( theme, TRAY_ICON ) )
+        icon_name = MY_NAME;
+    else {
+        GtkIconInfo * icon_info = gtk_icon_theme_lookup_icon( theme, TRAY_ICON, 48, GTK_ICON_LOOKUP_USE_BUILTIN );
+        const gboolean icon_is_builtin = gtk_icon_info_get_filename ( icon_info ) == NULL;
+        gtk_icon_info_free ( icon_info );
+        icon_name = icon_is_builtin ? MY_NAME : TRAY_ICON;
+    }
+    
+    indicator = app_indicator_new( MY_NAME, icon_name, APP_INDICATOR_CATEGORY_SYSTEM_SERVICES );
+    app_indicator_set_status( indicator, APP_INDICATOR_STATUS_ACTIVE );
+    w = action_get_widget( "/icon-popup" );
+    app_indicator_set_menu( indicator, GTK_MENU ( w ) );
+
+    g_object_set_data( G_OBJECT( indicator ), "tr-core", core );
+    
+    return indicator;
+}                       
+#else
 gpointer
 tr_icon_new( TrCore * core )
 {
@@ -119,5 +161,7 @@ tr_icon_new( TrCore * core )
     g_object_set_data( G_OBJECT( icon ), "tr-core", core );
     return icon;
 }
+
+#endif
 
 #endif

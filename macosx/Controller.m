@@ -263,7 +263,7 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
         }
         
         tr_benc settings;
-        tr_bencInitDict(&settings, 36);
+        tr_bencInitDict(&settings, 37);
         const char * configDir = tr_getDefaultConfigDir("Transmission");
         tr_sessionGetDefaultSettings(configDir, &settings);
         
@@ -314,9 +314,10 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
         tr_bencDictAddInt(&settings, TR_PREFS_KEY_PROXY_PORT, [fDefaults integerForKey: @"ProxyPort"]);
         tr_bencDictAddStr(&settings, TR_PREFS_KEY_PROXY, [[fDefaults stringForKey: @"ProxyAddress"] UTF8String]);
         tr_bencDictAddStr(&settings, TR_PREFS_KEY_PROXY_USERNAME,  [[fDefaults stringForKey: @"ProxyUsername"] UTF8String]);
-        tr_bencDictAddBool(&settings, TR_PREFS_KEY_RPC_AUTH_REQUIRED,  [fDefaults boolForKey: @"RPCAuthorize"]);
         tr_bencDictAddReal(&settings, TR_PREFS_KEY_RATIO, [fDefaults floatForKey: @"RatioLimit"]);
         tr_bencDictAddBool(&settings, TR_PREFS_KEY_RATIO_ENABLED, [fDefaults boolForKey: @"RatioCheck"]);
+        tr_bencDictAddBool(&settings, TR_PREFS_KEY_RENAME_PARTIAL_FILES, [fDefaults boolForKey: @"RenamePartialFiles"]);
+        tr_bencDictAddBool(&settings, TR_PREFS_KEY_RPC_AUTH_REQUIRED,  [fDefaults boolForKey: @"RPCAuthorize"]);
         tr_bencDictAddBool(&settings, TR_PREFS_KEY_RPC_ENABLED,  [fDefaults boolForKey: @"RPC"]);
         tr_bencDictAddInt(&settings, TR_PREFS_KEY_RPC_PORT, [fDefaults integerForKey: @"RPCPort"]);
         tr_bencDictAddStr(&settings, TR_PREFS_KEY_RPC_USERNAME,  [[fDefaults stringForKey: @"RPCUsername"] UTF8String]);
@@ -334,7 +335,6 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
         fTorrents = [[NSMutableArray alloc] init];
         fDisplayedTorrents = [[NSMutableArray alloc] init];
         
-        fMessageController = [[MessageWindowController alloc] init];
         fInfoController = [[InfoWindowController alloc] init];
         
         [PrefsController setHandle: fLib];
@@ -435,16 +435,13 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
         NSLog(@"Could not IORegisterForSystemPower");
     
     //load previous transfers
-    NSArray * history = [[NSArray alloc] initWithContentsOfFile: [NSHomeDirectory() stringByAppendingPathComponent: TRANSFER_PLIST]];
+    NSArray * history = [NSArray arrayWithContentsOfFile: [NSHomeDirectory() stringByAppendingPathComponent: TRANSFER_PLIST]];
     
-    //old version saved transfer info in prefs file
     if (!history)
     {
+        //old version saved transfer info in prefs file
         if ((history = [fDefaults arrayForKey: @"History"]))
-        {
-            [history retain];
             [fDefaults removeObjectForKey: @"History"];
-        }
     }
     
     if (history)
@@ -458,7 +455,6 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
                 [torrent release];
             }
         }
-        [history release];
     }
     
     //set filter
@@ -945,6 +941,15 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
 
 - (void) openMagnet: (NSString *) address
 {
+    tr_torrent * duplicateTorrent;
+    if ((duplicateTorrent = tr_torrentFindFromMagnetLink(fLib, [address UTF8String])))
+    {
+        const tr_info * info = tr_torrentInfo(duplicateTorrent);
+        NSString * name = (info != NULL && info->name != NULL) ? [NSString stringWithUTF8String: info->name] : nil;
+        [self duplicateOpenMagnetAlert: address transferName: name];
+        return;
+    }
+    
     Torrent * torrent;
     if (!(torrent = [[Torrent alloc] initWithMagnetAddress: address location: nil lib: fLib]))
     {
@@ -1083,7 +1088,7 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
         return;
     
     NSAlert * alert = [[NSAlert alloc] init];
-    [alert setMessageText: NSLocalizedString(@"Adding magnetized transfer failed", "Magnet link failed -> title")];
+    [alert setMessageText: NSLocalizedString(@"Adding magnetized transfer failed.", "Magnet link failed -> title")];
     [alert setInformativeText: [NSString stringWithFormat: NSLocalizedString(@"There was an error when adding the magnet link \"%@\"."
                                 " The transfer will not occur.", "Magnet link failed -> message"), address]];
     [alert setAlertStyle: NSWarningAlertStyle];
@@ -1108,6 +1113,31 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
                             "Open duplicate alert -> message")];
     [alert setAlertStyle: NSWarningAlertStyle];
     [alert addButtonWithTitle: NSLocalizedString(@"OK", "Open duplicate alert -> button")];
+    [alert setShowsSuppressionButton: YES];
+    
+    [alert runModal];
+    if ([[alert suppressionButton] state])
+        [fDefaults setBool: NO forKey: @"WarningDuplicate"];
+    [alert release];
+}
+
+- (void) duplicateOpenMagnetAlert: (NSString *) address transferName: (NSString *) name
+{
+    if (![fDefaults boolForKey: @"WarningDuplicate"])
+        return;
+    
+    NSAlert * alert = [[NSAlert alloc] init];
+    if (name)
+        [alert setMessageText: [NSString stringWithFormat: NSLocalizedString(@"A transfer of \"%@\" already exists.",
+                                "Open duplicate magnet alert -> title"), name]];
+    else
+        [alert setMessageText: NSLocalizedString(@"Magnet link is a duplicate of an existing transfer.",
+                                "Open duplicate magnet alert -> title")];
+    [alert setInformativeText: [NSString stringWithFormat:
+            NSLocalizedString(@"The magnet link  \"%@\" cannot be added because it is a duplicate of an already existing transfer.",
+                            "Open duplicate magnet alert -> message"), address]];
+    [alert setAlertStyle: NSWarningAlertStyle];
+    [alert addButtonWithTitle: NSLocalizedString(@"OK", "Open duplicate magnet alert -> button")];
     [alert setShowsSuppressionButton: YES];
     
     [alert runModal];
@@ -1522,7 +1552,7 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
     if ([NSApp isOnSnowLeopardOrBetter])
     {
         NSMutableArray * paths = [NSMutableArray arrayWithCapacity: [selected count]];
-        for (Torrent * torrent in [fTableView selectedTorrents])
+        for (Torrent * torrent in selected)
         {
             NSString * location = [torrent dataLocation];
             if (location)
@@ -1614,6 +1644,8 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
 
 - (void) showMessageWindow: (id) sender
 {
+    if (!fMessageController)
+        fMessageController = [[MessageWindowController alloc] init];
     [fMessageController showWindow: nil];
 }
 

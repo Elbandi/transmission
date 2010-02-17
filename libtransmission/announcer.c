@@ -28,6 +28,8 @@
 #include "utils.h"
 #include "web.h"
 
+#define STARTED "started"
+
 #define dbgmsg( tier, ... ) \
 if( tr_deepLoggingIsActive( ) ) do { \
   char name[128]; \
@@ -39,7 +41,7 @@ if( tr_deepLoggingIsActive( ) ) do { \
 enum
 {
     /* unless the tracker says otherwise, rescrape this frequently */
-    DEFAULT_SCRAPE_INTERVAL_SEC = ( 60 * 15 ),
+    DEFAULT_SCRAPE_INTERVAL_SEC = ( 60 * 30 ),
 
     /* unless the tracker says otherwise, this is the announce interval */
     DEFAULT_ANNOUNCE_INTERVAL_SEC = ( 60 * 10 ),
@@ -47,20 +49,11 @@ enum
     /* unless the tracker says otherwise, this is the announce min_interval */
     DEFAULT_ANNOUNCE_MIN_INTERVAL_SEC = ( 60 * 2 ),
 
-    /* how long to wait before a reannounce the first time we get an error */
-    FIRST_ANNOUNCE_RETRY_INTERVAL_SEC = 30,
-
-    /* how long to wait before a rescrape the first time we get an error */
-    FIRST_SCRAPE_RETRY_INTERVAL_SEC = 120,
-
     /* the length of the 'key' argument passed in tracker requests */
     KEYLEN = 8,
 
-    /* how many scrapes we allow at one time */
-    MAX_CONCURRENT_SCRAPES = 96,
-
-    /* how many announces we allow at one time */
-    MAX_CONCURRENT_ANNOUNCES = 96,
+    /* how many web tasks we allow at one time */
+    MAX_CONCURRENT_TASKS = 48,
 
     /* if a tracker takes more than this long to respond,
      * we treat it as nonresponsive */
@@ -112,6 +105,9 @@ typedef struct
 
     /* the last time we sent an announce or scrape message */
     time_t lastRequestTime;
+
+    /* the last successful announce/scrape time for this host */
+    time_t lastSuccessfulRequest;
 }
 tr_host;
 
@@ -205,16 +201,14 @@ typedef struct tr_announcer
     tr_ptrArray stops; /* struct stop_message */
     tr_session * session;
     struct event * upkeepTimer;
-    int announceSlotsAvailable;
-    int scrapeSlotsAvailable;
+    int slotsAvailable;
 }
 tr_announcer;
 
 tr_bool
 tr_announcerHasBacklog( const struct tr_announcer * announcer )
 {
-    return ( announcer->scrapeSlotsAvailable < 1 )
-        || ( announcer->announceSlotsAvailable < 1 );
+    return announcer->slotsAvailable < 1;
 }
 
 static tr_host *
@@ -248,8 +242,7 @@ tr_announcerInit( tr_session * session )
     a->hosts = TR_PTR_ARRAY_INIT;
     a->stops = TR_PTR_ARRAY_INIT;
     a->session = session;
-    a->announceSlotsAvailable = MAX_CONCURRENT_ANNOUNCES;
-    a->scrapeSlotsAvailable = MAX_CONCURRENT_SCRAPES;
+    a->slotsAvailable = MAX_CONCURRENT_TASKS;
     a->upkeepTimer = tr_new0( struct event, 1 );
     evtimer_set( a->upkeepTimer, onUpkeepTimer, a );
     tr_timerAdd( a->upkeepTimer, UPKEEP_INTERVAL_SECS, 0 );
@@ -295,7 +288,7 @@ typedef struct
     int leecherCount;
     int downloadCount;
     int downloaderCount;
-    
+
     uint32_t id;
 
     /* sent as the "key" argument in tracker requests
@@ -305,6 +298,21 @@ typedef struct
     char key_param[KEYLEN + 1];
 }
 tr_tracker_item;
+
+static void
+trackerItemCopyAttributes( tr_tracker_item * t, const tr_tracker_item * o )
+{
+    assert( t != o );
+    assert( t != NULL );
+    assert( o != NULL );
+
+    t->seederCount = o->seederCount;
+    t->leecherCount = o->leecherCount;
+    t->downloadCount = o->downloadCount;
+    t->downloaderCount = o->downloaderCount;
+    t->id = o->id;
+    memcpy( t->key_param, o->key_param, sizeof( t->key_param ) );
+}
 
 static void
 generateKeyParam( char * msg, size_t msglen )
@@ -356,39 +364,43 @@ struct tr_torrent_tiers;
 /** @brief A group of trackers in a single tier, as per the multitracker spec */
 typedef struct
 {
+    /* number of up/down/corrupt bytes since the last time we sent an
+     * "event=stopped" message that was acknowledged by the tracker */
+    uint64_t byteCounts[3];
+
     tr_ptrArray trackers; /* tr_tracker_item */
     tr_tracker_item * currentTracker;
+    int currentTrackerIndex;
 
     tr_torrent * tor;
 
-    time_t lastScrapeTime;
-    time_t lastAnnounceTime;
-    time_t lastScrapeStartTime;
-    time_t lastAnnounceStartTime;
-    tr_bool lastScrapeSucceeded;
-    tr_bool lastAnnounceSucceeded;
-
     time_t scrapeAt;
-    time_t manualAnnounceAllowedAt;
+    time_t lastScrapeStartTime;
+    time_t lastScrapeTime;
+    tr_bool lastScrapeSucceeded;
 
     time_t announceAt;
-    const char * announceEvent;
+    time_t manualAnnounceAllowedAt;
+    time_t lastAnnounceStartTime;
+    time_t lastAnnounceTime;
+    tr_bool lastAnnounceSucceeded;
+    tr_bool lastAnnounceTimedOut;
+
+    tr_ptrArray announceEvents; /* const char* */
 
     /* unique lookup key */
     int key;
 
-    int currentTrackerIndex;
     int scrapeIntervalSec;
     int announceIntervalSec;
     int announceMinIntervalSec;
-    int retryAnnounceIntervalSec;
-    int retryScrapeIntervalSec;
 
     int lastAnnouncePeerCount;
 
     tr_bool isRunning;
     tr_bool isAnnouncing;
     tr_bool isScraping;
+    tr_bool wasCopied;
 
     char lastAnnounceStr[128];
     char lastScrapeStr[128];
@@ -404,13 +416,14 @@ tierNew( tr_torrent * tor )
 
     t = tr_new0( tr_tier, 1 );
     t->key = nextKey++;
+    t->announceEvents = TR_PTR_ARRAY_INIT;
     t->trackers = TR_PTR_ARRAY_INIT;
     t->currentTracker = NULL;
     t->currentTrackerIndex = -1;
     t->scrapeIntervalSec = DEFAULT_SCRAPE_INTERVAL_SEC;
     t->announceIntervalSec = DEFAULT_ANNOUNCE_INTERVAL_SEC;
     t->announceMinIntervalSec = DEFAULT_ANNOUNCE_MIN_INTERVAL_SEC;
-    t->scrapeAt = now + tr_cryptoWeakRandInt( 60*10 );
+    t->scrapeAt = now + tr_cryptoWeakRandInt( 60*5 );
     t->tor = tor;
 
     return t;
@@ -421,7 +434,31 @@ tierFree( void * vtier )
 {
     tr_tier * tier = vtier;
     tr_ptrArrayDestruct( &tier->trackers, trackerFree );
+    tr_ptrArrayDestruct( &tier->announceEvents, NULL );
     tr_free( tier );
+}
+
+static void
+tierCopyAttributes( tr_tier * t, const tr_tier * o )
+{
+    int i, n;
+    tr_tier bak;
+
+    assert( t != NULL );
+    assert( o != NULL );
+    assert( t != o );
+
+    bak = *t;
+    *t = *o;
+    t->tor = bak.tor;
+    t->trackers = bak.trackers;
+    t->announceEvents = bak.announceEvents;
+    t->currentTracker = bak.currentTracker;
+    t->currentTrackerIndex = bak.currentTrackerIndex;
+
+    tr_ptrArrayClear( &t->announceEvents );
+    for( i=0, n=tr_ptrArraySize(&o->announceEvents); i<n; ++i )
+        tr_ptrArrayAppend( &t->announceEvents, tr_ptrArrayNth((tr_ptrArray*)&o->announceEvents,i) );
 }
 
 static void
@@ -437,8 +474,6 @@ tierIncrementTracker( tr_tier * tier )
     tier->scrapeIntervalSec = DEFAULT_SCRAPE_INTERVAL_SEC;
     tier->announceIntervalSec = DEFAULT_ANNOUNCE_INTERVAL_SEC;
     tier->announceMinIntervalSec = DEFAULT_ANNOUNCE_MIN_INTERVAL_SEC;
-    tier->retryAnnounceIntervalSec = FIRST_ANNOUNCE_RETRY_INTERVAL_SEC;
-    tier->retryScrapeIntervalSec = FIRST_SCRAPE_RETRY_INTERVAL_SEC;
     tier->isAnnouncing = FALSE;
     tier->isScraping = FALSE;
     tier->lastAnnounceStartTime = 0;
@@ -485,13 +520,6 @@ tiersNew( void )
     tiers->tiers = TR_PTR_ARRAY_INIT;
     tiers->publisher = TR_PUBLISHER_INIT;
     return tiers;
-}
-
-static void
-tiersClear( tr_torrent_tiers * tiers )
-{
-    tr_ptrArrayDestruct( &tiers->tiers, tierFree );
-    tiers->tiers = TR_PTR_ARRAY_INIT;
 }
 
 static void
@@ -661,7 +689,10 @@ createAnnounceURL( const tr_announcer     * announcer,
     const char * ann = tracker->announce;
     struct evbuffer * buf = evbuffer_new( );
     char * ret;
+    const char * str;
     const unsigned char * ipv6;
+
+    evbuffer_expand( buf, 2048 );
 
     evbuffer_add_printf( buf, "%s"
                               "%c"
@@ -680,26 +711,25 @@ createAnnounceURL( const tr_announcer     * announcer,
                               torrent->info.hashEscaped,
                               torrent->peer_id,
                               (int)tr_sessionGetPeerPort( announcer->session ),
-                              torrent->uploadedCur,
-                              torrent->downloadedCur,
+                              tier->byteCounts[TR_ANN_UP],
+                              tier->byteCounts[TR_ANN_DOWN],
                               tr_cpLeftUntilComplete( &torrent->completion ),
                               numwant,
                               tracker->key_param );
 
-    if( torrent->corruptCur )
-        evbuffer_add_printf( buf, "&corrupt=%" PRIu64, torrent->corruptCur );
-
-    if( !isStopping )
-        evbuffer_add_printf( buf, "&upload_only=%d", tr_torrentIsSeed( torrent ) ? 1 : 0 );
-
     if( announcer->session->encryptionMode == TR_ENCRYPTION_REQUIRED )
         evbuffer_add_printf( buf, "&requirecrypto=1" );
 
-    if( eventName && *eventName )
-        evbuffer_add_printf( buf, "&event=%s", eventName );
+    if( tier->byteCounts[TR_ANN_CORRUPT] )
+        evbuffer_add_printf( buf, "&corrupt=%" PRIu64, tier->byteCounts[TR_ANN_CORRUPT] );
 
-    if( tracker->tracker_id && *tracker->tracker_id )
-        evbuffer_add_printf( buf, "&trackerid=%s", tracker->tracker_id );
+    str = eventName;
+    if( str && *str )
+        evbuffer_add_printf( buf, "&event=%s", str );
+
+    str = tracker->tracker_id;
+    if( str && *str )
+        evbuffer_add_printf( buf, "&trackerid=%s", str );
 
     /* There are two incompatible techniques for announcing an IPv6 address.
        BEP-7 suggests adding an "ipv6=" parameter to the announce URL,
@@ -719,9 +749,8 @@ createAnnounceURL( const tr_announcer     * announcer,
     }
 
     ret = tr_strndup( EVBUFFER_DATA( buf ), EVBUFFER_LENGTH( buf ) );
-    evbuffer_free( buf );
-
     dbgmsg( tier, "announce URL is \"%s\"", ret );
+    evbuffer_free( buf );
     return ret;
 }
 
@@ -796,18 +825,75 @@ tr_announcerAddTorrent( tr_announcer * announcer, tr_torrent * tor )
     return tiers;
 }
 
+static void
+tierAddAnnounce( tr_tier * tier, const char * announceEvent, time_t announceAt );
+
 void
 tr_announcerResetTorrent( tr_announcer * announcer, tr_torrent * tor )
 {
+    tr_ptrArray oldTiers = TR_PTR_ARRAY_INIT;
+
+    /* if we had tiers already, make a backup of them */
     if( tor->tiers != NULL )
     {
-        tiersClear( tor->tiers );
-
-        addTorrentToTier( announcer, tor->tiers, tor );
-
-        if( tor->isRunning )
-            tr_announcerTorrentStarted( tor );
+        oldTiers = tor->tiers->tiers;
+        tor->tiers->tiers = TR_PTR_ARRAY_INIT;
     }
+
+    /* create the new tier/tracker structs */
+    addTorrentToTier( announcer, tor->tiers, tor );
+
+    /* if we had tiers already, merge their state into the new structs */
+    if( !tr_ptrArrayEmpty( &oldTiers ) )
+    {
+        int i, in;
+        for( i=0, in=tr_ptrArraySize(&oldTiers); i<in; ++i )
+        {
+            int j, jn;
+            const tr_tier * o = tr_ptrArrayNth( &oldTiers, i );
+
+            if( o->currentTracker == NULL )
+                continue;
+
+            for( j=0, jn=tr_ptrArraySize(&tor->tiers->tiers); j<jn; ++j )
+            {
+                int k, kn;
+                tr_tier * t = tr_ptrArrayNth(&tor->tiers->tiers,j);
+
+                for( k=0, kn=tr_ptrArraySize(&t->trackers); k<kn; ++k )
+                {
+                    tr_tracker_item * item = tr_ptrArrayNth(&t->trackers,k);
+                    if( strcmp( o->currentTracker->announce, item->announce ) )
+                        continue;
+                    tierCopyAttributes( t, o );
+                    t->currentTracker = item;
+                    t->currentTrackerIndex = k;
+                    t->wasCopied = TRUE;
+                    trackerItemCopyAttributes( item, o->currentTracker );
+                    dbgmsg( t, "attributes copied to tier %d, tracker %d"
+                                               "from tier %d, tracker %d",
+                            i, o->currentTrackerIndex, j, k );
+
+                }
+            }
+        }
+    }
+
+    /* kickstart any tiers that didn't get started */
+    if( tor->isRunning )
+    {
+        int i, n;
+        const time_t now = tr_time( );
+        tr_tier ** tiers = (tr_tier**) tr_ptrArrayPeek( &tor->tiers->tiers, &n );
+        for( i=0; i<n; ++i ) {
+            tr_tier * tier = tiers[i];
+            if( !tier->wasCopied )    
+                tierAddAnnounce( tier, STARTED, now );
+        }
+    }
+
+    /* cleanup */
+    tr_ptrArrayDestruct( &oldTiers, tierFree );
 }
 
 tr_publisher_tag
@@ -874,29 +960,19 @@ tr_announcerNextManualAnnounce( const tr_torrent * tor )
 }
 
 static void
-tierClearNextAnnounce( tr_tier * tier )
-{
-    tier->announceAt = 0;
-    tier->announceEvent = NULL;
-    dbgmsg( tier, "cleared out announceEvent -- no announces pending." );
-}
-
-static void
-tierSetNextAnnounce( tr_tier * tier, const char * announceEvent, time_t announceAt )
+tierAddAnnounce( tr_tier * tier, const char * announceEvent, time_t announceAt )
 {
     assert( tier != NULL );
     assert( announceEvent != NULL );
 
-    if( !strcmp( announceEvent, "manual" ) && !tierCanManualAnnounce( tier ) )
-        return;
-
+    tr_ptrArrayAppend( &tier->announceEvents, (void*)announceEvent );
     tier->announceAt = announceAt;
-    tier->announceEvent = announceEvent;
-    dbgmsg( tier, "next announce event is \"%s\" in %d seconds\n", announceEvent, (int)difftime(announceAt,time(NULL)) );
+
+    dbgmsg( tier, "appended event \"%s\"; announcing in %d seconds\n", announceEvent, (int)difftime(announceAt,time(NULL)) );
 }
 
 static void
-torrentSetNextAnnounce( tr_torrent * tor, const char * announceEvent, time_t announceAt )
+torrentAddAnnounce( tr_torrent * tor, const char * announceEvent, time_t announceAt )
 {
     int i;
     int n;
@@ -907,28 +983,28 @@ torrentSetNextAnnounce( tr_torrent * tor, const char * announceEvent, time_t ann
     tiers = tor->tiers;
     n = tr_ptrArraySize( &tiers->tiers );
     for( i=0; i<n; ++i )
-        tierSetNextAnnounce( tr_ptrArrayNth( &tiers->tiers, i ), announceEvent, announceAt );
+        tierAddAnnounce( tr_ptrArrayNth( &tiers->tiers, i ), announceEvent, announceAt );
 }
 
 void
-tr_announcerManualAnnounce( tr_torrent * tor )
-{
-    torrentSetNextAnnounce( tor, "manual", tr_time( ) );
-}
-void
 tr_announcerTorrentStarted( tr_torrent * tor )
 {
-    torrentSetNextAnnounce( tor, "started", tr_time( ) );
+    torrentAddAnnounce( tor, STARTED, tr_time( ) );
+}
+void
+tr_announcerManualAnnounce( tr_torrent * tor )
+{
+    torrentAddAnnounce( tor, "", tr_time( ) );
 }
 void
 tr_announcerTorrentStopped( tr_torrent * tor )
 {
-    torrentSetNextAnnounce( tor, "stopped", tr_time( ) );
+    torrentAddAnnounce( tor, "stopped", tr_time( ) );
 }
 void
 tr_announcerTorrentCompleted( tr_torrent * tor )
 {
-    torrentSetNextAnnounce( tor, "completed", tr_time( ) );
+    torrentAddAnnounce( tor, "completed", tr_time( ) );
 }
 void
 tr_announcerChangeMyPort( tr_torrent * tor )
@@ -936,6 +1012,50 @@ tr_announcerChangeMyPort( tr_torrent * tor )
     tr_announcerTorrentStarted( tor );
 }
 
+/***
+****
+***/
+
+void
+tr_announcerAddBytes( tr_torrent * tor, int type, uint32_t byteCount )
+{
+    int i, n;
+    tr_torrent_tiers * tiers;
+
+    assert( tr_isTorrent( tor ) );
+    assert( type==TR_ANN_UP || type==TR_ANN_DOWN || type==TR_ANN_CORRUPT );
+
+    tiers = tor->tiers;
+    n = tr_ptrArraySize( &tiers->tiers );
+    for( i=0; i<n; ++i )
+    {
+        tr_tier * tier = tr_ptrArrayNth( &tiers->tiers, i );
+        tier->byteCounts[ type ] += byteCount;
+    }
+}
+
+void
+tr_announcerSubtractBytes( tr_torrent * tor, int type, uint32_t byteCount )
+{
+    int i, n;
+    tr_torrent_tiers * tiers;
+
+    assert( tr_isTorrent( tor ) );
+    assert( type==TR_ANN_UP || type==TR_ANN_DOWN || type==TR_ANN_CORRUPT );
+
+    tiers = tor->tiers;
+    n = tr_ptrArraySize( &tiers->tiers );
+    for( i=0; i<n; ++i )
+    {
+        tr_tier * tier = tr_ptrArrayNth( &tiers->tiers, i );
+        uint64_t * setme = &tier->byteCounts[type];
+        *setme -= MIN( *setme, byteCount );
+    }
+}
+
+/***
+****
+***/
 
 void
 tr_announcerRemoveTorrent( tr_announcer * announcer, tr_torrent * tor )
@@ -953,8 +1073,8 @@ tr_announcerRemoveTorrent( tr_announcer * announcer, tr_torrent * tor )
             if( tier->isRunning )
             {
                 struct stop_message * s = tr_new0( struct stop_message, 1 );
-                s->up = tor->uploadedCur;
-                s->down = tor->downloadedCur;
+                s->up = tier->byteCounts[TR_ANN_UP];
+                s->down = tier->byteCounts[TR_ANN_DOWN];
                 s->url = createAnnounceURL( announcer, tor, tier, "stopped" );
                 s->host = tier->currentTracker->host;
                 tr_ptrArrayInsertSorted( &announcer->stops, s, compareStops );
@@ -984,6 +1104,20 @@ tierIsNotResponding( const tr_tier * tier, const time_t now )
 }
 
 static int
+getRetryInterval( const tr_host * host )
+{
+    int interval;
+    const int jitter = tr_cryptoWeakRandInt( 120 );
+    const time_t timeSinceLastSuccess = tr_time() - host->lastSuccessfulRequest;
+         if( timeSinceLastSuccess < 15*60 ) interval = 0;
+    else if( timeSinceLastSuccess < 30*60 ) interval = 60*4;
+    else if( timeSinceLastSuccess < 45*60 ) interval = 60*8;
+    else if( timeSinceLastSuccess < 60*60 ) interval = 60*16;
+    else                                    interval = 60*32;
+    return interval + jitter;
+}
+
+static int
 compareTiers( const void * va, const void * vb )
 {
     int ret = 0;
@@ -1010,8 +1144,8 @@ compareTiers( const void * va, const void * vb )
 
     /* upload comes before download */
     if( !ret )
-        ret = compareTransfer( a->tor->uploadedCur, a->tor->downloadedCur,
-                               b->tor->uploadedCur, b->tor->downloadedCur );
+        ret = compareTransfer( a->byteCounts[TR_ANN_UP], a->byteCounts[TR_ANN_DOWN],
+                               b->byteCounts[TR_ANN_UP], b->byteCounts[TR_ANN_DOWN] );
 
     /* incomplete comes before complete */
     if( !ret ) {
@@ -1085,16 +1219,16 @@ parseAnnounceResponse( tr_tier     * tier,
     publishErrorClear( tier );
     if( bencLoaded && tr_bencIsDict( &benc ) )
     {
+        int peerCount = 0;
         int incomplete = -1;
         size_t rawlen;
         int64_t i;
         tr_benc * tmp;
         const char * str;
         const uint8_t * raw;
+        tr_bool gotPeers = FALSE;
 
         success = TRUE;
-
-        tier->retryAnnounceIntervalSec = FIRST_ANNOUNCE_RETRY_INTERVAL_SEC;
 
         if( tr_bencDictFindStr( &benc, "failure reason", &str ) )
         {
@@ -1152,7 +1286,8 @@ parseAnnounceResponse( tr_tier     * tier,
         {
             /* "compact" extension */
             const int allAreSeeds = incomplete == 0;
-            tier->lastAnnouncePeerCount = publishNewPeersCompact( tier, allAreSeeds, raw, rawlen );
+            peerCount += publishNewPeersCompact( tier, allAreSeeds, raw, rawlen );
+            gotPeers = TRUE;
         }
         else if( tr_bencDictFindList( &benc, "peers", &tmp ) )
         {
@@ -1160,7 +1295,8 @@ parseAnnounceResponse( tr_tier     * tier,
             const tr_bool allAreSeeds = incomplete == 0;
             size_t byteCount = 0;
             uint8_t * array = parseOldPeers( tmp, &byteCount );
-            tier->lastAnnouncePeerCount = publishNewPeers( tier, allAreSeeds, array, byteCount );
+            peerCount += publishNewPeers( tier, allAreSeeds, array, byteCount );
+            gotPeers = TRUE;
             tr_free( array );
         }
 
@@ -1168,12 +1304,16 @@ parseAnnounceResponse( tr_tier     * tier,
         {
             /* "compact" extension */
             const tr_bool allAreSeeds = incomplete == 0;
-            tier->lastAnnouncePeerCount += publishNewPeersCompact6( tier, allAreSeeds, raw, rawlen );
+            peerCount += publishNewPeersCompact6( tier, allAreSeeds, raw, rawlen );
+            gotPeers = TRUE;
         }
 
         if( tier->lastAnnounceStr[0] == '\0' )
             tr_strlcpy( tier->lastAnnounceStr, _( "Success" ),
                         sizeof( tier->lastAnnounceStr ) );
+
+        if( gotPeers )
+            tier->lastAnnouncePeerCount = peerCount;
     }
 
     if( bencLoaded )
@@ -1189,6 +1329,7 @@ struct announce_data
     int torrentId;
     int tierId;
     time_t timeSent;
+    const char * event;
 
     /** If the request succeeds, the value for tier's "isRunning" flag */
     tr_bool isRunningOnSuccess;
@@ -1207,11 +1348,11 @@ onAnnounceDone( tr_session   * session,
     tr_bool gotScrape = FALSE;
     tr_bool success = FALSE;
     const time_t now = time ( NULL );
+    const char * announceEvent = data->event;
+    const tr_bool isStopped = !strcmp( announceEvent, "stopped" );
 
     if( announcer && tier )
     {
-        tier->lastAnnouncePeerCount = 0;
-
         if( tier->currentTracker->host )
         {
             tr_host * host = tier->currentTracker->host;
@@ -1219,25 +1360,34 @@ onAnnounceDone( tr_session   * session,
             host->lastResponseInterval = now - data->timeSent;
         }
 
+        tier->lastAnnounceTime = now;
+
         if( responseCode == HTTP_OK )
         {
-            tier->lastAnnounceTime = now;
             success = parseAnnounceResponse( tier, response, responseLen, &gotScrape );
             dbgmsg( tier, "success is %d", success );
+
+            if( isStopped )
+            {
+                /* now that we've successfully stopped the torrent,
+                 * we can reset the up/down/corrupt count we've kept
+                 * for this tracker */
+                tier->byteCounts[ TR_ANN_UP ] = 0;
+                tier->byteCounts[ TR_ANN_DOWN ] = 0;
+                tier->byteCounts[ TR_ANN_CORRUPT ] = 0;
+            }
         }
         else if( responseCode )
         {
             /* %1$ld - http status code, such as 404
              * %2$s - human-readable explanation of the http status code */
             char * buf = tr_strdup_printf(
-                _( "Announce failed: tracker gave HTTP Response Code %1$ld (%2$s)" ),
+                _( "tracker gave HTTP Response Code %1$ld (%2$s)" ),
                 responseCode,
                 tr_webGetResponseStr( responseCode ) );
 
             tr_strlcpy( tier->lastAnnounceStr, buf,
                         sizeof( tier->lastAnnounceStr ) );
-
-            tier->lastAnnounceTime = now;
 
             /* if the response is serious, *and* if the response may require
              * human intervention, then notify the user... otherwise just log it */
@@ -1264,10 +1414,10 @@ onAnnounceDone( tr_session   * session,
 
         if( responseCode == 0 )
         {
-            const int interval = 120 + tr_cryptoWeakRandInt( 120 );
+            const int interval = getRetryInterval( tier->currentTracker->host );
             dbgmsg( tier, "No response from tracker... retrying in %d seconds.", interval );
             tier->manualAnnounceAllowedAt = ~(time_t)0;
-            tierSetNextAnnounce( tier, tier->announceEvent, now + interval );
+            tierAddAnnounce( tier, announceEvent, now + interval );
         }
         else if( 200 <= responseCode && responseCode <= 299 )
         {
@@ -1283,17 +1433,18 @@ onAnnounceDone( tr_session   * session,
 
             tier->manualAnnounceAllowedAt = now + tier->announceMinIntervalSec;
 
-            if( strcmp( tier->announceEvent, "stopped" ) == 0 )
-                tierClearNextAnnounce( tier );
-            else
-                tierSetNextAnnounce( tier, "", now + interval );
+            /* if we're running and the queue is empty, add the next update */
+            if( !isStopped && !tr_ptrArraySize( &tier->announceEvents ) )
+            {
+                tierAddAnnounce( tier, "", now + interval );
+            }
         }
         else if( 300 <= responseCode && responseCode <= 399 )
         {
             /* how did this get here?  libcurl handles this */
             const int interval = 5;
             dbgmsg( tier, "got a redirect. retrying in %d seconds", interval );
-            tierSetNextAnnounce( tier, tier->announceEvent, now + interval );
+            tierAddAnnounce( tier, announceEvent, now + interval );
             tier->manualAnnounceAllowedAt = now + tier->announceMinIntervalSec;
         }
         else if( 400 <= responseCode && responseCode <= 499 )
@@ -1303,8 +1454,8 @@ onAnnounceDone( tr_session   * session,
              * request without modifications. */
             if( tr_torrentIsPrivate( tier->tor ) || ( tier->tor->info.trackerCount < 2 ) )
                 publishErrorMessageAndStop( tier, _( "Tracker returned a 4xx message" ) );
+            tier->announceAt = 0;
             tier->manualAnnounceAllowedAt = ~(time_t)0;
-            tierClearNextAnnounce( tier );
         }
         else if( 500 <= responseCode && responseCode <= 599 )
         {
@@ -1312,9 +1463,9 @@ onAnnounceDone( tr_session   * session,
              * cases in which the server is aware that it has erred or is
              * incapable of performing the request.  So we pause a bit and
              * try again. */
+            const int interval = getRetryInterval( tier->currentTracker->host );
             tier->manualAnnounceAllowedAt = ~(time_t)0;
-            tierSetNextAnnounce( tier, tier->announceEvent, now + tier->retryAnnounceIntervalSec );
-            tier->retryAnnounceIntervalSec *= 2;
+            tierAddAnnounce( tier, announceEvent, now + interval );
         }
         else
         {
@@ -1322,73 +1473,109 @@ onAnnounceDone( tr_session   * session,
             const int interval = 120;
             dbgmsg( tier, "Invalid response from tracker... retrying in two minutes." );
             tier->manualAnnounceAllowedAt = ~(time_t)0;
-            tierSetNextAnnounce( tier, tier->announceEvent, now + interval );
+            tierAddAnnounce( tier, announceEvent, now + interval );
         }
 
         tier->lastAnnounceSucceeded = success;
+        tier->lastAnnounceTimedOut = responseCode == 0;
 
         if( success )
+        {
             tier->isRunning = data->isRunningOnSuccess;
 
-        if( !success )
+            if( tier->currentTracker->host )
+                tier->currentTracker->host->lastSuccessfulRequest = now;
+        }
+        else if( responseCode != HTTP_OK )
+        {
             tierIncrementTracker( tier );
+
+            tr_ptrArrayInsert( &tier->announceEvents, (void*)announceEvent, 0 );
+        }
     }
 
     if( announcer != NULL )
     {
-        ++announcer->announceSlotsAvailable;
+        ++announcer->slotsAvailable;
     }
 
     tr_free( data );
 }
 
-static const char *
-getAnnounceEvent( const tr_tier * tier )
+static const char*
+getNextAnnounceEvent( tr_tier * tier )
 {
-    const char * event;
+    int i, n;
+    int pos = -1;
+    tr_ptrArray tmp;
+    char ** events;
+    const char * str = NULL;
 
     assert( tier != NULL );
-    assert( tier->announceEvent != NULL );
     assert( tr_isTorrent( tier->tor ) );
 
-    /* BEP 21: "In order to tell the tracker that a peer is a partial seed,
-     * it MUST send an event=paused parameter in every announce while
-     * it is a partial seed." */
+    /* rule #1: if "stopped" is in the queue, ignore everything before it */
+    events = (char**) tr_ptrArrayPeek( &tier->announceEvents, &n );
+    for( i=0; pos<0 && i<n; ++i )
+        if( !strcmp( events[i], "stopped" ) )
+            pos = i;
+
+    /* rule #2: if the next two events are the same, ignore the first one */
+    for( i=0; pos<0 && i<=n-2; ++i )
+        if( strcmp( events[i], events[i+1] ) )
+            pos = i;
+
+    /* otherwise use the next announce event in line */
+    if( ( pos < 0 ) && ( n > 0 ) )
+        pos = 0;
+
+    /* rule #3: BEP 21: "In order to tell the tracker that a peer is a
+     * partial seed, it MUST send an event=paused parameter in every
+     * announce while it is a partial seed." */
+    str = pos>=0 ? events[pos] : NULL;
     if( tr_cpGetStatus( &tier->tor->completion ) == TR_PARTIAL_SEED )
-        return "paused";
+        if( !str || !strcmp( str, "stopped" ) )
+            str = "paused";
 
-    event = tier->announceEvent;
+    /* announceEvents array upkeep */
+    tmp = TR_PTR_ARRAY_INIT;
+    for( i=pos+1; i<n; ++i )
+        tr_ptrArrayAppend( &tmp, events[i] );
+    tr_ptrArrayDestruct( &tier->announceEvents, NULL );
+    tier->announceEvents = tmp;
 
-    if( !strcmp( event, "manual" ) )
-        return "started";
-
-    return event;
+    return str;
 }
 
 static void
 tierAnnounce( tr_announcer * announcer, tr_tier * tier )
 {
-    char * url;
-    struct announce_data * data;
-    const tr_torrent * tor = tier->tor;
-    const time_t now = tr_time( );
+    const char * announceEvent = getNextAnnounceEvent( tier );
 
     assert( !tier->isAnnouncing );
 
-    data = tr_new0( struct announce_data, 1 );
-    data->torrentId = tr_torrentId( tor );
-    data->tierId = tier->key;
-    data->isRunningOnSuccess = tor->isRunning;
-    data->timeSent = now;
+    if( announceEvent != NULL )
+    {
+        char * url;
+        struct announce_data * data;
+        const tr_torrent * tor = tier->tor;
+        const time_t now = tr_time( );
 
-    url = createAnnounceURL( announcer, tor, tier, getAnnounceEvent( tier ) );
+        data = tr_new0( struct announce_data, 1 );
+        data->torrentId = tr_torrentId( tor );
+        data->tierId = tier->key;
+        data->isRunningOnSuccess = tor->isRunning;
+        data->timeSent = now;
+        data->event = announceEvent;
+        url = createAnnounceURL( announcer, tor, tier, data->event );
 
-    tier->isAnnouncing = TRUE;
-    tier->lastAnnounceStartTime = now;
-    --announcer->announceSlotsAvailable;
-    tr_webRun( announcer->session, url, NULL, onAnnounceDone, data );
+        tier->isAnnouncing = TRUE;
+        tier->lastAnnounceStartTime = now;
+        --announcer->slotsAvailable;
+        tr_webRun( announcer->session, url, NULL, onAnnounceDone, data );
 
-    tr_free( url );
+        tr_free( url );
+    }
 }
 
 static tr_bool
@@ -1431,18 +1618,11 @@ parseScrapeResponse( tr_tier     * tier,
 
             if( tr_bencDictFindDict( val, "flags", &flags ) )
                 if( ( tr_bencDictFindInt( flags, "min_request_interval", &intVal ) ) )
-                    tier->scrapeIntervalSec = intVal;
-
-            /* as per ticket #1045, safeguard against trackers returning
-             * a very low min_request_interval... */
-            if( tier->scrapeIntervalSec < DEFAULT_SCRAPE_INTERVAL_SEC )
-                tier->scrapeIntervalSec = DEFAULT_SCRAPE_INTERVAL_SEC;
+                    tier->scrapeIntervalSec = MAX( DEFAULT_SCRAPE_INTERVAL_SEC, (int)intVal );
 
             tr_tordbg( tier->tor,
                        "Scrape successful. Rescraping in %d seconds.",
                        tier->scrapeIntervalSec );
-
-            tier->retryScrapeIntervalSec = FIRST_SCRAPE_RETRY_INTERVAL_SEC;
         }
     }
 
@@ -1471,7 +1651,7 @@ onScrapeDone( tr_session   * session,
     const time_t now = tr_time( );
 
     if( announcer )
-        ++announcer->scrapeSlotsAvailable;
+        ++announcer->slotsAvailable;
 
     if( announcer && tier )
     {
@@ -1510,8 +1690,7 @@ onScrapeDone( tr_session   * session,
         }
         else
         {
-            const int interval = tier->retryScrapeIntervalSec;
-            tier->retryScrapeIntervalSec *= 2;
+            const int interval = getRetryInterval( tier->currentTracker->host );
 
             /* Don't retry on a 4xx.
              * Retry at growing intervals on a 5xx */
@@ -1532,6 +1711,9 @@ onScrapeDone( tr_session   * session,
         }
 
         tier->lastScrapeSucceeded = success;
+
+        if( success && tier->currentTracker->host )
+            tier->currentTracker->host->lastSuccessfulRequest = now;
     }
 
     tr_free( data );
@@ -1563,7 +1745,7 @@ tierScrape( tr_announcer * announcer, tr_tier * tier )
 
     tier->isScraping = TRUE;
     tier->lastScrapeStartTime = now;
-    --announcer->scrapeSlotsAvailable;
+    --announcer->slotsAvailable;
     dbgmsg( tier, "scraping \"%s\"", url );
     tr_webRun( announcer->session, url, NULL, onScrapeDone, data );
 
@@ -1591,14 +1773,15 @@ tierNeedsToAnnounce( const tr_tier * tier, const time_t now )
 {
     return !tier->isAnnouncing
         && !tier->isScraping
-        && ( tier->announceEvent != NULL )
-        && ( tier->announceAt <= now );
+        && ( tier->announceAt != 0 )
+        && ( tier->announceAt <= now )
+        && ( tr_ptrArraySize( &tier->announceEvents ) != 0 );
 }
 
 static tr_bool
 tierNeedsToScrape( const tr_tier * tier, const time_t now )
 {
-    return !tier->isScraping
+    return ( !tier->isScraping )
         && ( tier->scrapeAt != 0 )
         && ( tier->scrapeAt <= now )
         && ( tier->currentTracker != NULL )
@@ -1608,12 +1791,10 @@ tierNeedsToScrape( const tr_tier * tier, const time_t now )
 static void
 announceMore( tr_announcer * announcer )
 {
-    const tr_bool canAnnounce = announcer->announceSlotsAvailable > 0;
-    const tr_bool canScrape = announcer->scrapeSlotsAvailable > 0;
     tr_torrent * tor = NULL;
     const time_t now = tr_time( );
 
-    if( announcer->announceSlotsAvailable > 0 )
+    if( announcer->slotsAvailable > 0 )
     {
         int i;
         int n;
@@ -1626,9 +1807,9 @@ announceMore( tr_announcer * announcer )
                 n = tr_ptrArraySize( &tor->tiers->tiers );
                 for( i=0; i<n; ++i ) {
                     tr_tier * tier = tr_ptrArrayNth( &tor->tiers->tiers, i );
-                    if( canAnnounce && tierNeedsToAnnounce( tier, now ) )
+                    if( tierNeedsToAnnounce( tier, now ) )
                         tr_ptrArrayAppend( &announceMe, tier );
-                    else if( canScrape && tierNeedsToScrape( tier, now ) )
+                    else if( tierNeedsToScrape( tier, now ) )
                         tr_ptrArrayAppend( &scrapeMe, tier );
                 }
             }
@@ -1636,20 +1817,19 @@ announceMore( tr_announcer * announcer )
 
         /* if there are more tiers than slots available, prioritize */
         n = tr_ptrArraySize( &announceMe );
-        if( n > announcer->announceSlotsAvailable )
+        if( n > announcer->slotsAvailable )
             qsort( tr_ptrArrayBase( &announceMe ), n, sizeof( tr_tier * ), compareTiers );
 
         /* announce some */
-        n = MIN( tr_ptrArraySize( &announceMe ), announcer->announceSlotsAvailable );
+        n = MIN( tr_ptrArraySize( &announceMe ), announcer->slotsAvailable );
         for( i=0; i<n; ++i ) {
             tr_tier * tier = tr_ptrArrayNth( &announceMe, i );
             dbgmsg( tier, "announcing tier %d of %d", i, n );
             tierAnnounce( announcer, tier );
         }
 
-
         /* scrape some */
-        n = MIN( tr_ptrArraySize( &scrapeMe ), announcer->scrapeSlotsAvailable );
+        n = MIN( tr_ptrArraySize( &scrapeMe ), announcer->slotsAvailable );
         for( i=0; i<n; ++i ) {
             tr_tier * tier = tr_ptrArrayNth( &scrapeMe, i );
             dbgmsg( tier, "scraping tier %d of %d", (i+1), n );
@@ -1756,7 +1936,7 @@ tr_announcerStats( const tr_torrent * torrent,
             st->id = tracker->id;
             tr_strlcpy( st->host, tracker->host->name, sizeof( st->host ) );
             tr_strlcpy( st->announce, tracker->announce, sizeof( st->announce ) );
-            st->tier = i + 1;
+            st->tier = i;
             st->isBackup = tracker != tier->currentTracker;
             st->lastScrapeStartTime = tier->lastScrapeStartTime;
 
@@ -1796,9 +1976,9 @@ tr_announcerStats( const tr_torrent * torrent,
                 if(( st->hasAnnounced = tier->lastAnnounceTime != 0 )) {
                     st->lastAnnounceTime = tier->lastAnnounceTime;
                     tr_strlcpy( st->lastAnnounceResult, tier->lastAnnounceStr, sizeof( st->lastAnnounceResult ) );
-                    if(( st->lastAnnounceSucceeded = tier->lastAnnounceSucceeded )) {
-                        st->lastAnnouncePeerCount = tier->lastAnnouncePeerCount;
-                    }
+                    st->lastAnnounceSucceeded = tier->lastAnnounceSucceeded;
+                    st->lastAnnounceTimedOut = tier->lastAnnounceTimedOut;
+                    st->lastAnnouncePeerCount = tier->lastAnnouncePeerCount;
                 }
 
                 if( tier->isAnnouncing )
