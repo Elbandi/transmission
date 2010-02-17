@@ -52,6 +52,10 @@ enum
 {
     SAVE_INTERVAL_SECS = 120
 };
+enum
+{
+    QUEUE_INTERVAL_MSECS = 1000
+};
 
 
 #define dbgmsg( ... ) \
@@ -249,6 +253,8 @@ tr_sessionGetDefaultSettings( const char * configDir, tr_benc * d )
     tr_bencDictAddStr ( d, TR_PREFS_KEY_INCOMPLETE_DIR,           incompleteDir );
     tr_bencDictAddBool( d, TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED,   FALSE );
     tr_bencDictAddBool( d, TR_PREFS_KEY_LAZY_BITFIELD,            TRUE );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_SEED_ACTIVE,          atoi( TR_DEFAULT_MAX_SEED_ACTIVE_STR ) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE,      atoi( TR_DEFAULT_MAX_DOWNLOAD_ACTIVE_STR ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_MSGLEVEL,                 TR_MSG_INF );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_OPEN_FILE_LIMIT,          atoi( TR_DEFAULT_OPEN_FILE_LIMIT_STR ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_LIMIT_GLOBAL,        atoi( TR_DEFAULT_PEER_LIMIT_GLOBAL_STR ) );
@@ -315,6 +321,8 @@ tr_sessionGetSettings( tr_session * s, struct tr_benc * d )
     tr_bencDictAddStr ( d, TR_PREFS_KEY_INCOMPLETE_DIR,           tr_sessionGetIncompleteDir( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED,   tr_sessionIsIncompleteDirEnabled( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_LAZY_BITFIELD,            s->useLazyBitfield );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_SEED_ACTIVE,          tr_sessionGetMaxSeedActive( s ) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE,      tr_sessionGetMaxDownloadActive( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_MSGLEVEL,                 tr_getMessageLevel( ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_OPEN_FILE_LIMIT,          tr_fdGetFileLimit( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_LIMIT_GLOBAL,        tr_sessionGetPeerLimit( s ) );
@@ -468,6 +476,27 @@ onSaveTimer( int foo UNUSED, short bar UNUSED, void * vsession )
 ****
 ***/
 
+static void
+onQueueTimer( int foo UNUSED, short bar UNUSED, void * vsession )
+{
+    tr_torrent * tor = NULL;
+    tr_session * session = vsession;
+
+    for( tor = session->torrentList; tor ; tor = tor->next ) {
+        if ( tr_torrentGetActivity( tor ) == TR_STATUS_QUEUED && !tr_sessionActiveTorrentLimitReached ( session , tor ) )
+        {
+            tr_torinf( tor, "Starting Queued Torrent");
+            tr_torrentForceStart( tor );
+        }
+    }
+
+    tr_timerAddMsec( session->queueTimer, QUEUE_INTERVAL_MSECS );
+}
+
+/***
+****
+***/
+
 static void tr_sessionInitImpl( void * );
 
 struct init_data
@@ -569,6 +598,10 @@ tr_sessionInitImpl( void * vdata )
     tr_bencInitDict( &settings, 0 );
     tr_sessionGetDefaultSettings( data->configDir, &settings );
     tr_bencMergeDicts( &settings, clientSettings );
+
+    session->queueTimer = tr_new0( struct event, 1 );
+    evtimer_set( session->queueTimer, onQueueTimer, session );
+    tr_timerAddMsec( session->queueTimer, QUEUE_INTERVAL_MSECS );
 
     session->nowTimer = tr_new0( struct event, 1 );
     evtimer_set( session->nowTimer, onNowTimer, session );
@@ -696,6 +729,11 @@ sessionSetImpl( void * vdata )
         tr_sessionSetProxyUsername( session, str );
     if( tr_bencDictFindStr( settings, TR_PREFS_KEY_PROXY_PASSWORD, &str ) )
         tr_sessionSetProxyPassword( session, str );
+
+    if( tr_bencDictFindInt( settings, TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE, &i ) )
+        tr_sessionSetMaxDownloadActive( session, i );
+    if( tr_bencDictFindInt( settings, TR_PREFS_KEY_MAX_SEED_ACTIVE, &i ) )
+        tr_sessionSetMaxSeedActive( session, i );
 
     /* rpc server */
     if( session->rpcServer != NULL ) /* close the old one */
@@ -2326,4 +2364,60 @@ tr_sessionGetActiveTorrentCount( tr_session * session )
             ++ret;
 
     return ret;
+}
+
+int
+tr_sessionGetDownloadTorrentCount( tr_session * session, tr_bool seed )
+{
+    int ret = 0;
+    tr_torrent * tor = NULL;
+
+    assert( tr_isSession( session ) );
+
+    while(( tor = tr_torrentNext( session, tor )))
+        if( tor->isRunning && ( tr_torrentIsSeed( tor ) ^ !seed ))
+            ++ret;
+
+    return ret;
+}
+
+/***
+****
+***/
+
+int
+tr_sessionGetMaxSeedActive( const tr_session * session )
+{
+    return session->maxSeedActive;
+}
+
+void
+tr_sessionSetMaxSeedActive( tr_session * session , int maxActive )
+{
+    session->maxSeedActive = maxActive;
+}
+
+int
+tr_sessionGetMaxDownloadActive( const tr_session * session )
+{
+    return session->maxDownloadActive;
+}
+
+void
+tr_sessionSetMaxDownloadActive( tr_session * session , int maxActive )
+{
+    session->maxDownloadActive = maxActive;
+}
+
+int
+tr_sessionActiveTorrentLimitReached( tr_session * session, tr_torrent * tor )
+{
+    tr_bool seed = tr_torrentIsSeed( tor );
+
+    int count = tr_sessionGetDownloadTorrentCount( session, seed );
+    if( tor->isRunning ) count--;
+    if( seed )
+        return ( count >= session->maxSeedActive );
+    else
+        return ( count >= session->maxDownloadActive );
 }
