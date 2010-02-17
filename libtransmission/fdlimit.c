@@ -43,6 +43,11 @@
  #include <fcntl.h>
 #endif
 
+#ifdef HAVE_FALLOCATE64
+  /* FIXME can't find the right #include voodoo to pick up the declaration.. */
+  extern int fallocate64( int fd, int mode, uint64_t offset, uint64_t len );
+#endif
+
 #ifdef HAVE_XFS_XFS_H
  #include <xfs/xfs.h>
 #endif
@@ -146,6 +151,12 @@ preallocateFileFull( const char * filename, uint64_t length )
     int fd = open( filename, flags, 0666 );
     if( fd >= 0 )
     {
+# ifdef HAVE_FALLOCATE64
+       if( !success )
+       {
+           success = !fallocate64( fd, 0, 0, length );
+       }
+# endif
 # ifdef HAVE_XFS_XFS_H
         if( !success && platform_test_xfs_fd( fd ) )
         {
@@ -355,7 +366,7 @@ TrOpenFile( tr_session             * session,
 
     if( doWrite && !alreadyExisted && ( preallocationMode == TR_PREALLOCATE_FULL ) )
         if( preallocateFileFull( filename, desiredFileSize ) )
-            tr_inf( _( "Preallocated file \"%s\"" ), filename );
+            tr_dbg( _( "Preallocated file \"%s\"" ), filename );
 
     /* open the file */
     flags = doWrite ? ( O_RDWR | O_CREAT ) : O_RDONLY;
@@ -656,9 +667,9 @@ tr_fdSocketCreate( tr_session * session, int domain, int type )
             socklen_t size = sizeof( int );
             buf_logged = TRUE;
             getsockopt( s, SOL_SOCKET, SO_SNDBUF, &i, &size );
-            tr_inf( "SO_SNDBUF size is %d", i );
+            tr_dbg( "SO_SNDBUF size is %d", i );
             getsockopt( s, SOL_SOCKET, SO_RCVBUF, &i, &size );
-            tr_inf( "SO_RCVBUF size is %d", i );
+            tr_dbg( "SO_RCVBUF size is %d", i );
         }
     }
 

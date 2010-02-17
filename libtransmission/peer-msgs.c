@@ -1574,20 +1574,6 @@ readBtMessage( tr_peermsgs * msgs, struct evbuffer * inbuf, size_t inlen )
     return READ_NOW;
 }
 
-static inline void
-decrementDownloadedCount( tr_peermsgs * msgs, uint32_t byteCount )
-{
-    tr_torrent * tor = msgs->torrent;
-
-    tor->downloadedCur -= MIN( tor->downloadedCur, byteCount );
-}
-
-static inline void
-clientGotUnwantedBlock( tr_peermsgs * msgs, const struct peer_request * req )
-{
-    decrementDownloadedCount( msgs, req->length );
-}
-
 static void
 addPeerToBlamefield( tr_peermsgs * msgs, uint32_t index )
 {
@@ -1776,8 +1762,9 @@ updateMetadataRequests( tr_peermsgs * msgs, time_t now )
 static void
 updateBlockRequests( tr_peermsgs * msgs )
 {
-    if( ( msgs->desiredRequestCount > 0 ) &&
-        ( msgs->peer->pendingReqsToPeer <= ( msgs->desiredRequestCount * 0.66 ) ) )
+    if( tr_torrentIsPieceTransferAllowed( msgs->torrent, TR_PEER_TO_CLIENT )
+        && ( msgs->desiredRequestCount > 0 )
+        && ( msgs->peer->pendingReqsToPeer <= ( msgs->desiredRequestCount * 0.66 ) ) )
     {
         int i;
         int n;
@@ -2371,7 +2358,8 @@ tr_peerMsgsNew( struct tr_torrent * torrent,
     if( tr_peerIoSupportsLTEP( peer->io ) )
         sendLtepHandshake( m );
 
-    if(tr_peerIoSupportsDHT(peer->io)) {
+    if( tr_dhtEnabled( torrent->session ) && tr_peerIoSupportsDHT( peer->io ))
+    {
         /* Only send PORT over IPv6 when the IPv6 DHT is running (BEP-32). */
         const struct tr_address *addr = tr_peerIoGetAddress( peer->io, NULL );
         if( addr->type == TR_AF_INET || tr_globalIPv6() ) {

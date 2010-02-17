@@ -28,11 +28,12 @@
 
 @implementation TrackerNode
 
-- (id) initWithTrackerStat: (tr_tracker_stat *) stat
+- (id) initWithTrackerStat: (tr_tracker_stat *) stat torrent: (Torrent *) torrent
 {
     if ((self = [super init]))
     {
         fStat = *stat;
+        fTorrent = torrent;
     }
     
     return self;
@@ -69,6 +70,11 @@
     return fStat.id;
 }
 
+- (Torrent *) torrent
+{
+    return fTorrent;
+}
+
 - (NSInteger) totalSeeders
 {
     return fStat.seederCount;
@@ -103,11 +109,13 @@
         dateString = NSLocalizedString(@"N/A", "Tracker last announce");
     
     NSString * baseString;
-    if (fStat.hasAnnounced && !fStat.lastAnnounceSucceeded)
+    if (fStat.hasAnnounced && fStat.lastAnnounceTimedOut)
+        baseString = [NSLocalizedString(@"Announce timed out", "Tracker last announce") stringByAppendingFormat: @": %@", dateString];
+    else if (fStat.hasAnnounced && !fStat.lastAnnounceSucceeded)
     {
         baseString = NSLocalizedString(@"Announce error", "Tracker last announce");
-        NSString * errorString = [NSString stringWithUTF8String: fStat.lastAnnounceResult];
         
+        NSString * errorString = [NSString stringWithUTF8String: fStat.lastAnnounceResult];
         if ([errorString isEqualToString: @""])
             baseString = [baseString stringByAppendingFormat: @": %@", dateString];
         else
@@ -116,11 +124,10 @@
     else
     {
         baseString = [NSLocalizedString(@"Last Announce", "Tracker last announce") stringByAppendingFormat: @": %@", dateString];
-        if (fStat.hasAnnounced && fStat.lastAnnounceSucceeded)
+        if (fStat.hasAnnounced && fStat.lastAnnounceSucceeded && fStat.lastAnnouncePeerCount > 0)
         {
-            #warning after 1.8 fix ugly hack
             NSString * peerString;
-            if (fStat.lastAnnouncePeerCount == 1 && [[[NSLocale currentLocale] localeIdentifier] hasPrefix: @"en_"])
+            if (fStat.lastAnnouncePeerCount == 1)
                 peerString = NSLocalizedString(@"got 1 peer", "Tracker last announce");
             else
                 peerString = [NSString stringWithFormat: NSLocalizedString(@"got %d peers", "Tracker last announce"),
@@ -178,8 +185,8 @@
     if (fStat.hasScraped && !fStat.lastScrapeSucceeded)
     {
         baseString = NSLocalizedString(@"Scrape error", "Tracker last scrape");
-        NSString * errorString = [NSString stringWithUTF8String: fStat.lastScrapeResult];
         
+        NSString * errorString = [NSString stringWithUTF8String: fStat.lastScrapeResult];
         if ([errorString isEqualToString: @""])
             baseString = [baseString stringByAppendingFormat: @": %@", dateString];
         else

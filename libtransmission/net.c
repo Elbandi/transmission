@@ -352,8 +352,22 @@ tr_netBindTCPImpl( const tr_address * addr, tr_port port, tr_bool suppressMsgs, 
     if( bind( fd, (struct sockaddr *) &sock, addrlen ) ) {
         const int err = sockerrno;
         if( !suppressMsgs )
-            tr_err( _( "Couldn't bind port %d on %s: %s" ),
-                    port, tr_ntop_non_ts( addr ), tr_strerror( err ) );
+        {
+            const char * fmt;
+            const char * hint;
+
+            if( err == EADDRINUSE )
+                hint = _( "Is another copy of Transmission already running?" );
+            else
+                hint = NULL;
+
+            if( hint == NULL )
+                fmt = _( "Couldn't bind port %d on %s: %s" );
+            else
+                fmt = _( "Couldn't bind port %d on %s: %s (%s)" );
+            
+            tr_err( fmt, port, tr_ntop_non_ts( addr ), tr_strerror( err ), hint );
+        }
         tr_netCloseSocket( fd );
         *errOut = err;
         return -1;
@@ -630,7 +644,13 @@ isMartianAddr( const struct tr_address * a )
             const unsigned char * address = (const unsigned char*)&a->addr.addr6;
             return (address[0] == 0xFF) ||
                    (memcmp(address, zeroes, 15) == 0 &&
-                    (address[15] == 0 || address[15] == 1));
+                    (address[15] == 0 || address[15] == 1)) ||
+                   /* Addresses outside of 2000::/3 are currently reserved,
+                      but might be allocated at some future time.  Since
+                      there are a lot of buggy peers pushing around such
+                      addresses over PEX, we reject them until the end of
+                      the 13th Baktun. */
+                   (tr_time() < 1356130800 && (address[0] & 0xE0) != 0x20);
             break;
         }
 

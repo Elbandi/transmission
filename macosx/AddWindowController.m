@@ -32,7 +32,13 @@
 
 #define UPDATE_SECONDS 1.0
 
+#define POPUP_PRIORITY_HIGH 0
+#define POPUP_PRIORITY_NORMAL 1
+#define POPUP_PRIORITY_LOW 2
+
 @interface AddWindowController (Private)
+
+- (void) updateFiles;
 
 - (void) confirmAdd;
 
@@ -92,6 +98,16 @@
     [self setGroupsMenu];
     [fGroupPopUp selectItemWithTag: fGroupValue];
     
+    NSInteger priorityTag;
+    switch ([fTorrent priority])
+    {
+        case TR_PRI_HIGH: priorityTag = POPUP_PRIORITY_HIGH; break;
+        case TR_PRI_NORMAL: priorityTag = POPUP_PRIORITY_NORMAL; break;
+        case TR_PRI_LOW: priorityTag = POPUP_PRIORITY_LOW; break;
+        default: NSAssert1(NO, @"Unknown priority for adding torrent: %d", [fTorrent priority]);
+    }
+    [fPriorityPopUp selectItemWithTag: priorityTag];
+    
     [fStartCheck setState: [[NSUserDefaults standardUserDefaults] boolForKey: @"AutoStartDownload"] ? NSOnState : NSOffState];
     
     [fDeleteCheck setState: fDeleteTorrent ? NSOnState : NSOffState];
@@ -105,8 +121,9 @@
         [fLocationImageView setImage: nil];
     }
     
-    fTimer = [NSTimer scheduledTimerWithTimeInterval: UPDATE_SECONDS target: fFileController
-                selector: @selector(reloadData) userInfo: nil repeats: YES];
+    fTimer = [NSTimer scheduledTimerWithTimeInterval: UPDATE_SECONDS target: self
+                selector: @selector(updateFiles) userInfo: nil repeats: YES];
+    [self updateFiles];
 }
 
 - (void) windowDidLoad
@@ -123,6 +140,7 @@
     [fTimer invalidate];
     
     [fDestination release];
+    [fTorrentFile release];
     
     [super dealloc];
 }
@@ -191,7 +209,20 @@
 - (void) verifyLocalData: (id) sender
 {
     [fTorrent resetCache];
-    [fFileController reloadData];
+    [self updateFiles];
+}
+
+- (void) changePriority: (id) sender
+{
+    tr_priority_t priority;
+    switch ([sender tag])
+    {
+        case POPUP_PRIORITY_HIGH: priority = TR_PRI_HIGH; break;
+        case POPUP_PRIORITY_NORMAL: priority = TR_PRI_NORMAL; break;
+        case POPUP_PRIORITY_LOW: priority = TR_PRI_LOW; break;
+        default: NSAssert1(NO, @"Unknown priority tag for adding torrent: %d", [sender tag]);
+    }
+    [fTorrent setPriority: priority];
 }
 
 - (void) updateStatusField: (NSNotification *) notification
@@ -228,6 +259,21 @@
 @end
 
 @implementation AddWindowController (Private)
+
+- (void) updateFiles
+{
+    [fTorrent update];
+    
+    [fFileController reloadData];
+    
+    if ([fTorrent isChecking])
+    {
+        [fVerifyIndicator setHidden: NO];
+        [fVerifyIndicator setDoubleValue: [fTorrent checkingProgress]];
+    }
+    else
+        [fVerifyIndicator setHidden: YES];
+}
 
 - (void) confirmAdd
 {

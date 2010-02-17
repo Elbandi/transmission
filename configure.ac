@@ -3,8 +3,8 @@ dnl STATUS: "X" for prerelease beta builds,
 dnl         "Z" for unsupported trunk builds,
 dnl         "0" for stable, supported releases
 dnl these should be the only two lines you need to change
-m4_define([user_agent_prefix],[1.83])
-m4_define([peer_id_prefix],[-TR1830-])
+m4_define([user_agent_prefix],[1.90])
+m4_define([peer_id_prefix],[-TR1900-])
 
 AC_INIT([transmission],
         [user_agent_prefix],
@@ -37,7 +37,11 @@ else
 fi
 AM_CONDITIONAL(TR_UNSTABLE, test "x$supported_build" = "xno")
 
-# MANDATORY for libtransmission
+##
+##
+##   MANDATORY for everything
+##
+##
 CURL_MINIMUM=7.16.3
 AC_SUBST(CURL_MINIMUM)
 LIBEVENT_MINIMUM=1.4.5
@@ -45,13 +49,21 @@ AC_SUBST(LIBEVENT_MINIUM)
 OPENSSL_MINIMUM=0.9.4
 AC_SUBST(OPENSSL_MINIMUM)
 
-# MANDATORY for the GTK+ client
+##
+##
+##   MANDATORY for the GTK+ client
+##
+##
 GLIB_MINIMUM=2.6.0
 AC_SUBST(GLIB_MINIMUM)
 GTK_MINIMUM=2.6.0
 AC_SUBST(GTK_MINIMUM)
 
-# OPTIONAL for the GTK+ client
+##
+##
+##   OPTIONAL for the GTK+ client
+##
+##
 # play the XDG "download done" sound...
 CANBERRA_MINIMUM=0.10
 AC_SUBST(CANBERRA_MINIMUM)
@@ -67,6 +79,9 @@ AC_SUBST(GIO_MINIMUM)
 # pop up a "download done" notice...
 LIBNOTIFY_MINIMUM=0.4.3
 AC_SUBST(LIBNOTIFY_MINIMUM)
+# create the tray icon with AppIndicator
+LIBAPPINDICATOR_MINIMUM=0.0.11
+  AC_SUBST(LIBAPPINDICATOR_MINIMUM)
 
 
 AC_PROG_CC
@@ -93,7 +108,7 @@ fi
 AC_HEADER_STDC
 AC_HEADER_TIME
 
-AC_CHECK_FUNCS([pread pwrite lrintf strlcpy daemon dirname basename strcasecmp localtime_r posix_fallocate memmem strtold syslog])
+AC_CHECK_FUNCS([pread pwrite lrintf strlcpy daemon dirname basename strcasecmp localtime_r fallocate64 posix_fallocate memmem strtold syslog valloc])
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 ACX_PTHREAD
@@ -246,8 +261,11 @@ AC_ARG_ENABLE([gtk],
               [want_gtk=${have_gtk}])
 build_gtk=no
 use_gio=no
+use_libappindicator=no
 use_libnotify=no
 use_dbus_glib=no
+use_canberra=no
+use_libgconf=no
 if test "x$want_gtk" = "xyes" ; then
     if test "x$have_gtk" = "xyes"; then
       build_gtk=yes
@@ -282,6 +300,24 @@ if test "x$build_gtk" = "xyes"; then
         fi
     fi
 
+    PKG_CHECK_MODULES([LIBAPPINDICATOR],
+                      [appindicator-0.1 >= $LIBAPPINDICATOR_MINIMUM],
+                      [have_libappindicator=yes],
+                      [have_libappindicator=no])
+
+    AC_ARG_ENABLE([libappindicator], 
+                  AS_HELP_STRING([--enable-libappindicator],[enable AppIndicator support]),, 
+                  [enable_libappindicator=yes])
+    use_libappindicator=no
+    if test "x$enable_libappindicator" = "xyes" ; then
+        if test "x$have_libappindicator" = "xyes"; then
+            use_libappindicator=yes
+            AC_SUBST(LIBAPPINDICATOR_LIBS) 
+            AC_SUBST(LIBAPPINDICATOR_CFLAGS) 
+            AC_DEFINE([HAVE_LIBAPPINDICATOR], 1) 
+        fi
+    fi
+
     PKG_CHECK_MODULES([LIBCANBERRA],
                       [libcanberra-gtk >= $CANBERRA_MINIMUM],
                       [have_libcanberra=yes],
@@ -289,7 +325,6 @@ if test "x$build_gtk" = "xyes"; then
     AC_ARG_ENABLE([libcanberra], 
                   AS_HELP_STRING([--enable-libcanberra],[enable sounds]),, 
                   [enable_libcanberra=yes]) 
-    use_canberra=no
     if test "x$enable_libcanberra" = "xyes" ; then
         if test "x$have_libcanberra" = "xyes"; then
             use_canberra=yes
@@ -304,7 +339,6 @@ if test "x$build_gtk" = "xyes"; then
     AC_ARG_ENABLE([gconf2], 
                   AS_HELP_STRING([--enable-libgconf],[enable GConf support]),, 
                   [enable_libgconf=yes]) 
-    use_libgconf=no
     if test "x$enable_libgconf" = "xyes" ; then
         if test "x$have_libgconf" = "xyes"; then
             use_libgconf=yes
@@ -385,18 +419,7 @@ case $host_os in
 
   *darwin*)
     have_darwin="yes"
-    # Make sure the proper Mac SDK is installed
-    if test ! -d /Developer/SDKs/MacOSX10.5.sdk; then
-      cat << EOF
-You need to install the Mac OS X 10.5 SDK in order to build Transmission:
-  Get your Xcode CD or package
-  Restart the install
-  When it gets to "Installation Type", select "Customize"
-  Select "Mac OS X 10.5 SDK" under "Cross Development"
-  Finish the install.
-EOF
-      exit 1
-    fi
+    CFLAGS="-DMACOSX $CFLAGS"
     ;;
 
 esac
@@ -420,6 +443,21 @@ AC_ARG_ENABLE([daemon],
 AM_CONDITIONAL([BUILD_DAEMON],[test "x$build_daemon" = "xyes"])
 
 
+if test "x$build_mac" = "xyes" ; then
+    # Make sure the proper Mac SDK is installed
+    if test ! -d /Developer/SDKs/MacOSX10.5.sdk; then
+      cat << EOF
+You need to install the Mac OS X 10.5 SDK in order to build Transmission
+with --enable-mac:
+  Get your Xcode CD or package
+  Restart the install
+  When it gets to "Installation Type", select "Customize"
+  Select "Mac OS X 10.5 SDK" under "Cross Development"
+  Finish the install.
+EOF
+      exit 1
+    fi
+fi
 if test "x$have_darwin" = "xyes"; then
     AC_DEFINE([HAVE_DARWIN], 1)
 fi
@@ -462,18 +500,22 @@ echo "
 
 Configuration:
 
-        Source code location:          ${srcdir}
-        Compiler:                      ${CXX}
-        System or bundled libevent:    ${libevent_source}
+   Source code location:                                       ${srcdir}
+   Compiler:                                                   ${CXX}
+   System or bundled libevent:                                 ${libevent_source}
 
-        Build Mac client:              ${build_mac}
-        Build GTK+ client:             ${build_gtk}
-          ... with canberra support:   ${use_canberra}
-          ... with gio support:        ${use_gio}
-          ... with dbus-glib support:  ${use_dbus_glib}
-          ... with libgconf support:   ${use_libgconf}
-          ... with libnotify support:  ${use_libnotify}
-        Build Command-Line client:     ${build_cli}
-        Build Daemon:                  ${build_daemon}
+   Build Command-Line client:                                  ${build_cli}
+
+   Build GTK+ client:                                          ${build_gtk}
+      optional dbus support:                                   ${use_dbus_glib}
+      optional gio for optional watchdir support:              ${use_gio}
+      optional libnotify for 'download completed' popups:      ${use_libnotify}
+      optional libcanberra for 'download completed' sounds:    ${use_canberra}
+      optional libgconf to tell GNOME we handle magnet links:  ${use_libgconf}
+      optional libappindicator for Ubuntu-style system tray:   ${use_libappindicator}
+
+   Build Daemon:                                               ${build_daemon}
+
+   Build Mac client:                                           ${build_mac}
 
 "

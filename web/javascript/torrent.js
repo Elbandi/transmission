@@ -27,35 +27,60 @@ Torrent._ErrTrackerWarning     = 1;
 Torrent._ErrTrackerError       = 2;
 Torrent._ErrLocalError         = 3;
 
-Torrent._StaticFields = [ 'addedDate', 'comment', 'creator', 'dateCreated',
-		'hashString', 'id', 'isPrivate', 'name', 'totalSize', 'pieceCount', 'pieceSize' ]
+Torrent._TrackerInactive         = 0;
+Torrent._TrackerWaiting          = 1;
+Torrent._TrackerQueued           = 2;
+Torrent._TrackerActive           = 3;
+
+
+Torrent._StaticFields = [ 'hashString', 'id' ]
+
+Torrent._MetaDataFields = [ 'addedDate', 'comment', 'creator', 'dateCreated',
+		'isPrivate', 'name', 'totalSize', 'pieceCount', 'pieceSize' ]
+
 Torrent._DynamicFields = [ 'downloadedEver', 'error', 'errorString', 'eta',
     'haveUnchecked', 'haveValid', 'leftUntilDone', 'metadataPercentComplete', 'peersConnected',
     'peersGettingFromUs', 'peersSendingToUs', 'rateDownload', 'rateUpload',
-    'recheckProgress', 'sizeWhenDone', 'status',
+    'recheckProgress', 'sizeWhenDone', 'status', 'trackerStats',
     'uploadedEver', 'uploadRatio', 'seedRatioLimit', 'seedRatioMode', 'downloadDir' ]
 
 Torrent.prototype =
 {
+	initMetaData: function( data ) {
+		this._date          = data.addedDate;
+		this._comment       = data.comment;
+		this._creator       = data.creator;
+		this._creator_date  = data.dateCreated;
+		this._is_private    = data.isPrivate;
+		this._name          = data.name;
+		this._name_lc       = this._name.toLowerCase( );
+		this._size          = data.totalSize;
+		this._pieceCount    = data.pieceCount;
+		this._pieceSize     = data.pieceSize;
+
+		if( data.files ) {
+			for( var i=0, row; row=data.files[i]; ++i ) {
+				this._file_model[i] = {
+					'index': i,
+					'torrent': this,
+					'length': row.length,
+					'name': row.name
+				};
+			}
+		}
+	},
+
 	/*
 	 * Constructor
 	 */
 	initialize: function( transferListParent, fileListParent, controller, data) {
 		this._id            = data.id;
-		this._is_private    = data.isPrivate;
 		this._hashString    = data.hashString;
-		this._date          = data.addedDate;
-		this._size          = data.totalSize;
-		this._pieceCount    = data.pieceCount;
-		this._pieceSize     = data.pieceSize;
-		this._comment       = data.comment;
-		this._creator       = data.creator;
-		this._creator_date  = data.dateCreated;
 		this._sizeWhenDone  = data.sizeWhenDone;
-		this._name          = data.name;
-		this._name_lc       = this._name.toLowerCase( );
+		this._trackerStats  = this.buildTrackerStats(data.trackerStats);
 		this._file_model    = [ ];
 		this._file_view     = [ ];
+		this.initMetaData( data );
 
 		// Create a new <li> element
 		var top_e = document.createElement( 'li' );
@@ -122,17 +147,6 @@ Torrent.prototype =
 
 		this.initializeTorrentFilesInspectorGroup( fileListParent );
 
-		if( data.files ) {
-			for( var i=0, row; row=data.files[i]; ++i ) {
-				this._file_model[i] = {
-					'index': i,
-					'torrent': this,
-					'length': row.length,
-					'name': row.name
-				};
-			}
-		}
-
 		// Update all the labels etc
 		this.refresh(data);
 		
@@ -152,6 +166,34 @@ Torrent.prototype =
 		return $(this._fileList);
 	},
 	
+	buildTrackerStats: function(trackerStats) {
+		result = [];
+		for( var i=0, tracker; tracker=trackerStats[i]; ++i ) {
+			tier = result[tracker.tier] || [];
+			tier[tier.length] = {
+				'host': tracker.host,
+				'announce': tracker.announce,
+				'hasAnnounced': tracker.hasAnnounced,
+				'lastAnnounceTime': tracker.lastAnnounceTime,
+				'lastAnnounceSucceeded': tracker.lastAnnounceSucceeded,
+				'lastAnnounceResult': tracker.lastAnnounceResult,
+				'lastAnnouncePeerCount': tracker.lastAnnouncePeerCount,
+				'announceState': tracker.announceState,
+				'nextAnnounceTime': tracker.nextAnnounceTime,
+				'isBackup': tracker.isBackup,
+				'hasScraped': tracker.hasScraped,
+				'lastScrapeTime': tracker.lastScrapeTime,
+				'lastScrapeSucceeded': tracker.lastScrapeSucceeded,
+				'lastScrapeResult': tracker.lastScrapeResult,
+				'seederCount': tracker.seederCount,
+				'leecherCount': tracker.leecherCount,
+				'downloadCount': tracker.downloadCount
+			};
+			result[tracker.tier] = tier;
+		}
+		return result;
+	},
+
 	/*--------------------------------------------
 	 *
 	 *  S E T T E R S   /   G E T T E R S
@@ -207,6 +249,7 @@ Torrent.prototype =
 			default:                            return 'error';
 		}
 	},
+	trackerStats: function() { return this._trackerStats; },
 	uploadSpeed: function() { return this._upload_speed; },
 	uploadTotal: function() { return this._upload_total; },
 	showFileList: function() {
@@ -305,6 +348,13 @@ Torrent.prototype =
 	 *  I N T E R F A C E   F U N C T I O N S
 	 *
 	 *--------------------------------------------*/
+
+	refreshMetaData: function(data) {
+		this.initMetaData( data );
+		this.ensureFileListExists();
+		this.refreshFileView();
+		this.refreshHTML( );
+	},
 	
 	refresh: function(data) {
 		this.refreshData( data );
@@ -314,7 +364,11 @@ Torrent.prototype =
 	/*
 	 * Refresh display
 	 */
-	refreshData: function(data) {
+	refreshData: function(data)
+	{
+		if( this.needsMetaData() && ( data.metadataPercentComplete >= 1 ) )
+			transmission.refreshMetaData( [ this._id ] );
+
 		this._completed               = data.haveUnchecked + data.haveValid;
 		this._verified                = data.haveValid;
 		this._leftUntilDone           = data.leftUntilDone;
@@ -333,6 +387,7 @@ Torrent.prototype =
 		this._error                   = data.error;
 		this._error_string            = data.errorString;
 		this._eta                     = data.eta;
+		this._trackerStats            = this.buildTrackerStats(data.trackerStats);
 		this._state                   = data.status;
 		this._download_dir            = data.downloadDir;
 		this._metadataPercentComplete = data.metadataPercentComplete;

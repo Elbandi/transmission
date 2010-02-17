@@ -22,6 +22,7 @@
 #include "file-list.h"
 #include "hig.h"
 #include "icons.h"
+#include "tr-prefs.h"
 
 enum
 {
@@ -108,10 +109,11 @@ refreshFilesForeach( GtkTreeModel * model,
     if( is_file )
     {
         tr_torrent * tor = data->tor;
-        const int enabled = tr_torrentGetFileDL( tor, index );
-        const int priority = tr_torrentGetFilePriority( tor, index );
+        const tr_info * inf = tr_torrentInfo( tor );
+        const int enabled = !inf->files[index].dnd;
+        const int priority = inf->files[index].priority;
         const uint64_t have = data->refresh_file_stat[index].bytesCompleted;
-        const int prog = (int)((100.0*have)/size);
+        const int prog = size ? (int)((100.0*have)/size) : 1;
 
         if( (priority!=old_priority) || (enabled!=old_enabled) || (have!=old_have) || (prog!=old_prog) )
             gtk_tree_store_set( data->store, iter, FC_PRIORITY, priority,
@@ -159,7 +161,7 @@ refreshFilesForeach( GtkTreeModel * model,
         }
         while( gtk_tree_model_iter_next( model, &child ) );
 
-        prog = (int)((100.0*have)/sub_size);
+        prog = sub_size ? (int)((100.0*have)/sub_size) : 1;
 
         if( (size!=sub_size) || (have!=old_have)
                              || (priority!=old_priority)
@@ -386,8 +388,9 @@ buildTree( GNode * node, gpointer gdata )
 
     const char * mime_type = isLeaf ? get_mime_type_from_filename( child_data->name ) : DIRECTORY_MIME_TYPE;
     GdkPixbuf * icon = get_mime_type_icon( mime_type, GTK_ICON_SIZE_MENU, build->w );
-    const int priority = isLeaf ? tr_torrentGetFilePriority( build->tor, child_data->index ) : 0;
-    const gboolean enabled = isLeaf ? tr_torrentGetFileDL( build->tor, child_data->index ) : TRUE;
+    const tr_info * inf = tr_torrentInfo( build->tor );
+    const int priority = isLeaf ? inf->files[ child_data->index ].priority : 0;
+    const gboolean enabled = isLeaf ? !inf->files[ child_data->index ].dnd : TRUE;
 #if GTK_CHECK_VERSION(2,10,0)
     gtk_tree_store_insert_with_values( build->store, &child_iter, build->iter, INT_MAX,
                                        FC_INDEX, child_data->index,
@@ -521,7 +524,7 @@ file_list_set_torrent( GtkWidget * w, int torrentId )
         }
 
         refresh( data );
-        data->timeout_tag = gtr_timeout_add_seconds( 2, refreshModel, data );
+        data->timeout_tag = gtr_timeout_add_seconds( SECONDARY_WINDOW_REFRESH_INTERVAL_SECONDS, refreshModel, data );
     }
 
     gtk_tree_view_set_model( GTK_TREE_VIEW( data->view ), data->model );
