@@ -201,7 +201,8 @@ void tr_peerMgrTorrentStats( tr_torrent * tor,
                              int * setmeWebseedsSendingToUs,
                              int * setmePeersSendingToUs,
                              int * setmePeersGettingFromUs,
-                             int * setmePeersFrom ); /* TR_PEER_FROM__MAX */
+                             int * setmePeersFrom, /* TR_PEER_FROM__MAX */
+                             int * setmeAvailablePeersFrom ); /* TR_PEER_FROM__MAX */
 
 struct tr_peer_stat* tr_peerMgrPeerStats( const tr_torrent * tor,
                                           int              * setmeCount );
