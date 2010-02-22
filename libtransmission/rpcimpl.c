@@ -1205,6 +1205,10 @@ sessionSet( tr_session               * session,
         tr_blocklistSetEnabled( session, boolVal );
     if( tr_bencDictFindStr( args_in, TR_PREFS_KEY_DOWNLOAD_DIR, &str ) )
         tr_sessionSetDownloadDir( session, str );
+    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE, &i ) )
+        tr_sessionSetMaxDownloadActive( session, i );
+    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_MAX_SEED_ACTIVE, &i ) )
+        tr_sessionSetMaxSeedActive( session, i );
     if( tr_bencDictFindStr( args_in, TR_PREFS_KEY_INCOMPLETE_DIR, &str ) )
         tr_sessionSetIncompleteDir( session, str );
     if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED, &boolVal ) )
@@ -1319,6 +1323,8 @@ sessionGet( tr_session               * s,
     tr_bencDictAddInt ( d, "blocklist-size", tr_blocklistGetRuleCount( s ) );
     tr_bencDictAddStr ( d, "config-dir", tr_sessionGetConfigDir( s ) );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_DOWNLOAD_DIR, tr_sessionGetDownloadDir( s ) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE, tr_sessionGetMaxDownloadActive( s ) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_SEED_ACTIVE, tr_sessionGetMaxSeedActive( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_LIMIT_GLOBAL, tr_sessionGetPeerLimit( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_LIMIT_TORRENT, tr_sessionGetPeerLimitPerTorrent( s ) );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_INCOMPLETE_DIR, tr_sessionGetIncompleteDir( s ) );

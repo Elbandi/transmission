@@ -142,6 +142,9 @@ struct tr_session
     int                          proxyPort;
     int                          peerSocketTOS;
 
+    int                          maxDownloadActive;
+    int                          maxSeedActive;
+
     int                          torrentCount;
     tr_torrent *                 torrentList;
 
@@ -177,6 +180,7 @@ struct tr_session
 
     struct event               * nowTimer;
     struct event               * saveTimer;
+    struct event               * queueTimer;
 
     /* monitors the "global pool" speeds */
     struct tr_bandwidth        * bandwidth;
@@ -198,6 +202,11 @@ void         tr_sessionSetTorrentFile( tr_session * session,
 
 tr_bool      tr_sessionIsAddressBlocked( const tr_session        * session,
                                          const struct tr_address * addr );
+int          tr_sessionGetMaxSeedActive( const tr_session * session );
+void         tr_sessionSetMaxSeedActive( tr_session * session, int maxActive );
+int          tr_sessionGetMaxDownloadActive( const tr_session * session );
+void         tr_sessionSetMaxDownloadActive( tr_session * session, int maxActive );
+int          tr_sessionActiveTorrentLimitReached( tr_session * session, tr_torrent * tor );
 
 void         tr_sessionLock( tr_session * );
 
