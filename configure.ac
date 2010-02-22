@@ -3,8 +3,8 @@ dnl STATUS: "X" for prerelease beta builds,
 dnl         "Z" for unsupported trunk builds,
 dnl         "0" for stable, supported releases
 dnl these should be the only two lines you need to change
-m4_define([user_agent_prefix],[1.90])
-m4_define([peer_id_prefix],[-TR1900-])
+m4_define([user_agent_prefix],[1.91])
+m4_define([peer_id_prefix],[-TR1910-])
 
 AC_INIT([transmission],
         [user_agent_prefix],
@@ -108,7 +108,7 @@ fi
 AC_HEADER_STDC
 AC_HEADER_TIME
 
-AC_CHECK_FUNCS([pread pwrite lrintf strlcpy daemon dirname basename strcasecmp localtime_r fallocate64 posix_fallocate memmem strtold syslog valloc])
+AC_CHECK_FUNCS([pread pwrite lrintf strlcpy daemon dirname basename strcasecmp localtime_r fallocate64 posix_fallocate memmem strtold syslog valloc getpagesize posix_memalign])
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 ACX_PTHREAD

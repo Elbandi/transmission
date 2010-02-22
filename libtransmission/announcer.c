@@ -133,7 +133,7 @@ getHostName( const char * url )
     int port = 0;
     char * host = NULL;
     char * ret;
-    tr_httpParseURL( url, strlen( url ), &host, &port, NULL );
+    tr_urlParse( url, strlen( url ), NULL, &host, &port, NULL );
     ret = tr_strdup_printf( "%s:%d", ( host ? host : "invalid" ), port );
     tr_free( host );
     return ret;
@@ -310,7 +310,6 @@ trackerItemCopyAttributes( tr_tracker_item * t, const tr_tracker_item * o )
     t->leecherCount = o->leecherCount;
     t->downloadCount = o->downloadCount;
     t->downloaderCount = o->downloaderCount;
-    t->id = o->id;
     memcpy( t->key_param, o->key_param, sizeof( t->key_param ) );
 }
 
@@ -1034,25 +1033,6 @@ tr_announcerAddBytes( tr_torrent * tor, int type, uint32_t byteCount )
     }
 }
 
-void
-tr_announcerSubtractBytes( tr_torrent * tor, int type, uint32_t byteCount )
-{
-    int i, n;
-    tr_torrent_tiers * tiers;
-
-    assert( tr_isTorrent( tor ) );
-    assert( type==TR_ANN_UP || type==TR_ANN_DOWN || type==TR_ANN_CORRUPT );
-
-    tiers = tor->tiers;
-    n = tr_ptrArraySize( &tiers->tiers );
-    for( i=0; i<n; ++i )
-    {
-        tr_tier * tier = tr_ptrArrayNth( &tiers->tiers, i );
-        uint64_t * setme = &tier->byteCounts[type];
-        *setme -= MIN( *setme, byteCount );
-    }
-}
-
 /***
 ****
 ***/
@@ -1508,39 +1488,62 @@ getNextAnnounceEvent( tr_tier * tier )
     int i, n;
     int pos = -1;
     tr_ptrArray tmp;
-    char ** events;
+    const char ** events;
     const char * str = NULL;
 
     assert( tier != NULL );
     assert( tr_isTorrent( tier->tor ) );
 
-    /* rule #1: if "stopped" is in the queue, ignore everything before it */
-    events = (char**) tr_ptrArrayPeek( &tier->announceEvents, &n );
-    for( i=0; pos<0 && i<n; ++i )
-        if( !strcmp( events[i], "stopped" ) )
+    /* special case #1: if "stopped" is in the queue, ignore everything before it */
+    events = (const char**) tr_ptrArrayPeek( &tier->announceEvents, &n );
+    if( pos == -1 ) {
+        for( i=0; i<n; ++i )
+            if( !strcmp( events[i], "stopped" ) )
+                break;
+        if( i <  n )
             pos = i;
+    }
 
-    /* rule #2: if the next two events are the same, ignore the first one */
-    for( i=0; pos<0 && i<=n-2; ++i )
-        if( strcmp( events[i], events[i+1] ) )
+    /* special case #2: don't use empty strings if something follows them */
+    if( pos == -1 ) {
+        for( i = 0; i < n; ++i )
+            if( *events[i] )
+                break;
+        if( i < n )
             pos = i;
+    }
 
-    /* otherwise use the next announce event in line */
-    if( ( pos < 0 ) && ( n > 0 ) )
+    /* default: use the next in the queue */
+    if( ( pos == -1 ) && ( n > 0 ) )
         pos = 0;
 
-    /* rule #3: BEP 21: "In order to tell the tracker that a peer is a
+    /* special case #3: if there are duplicate requests in a row, skip to the last one */
+    if( pos >= 0 ) {
+        for( i=pos+1; i<n; ++i )
+            if( strcmp( events[pos], events[i] ) )
+                break;
+        pos = i - 1;
+    }
+
+    /* special case #4: BEP 21: "In order to tell the tracker that a peer is a
      * partial seed, it MUST send an event=paused parameter in every
      * announce while it is a partial seed." */
     str = pos>=0 ? events[pos] : NULL;
     if( tr_cpGetStatus( &tier->tor->completion ) == TR_PARTIAL_SEED )
-        if( !str || !strcmp( str, "stopped" ) )
+        if( !str || strcmp( str, "stopped" ) )
             str = "paused";
+
+#if 0
+for( i=0; i<n; ++i ) fprintf( stderr, "(%d)\"%s\" ", i, events[i] );
+fprintf( stderr, "\n" );
+fprintf( stderr, "using (%d)\"%s\"\n", pos, events[pos] );
+if( strcmp( events[pos], str ) ) fprintf( stderr, "...but really using [%s]\n", str );
+#endif
 
     /* announceEvents array upkeep */
     tmp = TR_PTR_ARRAY_INIT;
     for( i=pos+1; i<n; ++i )
-        tr_ptrArrayAppend( &tmp, events[i] );
+        tr_ptrArrayAppend( &tmp, (void*)events[i] );
     tr_ptrArrayDestruct( &tier->announceEvents, NULL );
     tier->announceEvents = tmp;
 

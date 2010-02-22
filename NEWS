@@ -1,3 +1,13 @@
+=== Transmission 1.91 (2010/02/21) ===
+[http://trac.transmissionbt.com/query?milestone=1.91&group=component&groupdesc=1&order=severity All tickets closed by this release]
+==== All Platforms ====
+  * Fix 1.90 crash-on-startup bug that affected some users
+  * Fix 1.90 bug that caused the "turtle mode" state to be forgotten between sessions
+  * Fix 1.83 crash when adding a torrent by URL from an ftp source via the web client
+  * For the BitTorrent spec's "downloaded=X" passage, use the de facto standard
+==== Mac ====
+  * Fix 1.90 bug when removing trackers
+
 === Transmission 1.90 (2010/02/16) ===
 [http://trac.transmissionbt.com/query?milestone=1.90&group=component&groupdesc=1&order=severity All tickets closed by this release]
 ==== All Platforms ====
@@ -11,13 +21,13 @@
   * Use fallocate64() for fast file preallocation on systems that support it
   * Magnet link improvements
   * Don't let "Disk is full" errors cause loss of configuration files
-  * Faster parsing of bencoded data, such as .torrent files
+  * Faster parsing of bencoded data, such as torrent files
 ==== Mac ====
   * Display information for all selected transfers in the inspector's tracker and peer tabs
   * Add a filter to the message log
   * Fix potential crash when updating the blocklist
   * Fix bug that caused the speed limit scheduler to not be applied after sleep
-  * Remove file selection for the per-torrent action menu
+  * Remove excessive file selection for the per-torrent action menu
   * Smaller interface tweaks
 ==== GTK+ ====
   * Give more helpful error messages if "Set Location" or "Add Magnet Link" fail
