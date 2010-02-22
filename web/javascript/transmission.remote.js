@@ -108,6 +108,15 @@ TransmissionRemote.prototype =
 		this.sendRequest( o, callback, async );
 	},
 
+	loadQuotas: function() {
+		var tr = this._controller;
+		var o = { method: 'diskstatus-get' };
+		this.sendRequest( o, function(data) {
+			var o = data.arguments;
+			tr.updateQuotas( o );
+		} );
+	},
+
 	getInitialDataFor: function(torrent_ids, callback) {
 		var o = {
 			method: 'torrent-get',
