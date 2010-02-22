@@ -20,6 +20,7 @@
 #include "completion.h" /* tr_completion */
 #include "session.h" /* tr_sessionLock(), tr_sessionUnlock() */
 #include "utils.h" /* TR_GNUC_PRINTF */
+#include "ptrarray.h"
 
 struct tr_bandwidth;
 struct tr_torrent_tiers;
@@ -252,6 +253,8 @@ struct tr_torrent
     tr_ratiolimit              ratioLimitMode;
 
     uint64_t                   preVerifyTotal;
+
+    tr_ptrArray              * labels;
 };
 
 /* get the index of this piece's first block */
