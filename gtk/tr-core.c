@@ -368,6 +368,20 @@ compareByETA( GtkTreeModel * model,
 }
 
 static int
+compareByQueue( GtkTreeModel * model,
+                GtkTreeIter  * a,
+                GtkTreeIter  * b,
+                gpointer       user_data UNUSED )
+{
+    tr_torrent *ta, *tb;
+
+    gtk_tree_model_get( model, a, MC_TORRENT_RAW, &ta, -1 );
+    gtk_tree_model_get( model, b, MC_TORRENT_RAW, &tb, -1 );
+
+    return -tr_sessionCompareTorrentByQueueRank( &ta, &tb );
+}
+
+static int
 compareByState( GtkTreeModel * model,
                 GtkTreeIter *  a,
                 GtkTreeIter *  b,
@@ -442,6 +456,8 @@ setSort( TrCore *     core,
         sort_func = compareByTracker;
     else if( !strcmp( mode, "sort-by-size" ) )
         sort_func = compareBySize;
+    else if( !strcmp( mode, "sort-by-queue" ) )
+        sort_func = compareByQueue;
     else {
         sort_func = compareByName;
         type = isReversed ? GTK_SORT_DESCENDING : GTK_SORT_ASCENDING;

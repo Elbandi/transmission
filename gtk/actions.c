@@ -59,7 +59,8 @@ static GtkRadioActionEntry sort_radio_entries[] =
     { "sort-by-tracker",   NULL, N_( "Sort by T_racker" ),   NULL, NULL, 5 },
     { "sort-by-age",       NULL, N_( "Sort by A_ge" ),       NULL, NULL, 6 },
     { "sort-by-time-left", NULL, N_( "Sort by Time _Left" ), NULL, NULL, 7 },
-    { "sort-by-size",      NULL, N_( "Sort by Si_ze" ),      NULL, NULL, 8 }
+    { "sort-by-size",      NULL, N_( "Sort by Si_ze" ),      NULL, NULL, 8 },
+    { "sort-by-queue",     NULL, N_( "Sort by _Queue Rank" ),NULL, NULL, 9 }
 };
 
 static void
@@ -106,6 +107,7 @@ static GtkActionEntry entries[] =
     { "torrent-menu", NULL, N_( "_Torrent" ), NULL, NULL, NULL  },
     { "view-menu", NULL, N_( "_View" ), NULL, NULL, NULL  },
     { "sort-menu", NULL, N_( "_Sort Torrents By" ), NULL, NULL, NULL },
+    { "queue-menu", NULL, N_( "Change Queue Rank" ), NULL, NULL, NULL },
     { "edit-menu", NULL, N_( "_Edit" ), NULL, NULL, NULL },
     { "help-menu", NULL, N_( "_Help" ), NULL, NULL, NULL },
     { "copy-magnet-link-to-clipboard",  GTK_STOCK_COPY, N_("Copy _Magnet Link to Clipboard" ), "<control>M", NULL,  G_CALLBACK( action_cb ) },
@@ -121,6 +123,10 @@ static GtkActionEntry entries[] =
     { "start-all-torrents", GTK_STOCK_MEDIA_PLAY, N_( "_Start All" ), NULL, N_( "Start all torrents" ), G_CALLBACK( action_cb ) },
     { "relocate-torrent", NULL, N_("Set _Location" ), NULL, NULL, G_CALLBACK( action_cb ) },
     { "remove-torrent", GTK_STOCK_REMOVE, NULL, "Delete", N_( "Remove torrent" ), G_CALLBACK( action_cb ) },
+    { "move-torrent-up", GTK_STOCK_GO_UP, NULL, NULL, N_( "Move torrent up" ), G_CALLBACK( action_cb ) },
+    { "move-torrent-down", GTK_STOCK_GO_DOWN, NULL, NULL, N_( "Move torrent down" ), G_CALLBACK( action_cb ) },
+    { "move-torrent-top", GTK_STOCK_GOTO_TOP, NULL, NULL, N_( "Move torrent top" ), G_CALLBACK( action_cb ) },
+    { "move-torrent-bottom", GTK_STOCK_GOTO_BOTTOM, NULL, NULL, N_( "Move torrent bottom" ), G_CALLBACK( action_cb ) },
     { "delete-torrent", GTK_STOCK_DELETE, N_( "_Delete Files and Remove" ), "<shift>Delete", NULL, G_CALLBACK( action_cb ) },
     { "new-torrent", GTK_STOCK_NEW, N_( "_New..." ), NULL, N_( "Create a torrent" ), G_CALLBACK( action_cb ) },
     { "quit", GTK_STOCK_QUIT, N_( "_Quit" ), NULL, NULL, G_CALLBACK( action_cb ) },
