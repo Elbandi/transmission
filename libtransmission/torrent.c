@@ -193,6 +193,11 @@ tr_torrentUsesSessionLimits( const tr_torrent * tor )
 ****
 ***/
 
+int tr_torrentGetQueueRank( const tr_torrent * tor )
+{
+    return tor->queueRank;
+}
+
 void
 tr_torrentSetRatioMode( tr_torrent *  tor, tr_ratiolimit mode )
 {

@@ -1261,6 +1261,11 @@ tr_torrentSetAnnounceList( tr_torrent             * torrent,
                            int                      trackerCount );
 
 /**
+ * @brief returns a torrent's queueRank
+ */
+int tr_torrentGetQueueRank( const tr_torrent * tor );
+
+/**
  * @brief sets a torrent's queueRank.
  *
  * queueRank is 0 for torrents that are unlimited/ignored, negative for 

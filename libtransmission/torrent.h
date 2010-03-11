@@ -378,11 +378,6 @@ static inline void tr_torrentSetQueueRankUnIgnore( tr_torrent * tor )
     }
 }
 
-static inline int tr_torrentGetQueueRank( const tr_torrent * tor )
-{
-    return tor->queueRank;
-}
-
 /***
 ****
 ***/
