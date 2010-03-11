@@ -1283,6 +1283,14 @@ void tr_torrentSetSeedRank( tr_torrent * tor );
 void tr_torrentCheckQueue( tr_torrent * tor );
 
 /**
+ * @brief comparator for sorting torrents by queue rank
+ *
+ * Compares first by queue and then by name for torrents that have equal queue
+ * rankings.
+ */
+int tr_sessionCompareTorrentByQueueRank( const void * va, const void * vb );
+
+/**
 ***
 **/
 

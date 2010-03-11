@@ -229,7 +229,7 @@ tr_torrentIsUnlimited( const tr_torrent * tor )
 
     if( tr_torrentGetRatioMode( tor ) == TR_RATIOLIMIT_UNLIMITED )
         return TRUE;
-    if ( tr_torrentGetRatioMode( tor ) == TR_RATIOLIMIT_GLOBAL 
+    if ( tr_torrentGetRatioMode( tor ) == TR_RATIOLIMIT_GLOBAL
             && !tr_sessionIsRatioLimited( tor->session ) )
         return TRUE;
     else
@@ -441,7 +441,6 @@ calculatePiecePriority( const tr_torrent * tor,
         const tr_file * file = &tor->info.files[i];
 
         if( !pieceHasFile( piece, file ) )
-           
             break;
 
         priority = MAX( priority, file->priority );
@@ -2832,7 +2831,7 @@ setQueueRank( tr_torrent * tor, int rank )
                 if( t == tor ) continue;
                 if( t->queueRank > maxRank )
                     maxRank = t->queueRank;
-                if( t->queueRank >= rank ) 
+                if( t->queueRank >= rank )
                 {
                     --t->queueRank;
                     t->anyDate = now;
@@ -2847,7 +2846,7 @@ setQueueRank( tr_torrent * tor, int rank )
                 if( t == tor ) continue;
                 if( t->queueRank > maxRank )
                     maxRank = t->queueRank;
-                if( t->queueRank > tor->queueRank 
+                if( t->queueRank > tor->queueRank
                     && t->queueRank <= rank )
                 {
                     --t->queueRank;
@@ -2876,7 +2875,7 @@ setQueueRank( tr_torrent * tor, int rank )
             while(( t = tr_torrentNext( session, t )))
             {
                 if( t == tor ) continue;
-                if( t->queueRank >= rank 
+                if( t->queueRank >= rank
                     && t->queueRank < tor->queueRank )
                 {
                     ++t->queueRank;

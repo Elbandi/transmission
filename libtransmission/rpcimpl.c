@@ -175,6 +175,8 @@ getTorrents( tr_session * session,
             torrents[torrentCount++] = tor;
     }
 
+    qsort( torrents, torrentCount, sizeof( tr_torrent* ), tr_sessionCompareTorrentByQueueRank );
+
     *setmeCount = torrentCount;
     return torrents;
 }
@@ -747,7 +749,7 @@ setFileDLs( tr_torrent * tor,
     return errmsg;
 }
 static void torrentMoveQueueRank( tr_torrent * tor , const tr_queue_direction dir )
-{   
+{
     switch(dir)
     {
         case TR_QUEUE_UP        : tr_torrentMoveQueueRankUp( tor ); break;
