@@ -480,14 +480,6 @@ onSaveTimer( int foo UNUSED, short bar UNUSED, void * vsession )
 ****
 ***/
 
-typedef enum
-{
-    TR_QUEUE_IGNORE,    /* torrents ignored by the queue */
-    TR_QUEUE_SEED,      /* seeding torrents don't use queueRank */
-    TR_QUEUE_DOWNLOAD   /* queued torrents */
-}
-tr_queueType;
-
 static tr_torrent **
 getQueueArray( tr_session * session, int * count, const tr_queueType type );
 
@@ -1567,6 +1559,32 @@ tr_sessionCompareTorrentByQueueRank( const void * va, const void * vb )
     return ret;
 }
 
+int
+tr_sessionGetQueueSize( tr_session * session , const tr_queueType type )
+{
+    tr_torrent * tor = NULL;
+    int i = 0;
+    while(( tor = tr_torrentNext( session, tor )))
+    {
+        switch(type)
+        {
+            case TR_QUEUE_DOWNLOAD:
+                if( tor->queueRank > 0 )
+                    ++i;
+                break;
+            case TR_QUEUE_SEED:
+                if(tor->queueRank < 0 )
+                    ++i;
+                break;
+            case TR_QUEUE_IGNORED: 
+                if( tor->queueRank == 0 )
+                    ++i;
+                break;
+        }
+    }
+    return i;
+}
+
 static tr_torrent **
 getQueueArray( tr_session          * session,
                int                 * count,
@@ -1579,25 +1597,31 @@ getQueueArray( tr_session          * session,
     torrents = tr_new( tr_torrent *, session->torrentCount);
     while(( tor = tr_torrentNext( session, tor )))
     {
-        if( type == TR_QUEUE_DOWNLOAD && tor->queueRank > 0 )
+        switch(type)
         {
-            torrents[i] = tor;
-            ++i;
-        }
-        else if( type == TR_QUEUE_SEED && tor->queueRank < 0 )
-        {
-            tr_torrentSetSeedRank( tor );
-            torrents[i] = tor;
-            ++i;
-        }
-        else if( type == TR_QUEUE_IGNORE && tor->queueRank == 0 )
-        {
-            torrents[i] = tor;
-            ++i;
+            case TR_QUEUE_DOWNLOAD:
+                if( tor->queueRank > 0 ) {
+                    torrents[i] = tor;
+                    ++i;
+                }
+                break;
+            case TR_QUEUE_SEED:
+                if(tor->queueRank < 0 ) {
+                    tr_torrentSetSeedRank( tor );
+                    torrents[i] = tor;
+                    ++i;
+                }
+                break;
+            case TR_QUEUE_IGNORED: 
+                if( tor->queueRank == 0 ) {
+                    torrents[i] = tor;
+                    ++i;
+                }
+                break;
         }
     }
 
-    if( type != TR_QUEUE_IGNORE )
+    if( type != TR_QUEUE_IGNORED )
         qsort( torrents, i, sizeof( tr_torrent* ), tr_sessionCompareTorrentByQueueRank );
 
     *count = i;

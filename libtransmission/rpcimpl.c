@@ -173,9 +173,9 @@ getTorrents( tr_session * session,
         torrents = tr_new0( tr_torrent *, n );
         while( ( tor = tr_torrentNext( session, tor ) ) )
             torrents[torrentCount++] = tor;
+        qsort( torrents, torrentCount, sizeof( tr_torrent* ), tr_sessionCompareTorrentByQueueRank );
     }
 
-    qsort( torrents, torrentCount, sizeof( tr_torrent* ), tr_sessionCompareTorrentByQueueRank );
 
     *setmeCount = torrentCount;
     return torrents;

@@ -1295,6 +1295,20 @@ void tr_torrentCheckQueue( tr_torrent * tor );
  */
 int tr_sessionCompareTorrentByQueueRank( const void * va, const void * vb );
 
+typedef enum
+{
+    TR_QUEUE_IGNORED,   /* torrents ignored by the queue */
+    TR_QUEUE_SEED,      /* seeding torrents don't use queueRank */
+    TR_QUEUE_DOWNLOAD   /* queued torrents */
+}
+tr_queueType;
+
+/**
+ * @brief returns the size of the selected queue
+ */
+int
+tr_sessionGetQueueSize( tr_session * session , const tr_queueType type );
+
 /**
 ***
 **/

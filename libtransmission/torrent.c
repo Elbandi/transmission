@@ -2858,7 +2858,7 @@ setQueueRank( tr_torrent * tor, int rank )
                     t->anyDate = now;
                 }
             }
-            rank = MIN( maxRank, rank );
+            rank = MIN( maxRank + 1, rank );
         }
     }
     else if ( rank < tor->queueRank && tor->queueRank > 0 )
