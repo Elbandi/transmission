@@ -328,8 +328,8 @@ refreshActions( struct cbdata * data )
     action_sensitize( "remove-torrent", counts.totalCount != 0 );
     action_sensitize( "move-torrent-up", counts.downloadQueueCount != 0 );
     action_sensitize( "move-torrent-down", counts.downloadQueueCount != 0 );
-    action_sensitize( "move-torrent-top", counts.downloadQueueCount == 1 );
-    action_sensitize( "move-torrent-bottom", counts.downloadQueueCount == 1 );
+    action_sensitize( "move-torrent-top", counts.downloadQueueCount != 0 );
+    action_sensitize( "move-torrent-bottom", counts.downloadQueueCount != 0 );
     action_sensitize( "delete-torrent", counts.totalCount != 0 );
     action_sensitize( "verify-torrent", counts.totalCount != 0 );
     action_sensitize( "show-torrent-properties", counts.totalCount != 0 );
@@ -1492,17 +1492,21 @@ moveTorrentQueue( struct cbdata      * data,
 
     l = g_slist_sort( l, compareTorrentByQueueRank );
 
-    if( dir == TR_QUEUE_DOWN )
+    switch( dir )
     {
-        if( tr_torrentGetQueueRank( l->data ) == tr_sessionGetQueueSize( session, TR_QUEUE_DOWNLOAD ) )
-            g_slist_free( l );
-        else
+        case TR_QUEUE_DOWN:
             l = g_slist_reverse( l );
-    }
-    else
-    {
-        if( tr_torrentGetQueueRank( l->data ) == 1 )
-            g_slist_free( l );
+            if( tr_torrentGetQueueRank( l->data ) == tr_sessionGetQueueSize( session, TR_QUEUE_DOWNLOAD ) )
+                g_slist_free( l );
+            break;
+        case TR_QUEUE_UP:
+            if( tr_torrentGetQueueRank( l->data ) == 1 )
+                g_slist_free( l );
+            break;
+        case TR_QUEUE_TOP:
+            l = g_slist_reverse( l );
+            break;
+        default: break;
     }
 
     if( l )
