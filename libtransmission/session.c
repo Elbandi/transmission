@@ -499,6 +499,7 @@ tr_sessionInit( const char  * tag,
     session->lock = tr_lockNew( );
     session->tag = tr_strdup( tag );
     session->magicNumber = SESSION_MAGIC_NUMBER;
+    session->buffer = tr_valloc( SESSION_BUFFER_SIZE );
     tr_bencInitList( &session->removedTorrents, 0 );
 
     /* nice to start logging at the very beginning */
@@ -523,7 +524,7 @@ tr_sessionInit( const char  * tag,
     return session;
 }
 
-static void turtleCheckClock( tr_session * session, struct tr_turtle_info * t, tr_bool byUser );
+static void turtleCheckClock( tr_session * s, struct tr_turtle_info * t );
 
 static void
 onNowTimer( int foo UNUSED, short bar UNUSED, void * vsession )
@@ -547,7 +548,8 @@ onNowTimer( int foo UNUSED, short bar UNUSED, void * vsession )
 
     /* tr_session things to do once per second */
     tr_timeUpdate( tv.tv_sec );
-    turtleCheckClock( session, &session->turtle, FALSE );
+    if( session->turtle.isClockEnabled )
+        turtleCheckClock( session, &session->turtle );
 }
 
 static void loadBlocklists( tr_session * session );
@@ -612,7 +614,7 @@ tr_sessionInitImpl( void * vdata )
 
     tr_statsInit( session );
 
-    session->web = tr_webInit( session );
+    tr_webInit( session );
 
     tr_sessionSet( session, &settings );
 
@@ -712,7 +714,7 @@ sessionSetImpl( void * vdata )
         b.addr = tr_inaddr_any;
     b.socket = -1;
     session->public_ipv4 = tr_memdup( &b, sizeof( struct tr_bindinfo ) );
-    tr_webSetInterface( session->web, &session->public_ipv4->addr );
+    tr_webSetInterface( session, &session->public_ipv4->addr );
 
     str = TR_PREFS_KEY_BIND_ADDRESS_IPV6;
     tr_bencDictFindStr( settings, TR_PREFS_KEY_BIND_ADDRESS_IPV6, &str );
@@ -890,6 +892,27 @@ tr_sessionIsIncompleteDirEnabled( const tr_session * session )
 /***
 ****
 ***/
+
+void*
+tr_sessionGetBuffer( tr_session * session )
+{
+    assert( tr_isSession( session ) );
+    assert( !session->bufferInUse );
+    assert( tr_amInEventThread( session ) );
+
+    session->bufferInUse = TRUE;
+    return session->buffer;
+}
+
+void
+tr_sessionReleaseBuffer( tr_session * session )
+{
+    assert( tr_isSession( session ) );
+    assert( session->bufferInUse );
+    assert( tr_amInEventThread( session ) );
+
+    session->bufferInUse = FALSE;
+}
 
 void
 tr_sessionLock( tr_session * session )
@@ -1072,51 +1095,35 @@ updateBandwidth( tr_session * session, tr_direction dir )
     tr_bandwidthSetDesiredSpeed( session->bandwidth, dir, limit );
 }
 
+enum
+{
+    MINUTES_PER_HOUR = 60,
+    MINUTES_PER_DAY = MINUTES_PER_HOUR * 24,
+    MINUTES_PER_WEEK = MINUTES_PER_DAY * 7
+};
+
 static void
-turtleFindNextChange( struct tr_turtle_info * t )
+turtleUpdateTable( struct tr_turtle_info * t )
 {
     int day;
-    struct tm tm;
-    time_t today_began_at;
-    time_t next_begin;
-    time_t next_end;
-    const time_t now = tr_time( );
-    const int SECONDS_PER_DAY = 86400;
+    tr_bitfield * b = &t->minutes;
 
-    tr_localtime_r( &now, &tm );
-    tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
-    today_began_at = mktime( &tm );
+    tr_bitfieldClear( b );
 
-    next_begin = today_began_at + ( t->beginMinute * 60 );
-    if( next_begin <= now )
-        next_begin += SECONDS_PER_DAY;
+    for( day=0; day<7; ++day )
+    {
+        if( t->days & (1<<day) )
+        {
+            int i;
+            const time_t begin = t->beginMinute;
+            time_t end = t->endMinute;
 
-    next_end = today_began_at + ( t->endMinute * 60 );
-    if( next_end <= now )
-        next_end += SECONDS_PER_DAY;
+            if( end <= begin )
+                end += MINUTES_PER_DAY;
 
-    if( next_begin < next_end ) {
-        t->_nextChangeAt = next_begin;
-        t->_nextChangeValue = TRUE;
-    } else {
-        t->_nextChangeAt = next_end;
-        t->_nextChangeValue = FALSE;
-    }
-
-    /* if the next change is today, look for today in t->days.
-       if the next change is tomorrow to turn limits OFF, look for today in t->days.
-       if the next change is tomorrow to turn limits ON, look for tomorrow in t->days. */
-    if( t->_nextChangeValue && (( t->_nextChangeAt >= today_began_at + SECONDS_PER_DAY )))
-        day = ( tm.tm_wday + 1 ) % 7;
-    else
-        day = tm.tm_wday;
-    t->_nextChangeAllowed = ( t->days & (1<<day) ) != 0;
-
-    if( t->isClockEnabled && t->_nextChangeAllowed ) {
-        char buf[128];
-        tr_localtime_r( &t->_nextChangeAt, &tm );
-        strftime( buf, sizeof( buf ), "%a %b %d %T %Y", &tm );
-        tr_inf( "Turtle clock updated: at %s we'll turn limits %s", buf, (t->_nextChangeValue?"on":"off") );
+            for( i=begin; i<end; ++i )
+                tr_bitfieldAdd( b, (i+day*MINUTES_PER_DAY) % MINUTES_PER_WEEK );
+        }
     }
 }
 
@@ -1130,14 +1137,14 @@ altSpeedToggled( void * vsession )
 
     updateBandwidth( session, TR_UP );
     updateBandwidth( session, TR_DOWN );
-    turtleFindNextChange( t );
 
     if( t->callback != NULL )
         (*t->callback)( session, t->isEnabled, t->changedByUser, t->callbackUserData );
 }
 
 static void
-useAltSpeed( tr_session * s, struct tr_turtle_info * t, tr_bool enabled, tr_bool byUser )
+useAltSpeed( tr_session * s, struct tr_turtle_info * t,
+             tr_bool enabled, tr_bool byUser )
 {
     assert( tr_isSession( s ) );
     assert( t != NULL );
@@ -1152,25 +1159,54 @@ useAltSpeed( tr_session * s, struct tr_turtle_info * t, tr_bool enabled, tr_bool
     }
 }
 
+/**
+ * @param enabled whether turtle should be on/off according to the scheduler
+ * @param changed whether that's different from the previous minute
+ */
 static void
-turtleCheckClock( tr_session * session, struct tr_turtle_info * t, tr_bool byUser )
+testTurtleTime( const struct tr_turtle_info * t,
+                tr_bool * enabled,
+                tr_bool * changed )
 {
+    tr_bool e;
+    struct tm tm;
+    size_t minute_of_the_week;
     const time_t now = tr_time( );
-    const tr_bool hit = ( t->testedAt < t->_nextChangeAt ) && ( t->_nextChangeAt <= tr_time( ));
 
-    t->testedAt = now;
+    tr_localtime_r( &now, &tm );
 
-    if( hit )
+    minute_of_the_week = tm.tm_wday * MINUTES_PER_DAY
+                       + tm.tm_hour * MINUTES_PER_HOUR
+                       + tm.tm_min;
+    if( minute_of_the_week >= MINUTES_PER_WEEK ) /* leap minutes? */
+        minute_of_the_week = MINUTES_PER_WEEK - 1;
+
+    e = tr_bitfieldHasFast( &t->minutes, minute_of_the_week );
+    if( enabled != NULL )
+        *enabled = e;
+
+    if( changed != NULL )
     {
-        const tr_bool enabled = t->_nextChangeValue;
+        const size_t prev = minute_of_the_week > 0 ? minute_of_the_week - 1
+                                                   : MINUTES_PER_WEEK - 1;
+        *changed = e != tr_bitfieldHasFast( &t->minutes, prev );
+    }
+}
 
-        if( t->isClockEnabled && t->_nextChangeAllowed )
-        {
-            tr_inf( "Time to turn %s turtle mode!", (enabled?"on":"off") );
-            useAltSpeed( session, t, enabled, byUser );
-        }
+static void
+turtleCheckClock( tr_session * s, struct tr_turtle_info * t )
+{
+    tr_bool enabled;
+    tr_bool changed;
 
-        turtleFindNextChange( t );
+    assert( t->isClockEnabled );
+
+    testTurtleTime( t, &enabled, &changed );
+
+    if( changed )
+    {
+        tr_inf( "Time to turn %s turtle mode!", (enabled?"on":"off") );
+        useAltSpeed( s, t, enabled, FALSE );
     }
 }
 
@@ -1180,12 +1216,14 @@ turtleCheckClock( tr_session * session, struct tr_turtle_info * t, tr_bool byUse
 static void
 turtleBootstrap( tr_session * session, struct tr_turtle_info * turtle )
 {
-    turtleFindNextChange( turtle );
-
     turtle->changedByUser = FALSE;
 
+    tr_bitfieldConstruct( &turtle->minutes, MINUTES_PER_WEEK );
+
+    turtleUpdateTable( turtle );
+
     if( turtle->isClockEnabled )
-        turtle->isEnabled = !turtle->_nextChangeValue;
+        testTurtleTime( turtle, &turtle->isEnabled, NULL );
 
     altSpeedToggled( session );
 }
@@ -1266,11 +1304,14 @@ userPokedTheClock( tr_session * s, struct tr_turtle_info * t )
 {
     tr_dbg( "Refreshing the turtle mode clock due to user changes" );
 
-    t->testedAt = 0;
-    turtleFindNextChange( t );
+    turtleUpdateTable( t );
 
-    if( t->isClockEnabled && t->_nextChangeAllowed )
-        useAltSpeed( s, t, !t->_nextChangeValue, TRUE );
+    if( t->isClockEnabled )
+    {
+        tr_bool enabled, changed;
+        testTurtleTime( t, &enabled, &changed );
+        useAltSpeed( s, t, enabled, TRUE );
+    }
 }
 
 void
@@ -1434,7 +1475,7 @@ tr_sessionGetPieceSpeed( const tr_session * session, tr_direction dir )
 double
 tr_sessionGetRawSpeed( const tr_session * session, tr_direction dir )
 {
-    return tr_isSession( session ) ? tr_bandwidthGetPieceSpeed( session->bandwidth, 0, dir ) : 0.0;
+    return tr_isSession( session ) ? tr_bandwidthGetRawSpeed( session->bandwidth, 0, dir ) : 0.0;
 }
 
 int
@@ -1502,9 +1543,9 @@ sessionCloseImpl( void * vsession )
     tr_announcerClose( session );
     tr_statsClose( session );
     tr_peerMgrFree( session->peerMgr );
+    tr_webClose( session, TR_WEB_CLOSE_WHEN_IDLE );
 
     closeBlocklists( session );
-    tr_webClose( &session->web );
 
     tr_fdClose( session );
 
@@ -1540,13 +1581,15 @@ tr_sessionClose( tr_session * session )
      * so we need to keep the transmission thread alive
      * for a bit while they tell the router & tracker
      * that we're closing now */
-    while( ( session->shared
-           || session->announcer ) && !deadlineReached( deadline ) )
+    while( ( session->shared || session->web || session->announcer )
+           && !deadlineReached( deadline ) )
     {
         dbgmsg( "waiting on port unmap (%p) or announcer (%p)",
                 session->shared, session->announcer );
         tr_wait_msec( 100 );
     }
+
+    tr_webClose( session, TR_WEB_CLOSE_NOW );
 
     /* close the libtransmission thread */
     tr_eventClose( session );
@@ -1568,11 +1611,13 @@ tr_sessionClose( tr_session * session )
     /* free the session memory */
     tr_bencFree( &session->removedTorrents );
     tr_bandwidthFree( session->bandwidth );
+    tr_bitfieldDestruct( &session->turtle.minutes );
     tr_lockFree( session->lock );
     if( session->metainfoLookup ) {
         tr_bencFree( session->metainfoLookup );
         tr_free( session->metainfoLookup );
     }
+    tr_free( session->buffer );
     tr_free( session->tag );
     tr_free( session->configDir );
     tr_free( session->resumeDir );
