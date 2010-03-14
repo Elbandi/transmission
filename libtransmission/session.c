@@ -54,7 +54,7 @@ enum
 };
 enum
 {
-    QUEUE_INTERVAL_SECS = 30
+    QUEUE_INTERVAL_SECS = 60
 };
 
 

@@ -95,11 +95,11 @@ static tr_option opts[] =
     { 932, "max-download",          "Set the max active download torrent(s)", "md", 1, "<max>" },
     { 933, "max-seed",              "Set the max active seed torrent(s)", "ms", 1, "<max>" },
     { 934, "ignore-slow",           "Ignore slow torrents in the queue", "is", 0, NULL },
-    { 935, "no-ignore-slow",        "Don't ignore slow torrents in the queue", "nis", 0, NULL },
-    { 936, "enable-queue",          "Enable the torrent queue", "eq", 0, NULL },
-    { 937, "disable-queue",         "Disable the torrent queue", "dq", 0, NULL },
+    { 935, "no-ignore-slow",        "Don't ignore slow torrents in the queue", "IS", 0, NULL },
+    { 936, "torrent-queue",         "Enable the torrent queue", "tq", 0, NULL },
+    { 937, "no-torrent-queue",      "Disable the torrent queue", "TQ", 0, NULL },
     { 938, "queue-ignore",          "Make the torrent(s) become ignored by the queue", "qi", 0, NULL },
-    { 939, "queue-unignore",        "Make the torrent(s) stop being ignored by the queue if possible", "qui", 0, NULL },
+    { 939, "no-queue-ignore",       "Make the torrent(s) stop being ignored by the queue if possible", "QI", 0, NULL },
     { 945, "queue-up",              "Move the torrent(s) up in the queue", "qu", 0, NULL },
     { 946, "queue-down",            "Move the torrent(s) down in the queue", "qd", 0, NULL },
     { 947, "queue-top",             "Move the torrent(s) to the top of the queue", "qt", 0, NULL },
@@ -700,37 +700,37 @@ readargs( int argc, const char ** argv )
 
             case 938:
                 tr_bencDictAddStr( &top, "method", "torrent-set" );
-                tr_bencDictAddInt( args, "queueRank", TR_QUEUE_IGNORE );
+                tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_IGNORE );
                 addIdArg( args, id );
                 break;
 
             case 939:
                 tr_bencDictAddStr( &top, "method", "torrent-set" );
-                tr_bencDictAddInt( args, "queueRank", TR_QUEUE_UNIGNORE );
+                tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_UNIGNORE );
                 addIdArg( args, id );
                 break;
 
             case 945:
                 tr_bencDictAddStr( &top, "method", "torrent-set" );
-                tr_bencDictAddInt( args, "queueRank", TR_QUEUE_UP );
+                tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_UP );
                 addIdArg( args, id );
                 break;
 
             case 946:
                 tr_bencDictAddStr( &top, "method", "torrent-set" );
-                tr_bencDictAddInt( args, "queueRank", TR_QUEUE_DOWN );
+                tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_DOWN );
                 addIdArg( args, id );
                 break;
 
             case 947:
                 tr_bencDictAddStr( &top, "method", "torrent-set" );
-                tr_bencDictAddInt( args, "queueRank", TR_QUEUE_TOP );
+                tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_TOP );
                 addIdArg( args, id );
                 break;
 
             case 948:
                 tr_bencDictAddStr( &top, "method", "torrent-set" );
-                tr_bencDictAddInt( args, "queueRank", TR_QUEUE_BOTTOM );
+                tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_BOTTOM );
                 addIdArg( args, id );
                 break;
 

@@ -227,18 +227,10 @@ tr_torrentGetRatioMode( const tr_torrent * tor )
     return tor->ratioLimitMode;
 }
 
-tr_bool
+inline tr_bool
 tr_torrentIsUnlimited( const tr_torrent * tor )
 {
-    assert( tr_isTorrent( tor ) );
-
-    if( tr_torrentGetRatioMode( tor ) == TR_RATIOLIMIT_UNLIMITED )
-        return TRUE;
-    if ( tr_torrentGetRatioMode( tor ) == TR_RATIOLIMIT_GLOBAL
-            && !tr_sessionIsRatioLimited( tor->session ) )
-        return TRUE;
-    else
-        return FALSE;
+    return !tr_torrentGetSeedRatio( tor, NULL );
 }
 
 void
@@ -2947,10 +2939,7 @@ tr_torrentCheckQueue( tr_torrent * tor )
 
     leftUntilDone = tr_cpLeftUntilDone( &tor->completion );
     if( tr_torrentIsUnlimited( tor ) )
-    {
-        if( tor->queueRank != 0 )
-            setQueueRank( tor, 0 );
-    }
+        setQueueRank( tor, 0 );
     else if( leftUntilDone == 0 && tor->queueRank > 0 )
         setSeedRank( tor );
     else if( leftUntilDone > 0 && tor->queueRank < 0 )
@@ -2989,6 +2978,10 @@ tr_torrentSetSeedRank( tr_torrent * tor )
     assert( tr_isTorrent( tor ) );
 
     leftUntilDone = tr_cpLeftUntilDone( &tor->completion );
-    if( leftUntilDone == 0 && tor->queueRank != 0 )
+    if( tor->queueRank == 0 )
+        return;
+    else if( leftUntilDone == 0 )
         setSeedRank( tor );
+    else
+        tr_torrentCheckQueue( tor );
 }
