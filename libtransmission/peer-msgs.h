@@ -39,8 +39,11 @@ tr_peermsgs* tr_peerMsgsNew( struct tr_torrent * torrent,
                              tr_publisher_tag *  setme );
 
 
-void         tr_peerMsgsSetChoke(         tr_peermsgs *,
-                                      int doChoke );
+void         tr_peerMsgsSetChoke( tr_peermsgs *, int doChoke );
+
+int          tr_peerMsgsIsReadingBlock( const tr_peermsgs * msgs, tr_block_index_t block );
+
+void         tr_peerMsgsSetInterested( tr_peermsgs *, int isInterested );
 
 void         tr_peerMsgsHave( tr_peermsgs * msgs,
                               uint32_t      pieceIndex );

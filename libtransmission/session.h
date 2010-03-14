@@ -28,6 +28,7 @@
 #endif
 
 #include "bencode.h"
+#include "bitfield.h"
 
 typedef enum { TR_NET_OK, TR_NET_ERROR, TR_NET_WAIT } tr_tristate_t;
 
@@ -41,17 +42,6 @@ struct tr_bandwidth;
 struct tr_bindsockets;
 struct tr_fdInfo;
 
-/**
- * How clock mode works:
- *
- * ._nextChangeAt, ._nextChangeValue and ._nextChangeAllowed are private fields
- * that are derived from .days, .beginMinute, .endMinute and the current time.
- * They're rebuilt when either (a) the user changes the clock settings or
- * (b) when the time at ._nextChangeAt is reached.
- *
- * When ._nextChangeAt is reached, if .isClockEnabled and ._nextChangeAllowed
- * are both true, then turtle mode's flag is set to ._nextChangeValue.
- */
 struct tr_turtle_info
 {
     /* TR_UP and TR_DOWN speed limits */
@@ -82,19 +72,10 @@ struct tr_turtle_info
      * indicates whether the change came from the user or from the clock. */
     tr_bool changedByUser;
 
-    /* this is the next time the clock will set turtle mode */
-    time_t _nextChangeAt;
-
-    /* the clock will set turtle mode to this flag. */
-    tr_bool _nextChangeValue;
-
-    /* When clock mode is on, only toggle turtle mode if this is true.
-     * This flag is used to filter out changes that fall on days when
-     * clock mode is disabled. */
-    tr_bool _nextChangeAllowed;
-
-    /* The last time the clock tested to see if _nextChangeAt was reached */
-    time_t testedAt;
+    /* bitfield of all the minutes in a week.
+     * Each bit's value indicates whether the scheduler wants turtle
+     * limits on or off at that given minute in the week. */
+    tr_bitfield minutes;
 };
 
 /** @brief handle to an active libtransmission session */
@@ -185,6 +166,12 @@ struct tr_session
 
     struct tr_bindinfo         * public_ipv4;
     struct tr_bindinfo         * public_ipv6;
+
+    /* a page-aligned buffer for use by the libtransmission thread.
+     * @see SESSION_BUFFER_SIZE */
+    void * buffer;
+
+    tr_bool bufferInUse;
 };
 
 tr_bool      tr_sessionAllowsDHT( const tr_session * session );
@@ -211,8 +198,15 @@ struct tr_bindsockets * tr_sessionGetBindSockets( tr_session * );
 
 enum
 {
-    SESSION_MAGIC_NUMBER = 3845
+    SESSION_MAGIC_NUMBER = 3845,
+
+    /* @see tr_session.buffer */
+    SESSION_BUFFER_SIZE = (16*1024)
 };
+
+void* tr_sessionGetBuffer( tr_session * session );
+
+void tr_sessionReleaseBuffer( tr_session * session );
 
 static inline tr_bool tr_isSession( const tr_session * session )
 {
