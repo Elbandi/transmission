@@ -1486,7 +1486,7 @@ moveTorrentQueue( struct cbdata      * data,
     tr_bencInitDict( &top, 2 );
     tr_bencDictAddStr( &top, "method", "torrent-set" );
     args = tr_bencDictAddDict( &top, "arguments", 1 );
-    tr_bencDictAddInt( args, "queueRank", (int)dir );
+    tr_bencDictAddInt( args, "moveQueueRank", (int)dir );
     ids = tr_bencDictAddList( args, "ids", 0 );
     gtk_tree_selection_selected_foreach( s, accumulateSelectedTorrentsRaw, &l );
 
