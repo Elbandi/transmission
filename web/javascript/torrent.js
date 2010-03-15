@@ -41,7 +41,7 @@ Torrent._MetaDataFields = [ 'addedDate', 'comment', 'creator', 'dateCreated',
 Torrent._DynamicFields = [ 'downloadedEver', 'error', 'errorString', 'eta',
     'haveUnchecked', 'haveValid', 'leftUntilDone', 'metadataPercentComplete', 'peersConnected',
     'peersGettingFromUs', 'peersSendingToUs', 'rateDownload', 'rateUpload',
-    'recheckProgress', 'sizeWhenDone', 'status', 'trackerStats','queueRank',
+    'recheckProgress', 'sizeWhenDone', 'status', 'trackerStats', 'queueRank',
     'uploadedEver', 'uploadRatio', 'seedRatioLimit', 'seedRatioMode', 'downloadDir' ]
 
 Torrent.prototype =
@@ -226,19 +226,23 @@ Torrent.prototype =
 	isSeeding: function() { return this.state() == Torrent._StatusSeeding; },
 	name: function() { return this._name; },
 	queueName: function() {
-//        if( this._controller._prefs['queue-enabled'] ) {
-        var str = '[<span class=';
-        if( this._queue_rank > 0 )
-            str += 'queueDownload>' + this._queue_rank;
-        else if( this._queue_rank < 0 )
-            str += 'queueSeed>' + -this._queue_rank;
-        else
-            str += 'queueIgnore>' + this._queue_rank;
-        str += '</span>] ' + this._name;
-            return str;
-//        }
-//        else { return this._name; }
-    },
+//	if( this._controller._prefs['queue-enabled'] ) {
+		var qclass;
+		var str;
+		if( this._queue_rank > 0 )
+			qclass = 'queueDownload';
+		else if( this._queue_rank < 0 )
+			qclass = 'queueSeed';
+		else
+			qclass = 'queueIgnore';
+		str = '[<span class=';
+		str += qclass + '>';
+		str += Math.abs(this._queue_rank);
+		str += '</span>] ' + this._name;
+		return str;
+//	}
+//	else { return this._name; }
+	},
 	peersSendingToUs: function() { return this._peers_sending_to_us; },
 	peersGettingFromUs: function() { return this._peers_getting_from_us; },
 	needsMetaData: function(){ return this._metadataPercentComplete < 1 },
@@ -257,10 +261,10 @@ Torrent.prototype =
 		switch( this.state() ) {
 			case Torrent._StatusSeeding:        return 'Seeding';
 			case Torrent._StatusDownloading:    return 'Downloading';
-			case Torrent._StatusPaused:{
-                                           if( this._queue_rank == 0 ) return 'Paused';
-                                           else return 'Queued';
-                                       }
+			case Torrent._StatusPaused: {
+							    if( this._queue_rank == 0 ) return 'Paused';
+							    else return 'Queued';
+						    }
 			case Torrent._StatusChecking:       return 'Verifying local data';
 			case Torrent._StatusWaitingToCheck: return 'Waiting to verify';
 			default:                            return 'error';
@@ -408,7 +412,7 @@ Torrent.prototype =
 		this._state                   = data.status;
 		this._download_dir            = data.downloadDir;
 		this._metadataPercentComplete = data.metadataPercentComplete;
-        this._queue_rank              = data.queueRank;
+		this._queue_rank              = data.queueRank;
 
 		if (data.fileStats)
 			this.refreshFileModel( data );
@@ -701,7 +705,7 @@ Torrent.compareById = function( a, b ) {
 
 /** Helper function for Torrent.sortTorrents(). */
 Torrent.compareByQueueRank = function( a, b ) {
-    return a._queue_rank - b._queue_rank;
+	return a._queue_rank - b._queue_rank;
 };
 
 /** Helper function for sortTorrents(). */
