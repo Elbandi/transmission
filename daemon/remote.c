@@ -98,13 +98,13 @@ static tr_option opts[] =
     { 935, "no-ignore-slow",        "Don't ignore slow torrents in the queue", "IS", 0, NULL },
     { 936, "torrent-queue",         "Enable the torrent queue", "tq", 0, NULL },
     { 937, "no-torrent-queue",      "Disable the torrent queue", "TQ", 0, NULL },
-    { 938, "queue-ignore",          "Make the torrent(s) become ignored by the queue", "qi", 0, NULL },
-    { 939, "no-queue-ignore",       "Make the torrent(s) stop being ignored by the queue if possible", "QI", 0, NULL },
+    { 938, "queue-slow-speed",      "Set the boundary of slow speed (in KB/s)", "qss",  1, "<speed>" },
+    { 943, "queue-ignore",          "Make the torrent(s) become ignored by the queue", "qi", 0, NULL },
+    { 944, "no-queue-ignore",       "Make the torrent(s) stop being ignored by the queue if possible", "QI", 0, NULL },
     { 945, "queue-up",              "Move the torrent(s) up in the queue", "qu", 0, NULL },
     { 946, "queue-down",            "Move the torrent(s) down in the queue", "qd", 0, NULL },
     { 947, "queue-top",             "Move the torrent(s) to the top of the queue", "qt", 0, NULL },
     { 948, "queue-bottom",          "Move the torrent(s) to the bottom of the queue", "qb", 0, NULL },
-
     { 'n', "auth",                  "Set authentication info", "n",  1, "<username:password>" },
     { 'N', "netrc",                 "Set authentication info from a .netrc file", "N",  1, "<filename>" },
     { 'o', "dht",                   "Enable distributed hash tables (DHT)", "o", 0, NULL },
@@ -699,12 +699,17 @@ readargs( int argc, const char ** argv )
                 break;
 
             case 938:
+                tr_bencDictAddStr( &top, "method", "session-set" );
+                tr_bencDictAddInt( args, TR_PREFS_KEY_QUEUE_SLOW_SPEED, atoi(optarg) );
+                break;
+
+            case 943:
                 tr_bencDictAddStr( &top, "method", "torrent-set" );
                 tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_IGNORE );
                 addIdArg( args, id );
                 break;
 
-            case 939:
+            case 944:
                 tr_bencDictAddStr( &top, "method", "torrent-set" );
                 tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_UNIGNORE );
                 addIdArg( args, id );

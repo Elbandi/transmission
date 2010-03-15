@@ -280,6 +280,7 @@ tr_sessionGetDefaultSettings( const char * configDir, tr_benc * d )
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PROXY_TYPE,               TR_PROXY_HTTP );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_PROXY_USERNAME,           "" );
     tr_bencDictAddBool( d, TR_PREFS_KEY_QUEUE_ENABLED,            FALSE );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_QUEUE_SLOW_SPEED,         10 );
     tr_bencDictAddReal( d, TR_PREFS_KEY_RATIO,                    2.0 );
     tr_bencDictAddBool( d, TR_PREFS_KEY_RATIO_ENABLED,            FALSE );
     tr_bencDictAddBool( d, TR_PREFS_KEY_RENAME_PARTIAL_FILES,     TRUE );
@@ -346,6 +347,7 @@ tr_sessionGetSettings( tr_session * s, struct tr_benc * d )
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PROXY_TYPE,               s->proxyType );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_PROXY_USERNAME,           s->proxyUsername );
     tr_bencDictAddBool( d, TR_PREFS_KEY_QUEUE_ENABLED,            tr_sessionIsQueueEnabled( s ) );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_QUEUE_SLOW_SPEED,         s->queueSlowSpeed );
     tr_bencDictAddReal( d, TR_PREFS_KEY_RATIO,                    s->desiredRatio );
     tr_bencDictAddBool( d, TR_PREFS_KEY_RATIO_ENABLED,            s->isRatioLimited );
     tr_bencDictAddBool( d, TR_PREFS_KEY_RENAME_PARTIAL_FILES,     tr_sessionIsIncompleteFileNamingEnabled( s ) );
@@ -483,8 +485,6 @@ onSaveTimer( int foo UNUSED, short bar UNUSED, void * vsession )
 static tr_torrent **
 getQueueArray( tr_session * session, int * count, const tr_queueType type );
 
-#define slowSpeed 10 // in KBps
-
 static void
 onQueueTimer( int foo UNUSED, short bar UNUSED, void * vsession )
 {
@@ -493,11 +493,12 @@ onQueueTimer( int foo UNUSED, short bar UNUSED, void * vsession )
     if( tr_sessionIsQueueEnabled(session) )
     {
         tr_bool ignore = tr_sessionIsIgnoreSlowTorrentsEnabled( session );
-        int count, i, max;
+        int count, i, max, slowSpeed;
         tr_torrent ** torrents, * tor;
 
         torrents = getQueueArray( session, &count, TR_QUEUE_DOWNLOAD );
         max = tr_sessionGetMaxDownloadActive( session );
+        slowSpeed = tr_sessionGetQueueSlowSpeed( session );
         for( i = 0; i < count; ++i )
         {
             tor = torrents[i];
@@ -796,6 +797,8 @@ sessionSetImpl( void * vdata )
         tr_sessionSetMaxSeedActive( session, i );
     if( tr_bencDictFindBool( settings, TR_PREFS_KEY_QUEUE_ENABLED, &boolVal ) )
         tr_sessionSetQueueEnabled( session, boolVal );
+    if( tr_bencDictFindInt( settings, TR_PREFS_KEY_QUEUE_SLOW_SPEED, &i ) )
+        tr_sessionSetQueueSlowSpeed( session, i );
 
     /* rpc server */
     if( session->rpcServer != NULL ) /* close the old one */
@@ -2597,6 +2600,22 @@ tr_sessionSetIgnoreSlowTorrentsEnabled( tr_session * session, tr_bool enabled )
     assert( tr_isSession( session ) );
 
     session->ignoreSlowTorrents = enabled;
+}
+
+int
+tr_sessionGetQueueSlowSpeed( const tr_session * session )
+{
+    assert( tr_isSession( session ) );
+
+    return session->queueSlowSpeed;
+}
+
+void
+tr_sessionSetQueueSlowSpeed( tr_session * session, int speed )
+{
+    assert( tr_isSession( session ) );
+
+    session->queueSlowSpeed = speed;
 }
 
 int

@@ -123,6 +123,7 @@ struct tr_session
     int                          proxyPort;
     int                          peerSocketTOS;
 
+    int                          queueSlowSpeed;
     tr_bool                      ignoreSlowTorrents;
     tr_bool                      adaptiveQueue;
     int                          maxDownloadActive;

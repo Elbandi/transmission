@@ -1205,6 +1205,8 @@ sessionSet( tr_session               * session,
         tr_sessionSetMaxSeedActive( session, i );
     if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS, &boolVal ) )
         tr_sessionSetIgnoreSlowTorrentsEnabled( session, boolVal );
+    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_QUEUE_SLOW_SPEED, &i ) )
+        tr_sessionSetQueueSlowSpeed( session, i );
     if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_QUEUE_ENABLED, &boolVal ) )
         tr_sessionSetQueueEnabled( session, boolVal );
     if( tr_bencDictFindStr( args_in, TR_PREFS_KEY_INCOMPLETE_DIR, &str ) )
@@ -1325,6 +1327,7 @@ sessionGet( tr_session               * s,
     tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_SEED_ACTIVE, tr_sessionGetMaxSeedActive( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS, tr_sessionIsIgnoreSlowTorrentsEnabled( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_QUEUE_ENABLED, tr_sessionIsQueueEnabled( s ) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_QUEUE_SLOW_SPEED, tr_sessionGetQueueSlowSpeed( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_LIMIT_GLOBAL, tr_sessionGetPeerLimit( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_LIMIT_TORRENT, tr_sessionGetPeerLimitPerTorrent( s ) );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_INCOMPLETE_DIR, tr_sessionGetIncompleteDir( s ) );

@@ -192,6 +192,7 @@ const char* tr_getDefaultDownloadDir( void );
 #define TR_PREFS_KEY_PROXY_TYPE                 "proxy-type"
 #define TR_PREFS_KEY_PROXY_USERNAME             "proxy-auth-username"
 #define TR_PREFS_KEY_QUEUE_ENABLED              "queue-enabled"
+#define TR_PREFS_KEY_QUEUE_SLOW_SPEED           "queue-slow-speed"
 #define TR_PREFS_KEY_RATIO                      "ratio-limit"
 #define TR_PREFS_KEY_RATIO_ENABLED              "ratio-limit-enabled"
 #define TR_PREFS_KEY_RENAME_PARTIAL_FILES       "rename-partial-files"
@@ -739,6 +740,9 @@ void         tr_sessionSetIgnoreSlowTorrentsEnabled( tr_session * session, tr_bo
 
 int          tr_sessionGetMaxDownloadActive( const tr_session * session );
 void         tr_sessionSetMaxDownloadActive( tr_session * session, int maxActive );
+
+int          tr_sessionGetQueueSlowSpeed( const tr_session * session );
+void         tr_sessionSetQueueSlowSpeed( tr_session * session, int speed );
 
 int          tr_sessionGetMaxSeedActive( const tr_session * session );
 void         tr_sessionSetMaxSeedActive( tr_session * session, int maxActive );
