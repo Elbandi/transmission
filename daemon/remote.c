@@ -680,22 +680,22 @@ readargs( int argc, const char ** argv )
 
             case 934:
                 tr_bencDictAddStr( &top, "method", "session-set" );
-                tr_bencDictAddInt( args, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS, TRUE );
+                tr_bencDictAddBool( args, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS, TRUE );
                 break;
 
             case 935:
                 tr_bencDictAddStr( &top, "method", "session-set" );
-                tr_bencDictAddInt( args, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS, FALSE );
+                tr_bencDictAddBool( args, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS, FALSE );
                 break;
 
             case 936:
                 tr_bencDictAddStr( &top, "method", "session-set" );
-                tr_bencDictAddInt( args, TR_PREFS_KEY_QUEUE_ENABLED, TRUE );
+                tr_bencDictAddBool( args, TR_PREFS_KEY_QUEUE_ENABLED, TRUE );
                 break;
 
             case 937:
                 tr_bencDictAddStr( &top, "method", "session-set" );
-                tr_bencDictAddInt( args, TR_PREFS_KEY_QUEUE_ENABLED, FALSE );
+                tr_bencDictAddBool( args, TR_PREFS_KEY_QUEUE_ENABLED, FALSE );
                 break;
 
             case 938:
