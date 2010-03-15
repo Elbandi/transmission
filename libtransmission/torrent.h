@@ -17,6 +17,7 @@
 #ifndef TR_TORRENT_H
 #define TR_TORRENT_H 1
 
+#include <limits.h> /* INT_MAX */
 #include "completion.h" /* tr_completion */
 #include "session.h" /* tr_sessionLock(), tr_sessionUnlock() */
 #include "utils.h" /* TR_GNUC_PRINTF */
@@ -241,6 +242,7 @@ struct tr_torrent
     tr_torrent *               next;
 
     int                        uniqueId;
+    int                        queueRank;
 
     struct tr_bandwidth      * bandwidth;
 
@@ -335,6 +337,45 @@ static inline tr_bool tr_torrentIsPieceChecked( const tr_torrent  * tor,
                                                    tr_piece_index_t    i )
 {
     return tr_bitfieldHasFast( &tor->checkedPieces, i );
+}
+
+static inline void tr_torrentMoveQueueRankUp( tr_torrent * tor )
+{
+    if( tor->queueRank > 1 ) tr_torrentSetQueueRank( tor, tor->queueRank - 1 );
+}
+
+static inline void tr_torrentMoveQueueRankDown( tr_torrent * tor )
+{
+    if( tor->queueRank > 0 ) tr_torrentSetQueueRank( tor, tor->queueRank + 1 );
+}
+
+static inline void tr_torrentMoveQueueRankTop( tr_torrent * tor )
+{
+    if( tor->queueRank > 0 ) tr_torrentSetQueueRank( tor, 1 );
+}
+
+static inline void tr_torrentMoveQueueRankBottom( tr_torrent * tor )
+{
+    if( tor->queueRank > 0 ) tr_torrentSetQueueRank( tor, INT_MAX );
+}
+
+static inline void tr_torrentSetQueueRankSeed( tr_torrent * tor )
+{
+    tr_torrentSetSeedRank( tor );
+}
+
+static inline void tr_torrentSetQueueRankIgnore( tr_torrent * tor )
+{
+    tr_torrentSetQueueRank( tor, 0 );
+}
+
+static inline void tr_torrentSetQueueRankUnIgnore( tr_torrent * tor )
+{
+    if( tor->queueRank == 0 )
+    {
+        tor->queueRank = -1;
+        tr_torrentCheckQueue( tor );
+    }
 }
 
 /***

@@ -21,6 +21,17 @@ extern "C" {
 ****  RPC processing
 ***/
 
+typedef enum
+{
+    TR_QUEUE_UP         = 0,
+    TR_QUEUE_DOWN       = 1,
+    TR_QUEUE_TOP        = 2,
+    TR_QUEUE_BOTTOM     = 3,
+    TR_QUEUE_IGNORE     = 4,
+    TR_QUEUE_UNIGNORE   = 5
+}
+tr_queue_direction;
+
 struct tr_benc;
 
 /* FIXME(libevent2): make "response" an evbuffer and remove response_len */

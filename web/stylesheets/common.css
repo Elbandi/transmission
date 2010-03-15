@@ -406,6 +406,23 @@ ul.torrent_list li.torrent.selected div.torrent_name {
 	color: #fff;
 }
 
+ul.torrent_list li.torrent div.torrent_name span.queueDownload {
+    color: #40a3f3;
+}
+
+ul.torrent_list li.torrent div.torrent_name span.queueSeed {
+    color: #3abd4d;
+}
+
+ul.torrent_list li.torrent div.torrent_name span.queueIgnore {
+    color: #9a9a9a;
+}
+
+ul.torrent_list li.torrent.selected div.torrent_name span.queueDownload,
+ul.torrent_list li.torrent.selected div.torrent_name span.queueSeed {
+    color: #fff;
+}
+
 ul.torrent_list li.torrent div.torrent_progress_details,
 ul.torrent_list li.torrent div.torrent_peer_details {
 	font-size: 1em;

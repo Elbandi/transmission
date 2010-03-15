@@ -273,6 +273,7 @@ struct counts_data
     int    totalCount;
     int    activeCount;
     int    inactiveCount;
+    int    downloadQueueCount;
 };
 
 static void
@@ -283,10 +284,15 @@ accumulateStatusForeach( GtkTreeModel *      model,
 {
     int                  activity = 0;
     struct counts_data * counts = user_data;
+    tr_torrent *tor;
 
     ++counts->totalCount;
 
     gtk_tree_model_get( model, iter, MC_ACTIVITY, &activity, -1 );
+    gtk_tree_model_get( model, iter, MC_TORRENT_RAW, &tor, -1 );
+
+    if( tr_torrentGetQueueRank( tor ) > 0 )
+        ++counts->downloadQueueCount;
 
     if( activity == TR_STATUS_STOPPED )
         ++counts->inactiveCount;
@@ -315,10 +321,15 @@ refreshActions( struct cbdata * data )
     counts.activeCount = 0;
     counts.inactiveCount = 0;
     counts.totalCount = 0;
+    counts.downloadQueueCount = 0;
     gtk_tree_selection_selected_foreach( s, accumulateStatusForeach, &counts );
     action_sensitize( "pause-torrent", counts.activeCount != 0 );
     action_sensitize( "start-torrent", counts.inactiveCount != 0 );
     action_sensitize( "remove-torrent", counts.totalCount != 0 );
+    action_sensitize( "move-torrent-up", counts.downloadQueueCount != 0 );
+    action_sensitize( "move-torrent-down", counts.downloadQueueCount != 0 );
+    action_sensitize( "move-torrent-top", counts.downloadQueueCount != 0 );
+    action_sensitize( "move-torrent-bottom", counts.downloadQueueCount != 0 );
     action_sensitize( "delete-torrent", counts.totalCount != 0 );
     action_sensitize( "verify-torrent", counts.totalCount != 0 );
     action_sensitize( "show-torrent-properties", counts.totalCount != 0 );
@@ -1444,6 +1455,81 @@ accumulateSelectedTorrents( GtkTreeModel *      model,
 }
 
 static void
+accumulateSelectedTorrentsRaw( GtkTreeModel *      model,
+                               GtkTreePath  * path UNUSED,
+                               GtkTreeIter *       iter,
+                               gpointer            gdata )
+{
+    GSList **   data = ( GSList** ) gdata;
+    tr_torrent * tor = NULL;
+
+    gtk_tree_model_get( model, iter, MC_TORRENT_RAW, &tor, -1 );
+    *data = g_slist_prepend( *data, tor );
+}
+
+static int
+compareTorrentByQueueRank( const void * a, const void * b )
+{
+    return tr_sessionCompareTorrentByQueueRank( &a, &b );
+}
+
+static void
+moveTorrentQueue( struct cbdata      * data,
+                  tr_queue_direction   dir )
+{
+    tr_benc top, *args, *ids;
+    GSList *           l = NULL;
+    tr_session * session = tr_core_session( data->core );
+    GtkTreeSelection * s = tr_window_get_selection( data->wind );
+    tr_torrent * tor = NULL;
+
+    tr_bencInitDict( &top, 2 );
+    tr_bencDictAddStr( &top, "method", "torrent-set" );
+    args = tr_bencDictAddDict( &top, "arguments", 1 );
+    tr_bencDictAddInt( args, "moveQueueRank", (int)dir );
+    ids = tr_bencDictAddList( args, "ids", 0 );
+    gtk_tree_selection_selected_foreach( s, accumulateSelectedTorrentsRaw, &l );
+
+    l = g_slist_sort( l, compareTorrentByQueueRank );
+
+    switch( dir )
+    {
+        case TR_QUEUE_DOWN:
+            l = g_slist_reverse( l );
+            if( tr_torrentGetQueueRank( l->data ) == tr_sessionGetQueueSize( session, TR_QUEUE_DOWNLOAD ) )
+                g_slist_free( l );
+            break;
+        case TR_QUEUE_UP:
+            if( tr_torrentGetQueueRank( l->data ) == 1 )
+                g_slist_free( l );
+            break;
+        case TR_QUEUE_TOP:
+            l = g_slist_reverse( l );
+            break;
+        default: break;
+    }
+
+    if( l )
+    {
+        do
+        {
+            tor = ( tr_torrent* )l->data;
+            tr_bencListAddInt( ids, tr_torrentId( tor ) );
+        }
+        while( ( l = g_slist_next( l ) ) );
+
+        {
+            int json_len;
+            char * json = tr_bencToStr( &top, TR_FMT_JSON_LEAN, &json_len );
+            tr_rpc_request_exec_json( session, json, json_len, NULL, NULL );
+            g_free( json );
+        }
+    }
+
+    tr_bencFree( &top );
+}
+
+static void
 removeSelected( struct cbdata * data,
                 gboolean        delete_files )
 {
@@ -1626,6 +1712,22 @@ doAction( const char * action_name, gpointer user_data )
     else if( !strcmp( action_name, "remove-torrent" ) )
     {
         removeSelected( data, FALSE );
+    }
+    else if( !strcmp( action_name, "move-torrent-up" ) )
+    {
+        moveTorrentQueue( data, TR_QUEUE_UP );
+    }
+    else if( !strcmp( action_name, "move-torrent-down" ) )
+    {
+        moveTorrentQueue( data, TR_QUEUE_DOWN );
+    }
+    else if( !strcmp( action_name, "move-torrent-top" ) )
+    {
+        moveTorrentQueue( data, TR_QUEUE_TOP );
+    }
+    else if( !strcmp( action_name, "move-torrent-bottom" ) )
+    {
+        moveTorrentQueue( data, TR_QUEUE_BOTTOM );
     }
     else if( !strcmp( action_name, "delete-torrent" ) )
     {

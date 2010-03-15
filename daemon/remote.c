@@ -92,6 +92,19 @@ static tr_option opts[] =
     { 961, "find",                  "Tell Transmission where to find a torrent's data", NULL, 1, "<path>" },
     { 'm', "portmap",               "Enable portmapping via NAT-PMP or UPnP", "m",  0, NULL },
     { 'M', "no-portmap",            "Disable portmapping", "M",  0, NULL },
+    { 932, "max-download",          "Set the max active download torrent(s)", "md", 1, "<max>" },
+    { 933, "max-seed",              "Set the max active seed torrent(s)", "ms", 1, "<max>" },
+    { 934, "ignore-slow",           "Ignore slow torrents in the queue", "is", 0, NULL },
+    { 935, "no-ignore-slow",        "Don't ignore slow torrents in the queue", "IS", 0, NULL },
+    { 936, "torrent-queue",         "Enable the torrent queue", "tq", 0, NULL },
+    { 937, "no-torrent-queue",      "Disable the torrent queue", "TQ", 0, NULL },
+    { 938, "queue-ignore",          "Make the torrent(s) become ignored by the queue", "qi", 0, NULL },
+    { 939, "no-queue-ignore",       "Make the torrent(s) stop being ignored by the queue if possible", "QI", 0, NULL },
+    { 945, "queue-up",              "Move the torrent(s) up in the queue", "qu", 0, NULL },
+    { 946, "queue-down",            "Move the torrent(s) down in the queue", "qd", 0, NULL },
+    { 947, "queue-top",             "Move the torrent(s) to the top of the queue", "qt", 0, NULL },
+    { 948, "queue-bottom",          "Move the torrent(s) to the bottom of the queue", "qb", 0, NULL },
+
     { 'n', "auth",                  "Set authentication info", "n",  1, "<username:password>" },
     { 'N', "netrc",                 "Set authentication info from a .netrc file", "N",  1, "<filename>" },
     { 'o', "dht",                   "Enable distributed hash tables (DHT)", "o", 0, NULL },
@@ -342,6 +355,7 @@ static const char * details_keys[] = {
     "peer-limit",
     "pieceCount",
     "pieceSize",
+    "queueRank",
     "rateDownload",
     "rateUpload",
     "recheckProgress",
@@ -369,6 +383,7 @@ static const char * list_keys[] = {
     "name",
     "peersGettingFromUs",
     "peersSendingToUs",
+    "queueRank",
     "rateDownload",
     "rateUpload",
     "sizeWhenDone",
@@ -651,6 +666,72 @@ readargs( int argc, const char ** argv )
             case 931:
                 tr_bencDictAddStr( &top, "method", "session-set" );
                 tr_bencDictAddInt( args, TR_PREFS_KEY_PEER_LIMIT_GLOBAL, atoi(optarg) );
+                break;
+
+            case 932:
+                tr_bencDictAddStr( &top, "method", "session-set" );
+                tr_bencDictAddInt( args, TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE, atoi(optarg) );
+                break;
+
+            case 933:
+                tr_bencDictAddStr( &top, "method", "session-set" );
+                tr_bencDictAddInt( args, TR_PREFS_KEY_MAX_SEED_ACTIVE, atoi(optarg) );
+                break;
+
+            case 934:
+                tr_bencDictAddStr( &top, "method", "session-set" );
+                tr_bencDictAddInt( args, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS, TRUE );
+                break;
+
+            case 935:
+                tr_bencDictAddStr( &top, "method", "session-set" );
+                tr_bencDictAddInt( args, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS, FALSE );
+                break;
+
+            case 936:
+                tr_bencDictAddStr( &top, "method", "session-set" );
+                tr_bencDictAddInt( args, TR_PREFS_KEY_QUEUE_ENABLED, TRUE );
+                break;
+
+            case 937:
+                tr_bencDictAddStr( &top, "method", "session-set" );
+                tr_bencDictAddInt( args, TR_PREFS_KEY_QUEUE_ENABLED, FALSE );
+                break;
+
+            case 938:
+                tr_bencDictAddStr( &top, "method", "torrent-set" );
+                tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_IGNORE );
+                addIdArg( args, id );
+                break;
+
+            case 939:
+                tr_bencDictAddStr( &top, "method", "torrent-set" );
+                tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_UNIGNORE );
+                addIdArg( args, id );
+                break;
+
+            case 945:
+                tr_bencDictAddStr( &top, "method", "torrent-set" );
+                tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_UP );
+                addIdArg( args, id );
+                break;
+
+            case 946:
+                tr_bencDictAddStr( &top, "method", "torrent-set" );
+                tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_DOWN );
+                addIdArg( args, id );
+                break;
+
+            case 947:
+                tr_bencDictAddStr( &top, "method", "torrent-set" );
+                tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_TOP );
+                addIdArg( args, id );
+                break;
+
+            case 948:
+                tr_bencDictAddStr( &top, "method", "torrent-set" );
+                tr_bencDictAddInt( args, "moveQueueRank", TR_QUEUE_BOTTOM );
+                addIdArg( args, id );
                 break;
 
             case 940:
@@ -1068,6 +1149,10 @@ printSession( tr_benc * top )
             printf( "  Peer exchange allowed: %s\n", ( boolVal ? "Yes" : "No" ) );
         if( tr_bencDictFindStr( args,  TR_PREFS_KEY_ENCRYPTION, &str ) )
             printf( "  Encryption: %s\n", str );
+        if( tr_bencDictFindInt( args, "max-download-active", &i ) )
+            printf( "  Max download active: %" PRId64 "\n", i );
+        if( tr_bencDictFindInt( args, "max-seed-active", &i ) )
+            printf( "  Max seed active: %" PRId64 "\n", i );
         printf( "\n" );
 
         {
@@ -1211,6 +1296,8 @@ printDetails( tr_benc * top )
             printf( "\n" );
 
             printf( "TRANSFER\n" );
+            if( tr_bencDictFindInt( t, "queueRank", &i ) )
+                printf( "  Rank: %" PRId64 "\n", i );
             getStatusString( t, buf, sizeof( buf ) );
             printf( "  State: %s\n", buf );
 
@@ -1675,18 +1762,19 @@ printTorrentList( tr_benc * top )
         int64_t total_up = 0, total_down = 0, total_size = 0;
         char haveStr[32];
 
-        printf( "%-4s   %-4s  %9s  %-8s  %6s  %6s  %-5s  %-11s  %s\n",
-                "ID", "Done", "Have", "ETA", "Up", "Down", "Ratio", "Status",
-                "Name" );
+        printf( "%6s %4s   %-4s  %9s  %-8s  %6s  %6s  %-5s  %-11s  %s\n",
+                "Rank", "ID", "Done", "Have", "ETA", "Up", "Down", "Ratio",
+                "Status", "Name" );
 
         for( i = 0, n = tr_bencListSize( list ); i < n; ++i )
         {
-            int64_t      id, eta, status, up, down;
+            int64_t      id, eta, status, up, down, rank;
             int64_t      sizeWhenDone, leftUntilDone;
             double       ratio;
             const char * name;
             tr_benc *   d = tr_bencListChild( list, i );
             if( tr_bencDictFindInt( d, "eta", &eta )
+              && tr_bencDictFindInt( d, "queueRank", &rank )
               && tr_bencDictFindInt( d, "id", &id )
               && tr_bencDictFindInt( d, "leftUntilDone", &leftUntilDone )
               && tr_bencDictFindStr( d, "name", &name )
@@ -1719,7 +1807,8 @@ printTorrentList( tr_benc * top )
                 else
                     errorMark = ' ';
                 printf(
-                    "%4d%c  %4s  %9s  %-8s  %6.1f  %6.1f  %5s  %-11s  %s\n",
+                    "%6d %4d%c  %4s  %9s  %-8s  %6.1f  %6.1f  %5s  %-11s  %s\n",
+                    (int)rank,
                     (int)id, errorMark,
                     doneStr,
                     haveStr,

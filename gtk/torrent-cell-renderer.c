@@ -178,7 +178,10 @@ getShortStatusString( const tr_torrent  * tor,
     switch( torStat->activity )
     {
         case TR_STATUS_STOPPED:
-            g_string_assign( gstr, _( "Paused" ) );
+            if( tr_torrentGetQueueRank( tor ) == 0 )
+                g_string_assign( gstr, _( "Paused" ) );
+            else
+                g_string_assign( gstr, _( "Queued" ) );
             break;
 
         case TR_STATUS_CHECK_WAIT:
@@ -363,14 +366,16 @@ get_size_minimal( TorrentCellRenderer * cell,
     char * status;
     GdkPixbuf * icon;
     GtkCellRenderer * text_renderer;
+    GString * qname = g_string_new("");
 
     struct TorrentCellRendererPrivate * p = cell->priv;
     const tr_torrent * tor = p->tor;
     const tr_stat * st = tr_torrentStatCached( (tr_torrent*)tor );
 
     icon = get_icon( tor, MINIMAL_ICON_SIZE, widget );
-    name = tr_torrentInfo( tor )->name;
     status = getShortStatusString( tor, st, p->upload_speed, p->download_speed );
+    g_string_printf( qname, "[%d] %s", tr_torrentGetQueueRank( tor ), tr_torrentInfo( tor )->name );
+    name = qname->str;
 
     /* get the idealized cell dimensions */
     g_object_set( p->icon_renderer, "pixbuf", icon, NULL );
@@ -397,6 +402,7 @@ get_size_minimal( TorrentCellRenderer * cell,
         *height = cell->parent.ypad * 2 + name_area.height + p->bar_height;
 
     /* cleanup */
+    g_string_free( qname , TRUE );
     g_free( status );
     g_object_unref( icon );
 }
@@ -419,6 +425,7 @@ get_size_full( TorrentCellRenderer * cell,
     char * progress;
     GdkPixbuf * icon;
     GtkCellRenderer * text_renderer;
+    GString * qname = g_string_new("");
 
     struct TorrentCellRendererPrivate * p = cell->priv;
     const tr_torrent * tor = p->tor;
@@ -426,9 +433,10 @@ get_size_full( TorrentCellRenderer * cell,
     const tr_info * inf = tr_torrentInfo( tor );
 
     icon = get_icon( tor, FULL_ICON_SIZE, widget );
-    name = inf->name;
     status = getStatusString( tor, st, p->upload_speed, p->download_speed );
     progress = getProgressString( tor, inf, st );
+    g_string_printf( qname, "[%d] %s", tr_torrentGetQueueRank( tor ), inf->name );
+    name = qname->str;
 
     /* get the idealized cell dimensions */
     g_object_set( p->icon_renderer, "pixbuf", icon, NULL );
@@ -459,6 +467,7 @@ get_size_full( TorrentCellRenderer * cell,
         *height = cell->parent.ypad * 2 + name_area.height + prog_area.height + GUI_PAD_SMALL + p->bar_height + GUI_PAD_SMALL + stat_area.height;
 
     /* cleanup */
+    g_string_free( qname , TRUE );
     g_free( status );
     g_free( progress );
     g_object_unref( icon );
@@ -521,6 +530,7 @@ render_minimal( TorrentCellRenderer   * cell,
     char * status;
     GdkPixbuf * icon;
     GtkCellRenderer * text_renderer;
+    GString * qname = g_string_new("");
 
     struct TorrentCellRendererPrivate * p = cell->priv;
     const tr_torrent * tor = p->tor;
@@ -530,8 +540,9 @@ render_minimal( TorrentCellRenderer   * cell,
     const gboolean sensitive = active || st->error;
 
     icon = get_icon( tor, MINIMAL_ICON_SIZE, widget );
-    name = tr_torrentInfo( tor )->name;
     status = getShortStatusString( tor, st, p->upload_speed, p->download_speed );
+    g_string_printf( qname, "[%d] %s", tr_torrentGetQueueRank( tor ), tr_torrentInfo( tor )->name );
+    name = qname->str;
 
     /* get the cell dimensions */
     g_object_set( p->icon_renderer, "pixbuf", icon, NULL );
@@ -591,6 +602,7 @@ render_minimal( TorrentCellRenderer   * cell,
     gtk_cell_renderer_render( p->progress_renderer, window, widget, &prog_area, &prog_area, &prog_area, flags );
 
     /* cleanup */
+    g_string_free( qname , TRUE );
     g_free( status );
     g_object_unref( icon );
 }
@@ -616,6 +628,7 @@ render_full( TorrentCellRenderer   * cell,
     char * progress;
     GdkPixbuf * icon;
     GtkCellRenderer * text_renderer;
+    GString * qname = g_string_new("");
 
     struct TorrentCellRendererPrivate * p = cell->priv;
     const tr_torrent * tor = p->tor;
@@ -626,9 +639,10 @@ render_full( TorrentCellRenderer   * cell,
     const gboolean sensitive = active || st->error;
 
     icon = get_icon( tor, FULL_ICON_SIZE, widget );
-    name = inf->name;
     status = getStatusString( tor, st, p->upload_speed, p->download_speed );
     progress = getProgressString( tor, inf, st );
+    g_string_printf( qname, "[%d] %s", tr_torrentGetQueueRank( tor ), inf->name );
+    name = qname->str;
 
     /* get the idealized cell dimensions */
     g_object_set( p->icon_renderer, "pixbuf", icon, NULL );
@@ -700,6 +714,7 @@ render_full( TorrentCellRenderer   * cell,
     gtk_cell_renderer_render( text_renderer, window, widget, &stat_area, &stat_area, &stat_area, flags );
 
     /* cleanup */
+    g_string_free( qname , TRUE );
     g_free( status );
     g_free( progress );
     g_object_unref( icon );

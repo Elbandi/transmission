@@ -173,7 +173,9 @@ getTorrents( tr_session * session,
         torrents = tr_new0( tr_torrent *, n );
         while( ( tor = tr_torrentNext( session, tor ) ) )
             torrents[torrentCount++] = tor;
+        qsort( torrents, torrentCount, sizeof( tr_torrent* ), tr_sessionCompareTorrentByQueueRank );
     }
+
 
     *setmeCount = torrentCount;
     return torrents;
@@ -561,6 +563,8 @@ addField( const tr_torrent * tor, tr_benc * d, const char * key )
         for( i = 0; i < inf->fileCount; ++i )
             tr_bencListAddInt( p, inf->files[i].priority );
     }
+    else if( tr_streq( key, keylen, "queueRank" ) )
+        tr_bencDictAddInt( d, key, tr_torrentGetQueueRank( tor ) );
     else if( tr_streq( key, keylen, "rateDownload" ) )
         tr_bencDictAddInt( d, key, (int)( st->pieceDownloadSpeed * 1024 ) );
     else if( tr_streq( key, keylen, "rateUpload" ) )
@@ -744,6 +748,19 @@ setFileDLs( tr_torrent * tor,
     tr_free( files );
     return errmsg;
 }
+static void torrentMoveQueueRank( tr_torrent * tor , const tr_queue_direction dir )
+{
+    switch(dir)
+    {
+        case TR_QUEUE_UP        : tr_torrentMoveQueueRankUp( tor ); break;
+        case TR_QUEUE_DOWN      : tr_torrentMoveQueueRankDown( tor ); break;
+        case TR_QUEUE_TOP       : tr_torrentMoveQueueRankTop( tor ); break;
+        case TR_QUEUE_BOTTOM    : tr_torrentMoveQueueRankBottom( tor ); break;
+        case TR_QUEUE_IGNORE    : tr_torrentSetQueueRankIgnore( tor ); break;
+        case TR_QUEUE_UNIGNORE  : tr_torrentSetQueueRankUnIgnore( tor ); break;
+    }
+}
+
 
 static const char*
 torrentSet( tr_session               * session,
@@ -794,6 +811,10 @@ torrentSet( tr_session               * session,
             tr_torrentSetRatioLimit( tor, d );
         if( tr_bencDictFindInt( args_in, "seedRatioMode", &tmp ) )
             tr_torrentSetRatioMode( tor, tmp );
+        if( tr_bencDictFindInt( args_in, "moveQueueRank", &tmp ) )
+            torrentMoveQueueRank( tor, (tr_queue_direction)tmp );
+        if( tr_bencDictFindInt( args_in, "queueRank", &tmp ) )
+            tr_torrentSetQueueRank( tor, tmp );
         notify( session, TR_RPC_TORRENT_CHANGED, tor );
     }
 
@@ -1178,6 +1199,14 @@ sessionSet( tr_session               * session,
         tr_blocklistSetEnabled( session, boolVal );
     if( tr_bencDictFindStr( args_in, TR_PREFS_KEY_DOWNLOAD_DIR, &str ) )
         tr_sessionSetDownloadDir( session, str );
+    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE, &i ) )
+        tr_sessionSetMaxDownloadActive( session, i );
+    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_MAX_SEED_ACTIVE, &i ) )
+        tr_sessionSetMaxSeedActive( session, i );
+    if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS, &boolVal ) )
+        tr_sessionSetIgnoreSlowTorrentsEnabled( session, boolVal );
+    if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_QUEUE_ENABLED, &boolVal ) )
+        tr_sessionSetQueueEnabled( session, boolVal );
     if( tr_bencDictFindStr( args_in, TR_PREFS_KEY_INCOMPLETE_DIR, &str ) )
         tr_sessionSetIncompleteDir( session, str );
     if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED, &boolVal ) )
@@ -1292,6 +1321,10 @@ sessionGet( tr_session               * s,
     tr_bencDictAddInt ( d, "blocklist-size", tr_blocklistGetRuleCount( s ) );
     tr_bencDictAddStr ( d, "config-dir", tr_sessionGetConfigDir( s ) );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_DOWNLOAD_DIR, tr_sessionGetDownloadDir( s ) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE, tr_sessionGetMaxDownloadActive( s ) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_SEED_ACTIVE, tr_sessionGetMaxSeedActive( s ) );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS, tr_sessionIsIgnoreSlowTorrentsEnabled( s ) );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_QUEUE_ENABLED, tr_sessionIsQueueEnabled( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_LIMIT_GLOBAL, tr_sessionGetPeerLimit( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_LIMIT_TORRENT, tr_sessionGetPeerLimitPerTorrent( s ) );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_INCOMPLETE_DIR, tr_sessionGetIncompleteDir( s ) );

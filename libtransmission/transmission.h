@@ -166,9 +166,12 @@ const char* tr_getDefaultDownloadDir( void );
 #define TR_PREFS_KEY_DHT_ENABLED                "dht-enabled"
 #define TR_PREFS_KEY_DOWNLOAD_DIR               "download-dir"
 #define TR_PREFS_KEY_ENCRYPTION                 "encryption"
+#define TR_PREFS_KEY_IGNORE_SLOW_TORRENTS       "ignore-slow-torrents"
 #define TR_PREFS_KEY_INCOMPLETE_DIR             "incomplete-dir"
 #define TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED     "incomplete-dir-enabled"
 #define TR_PREFS_KEY_LAZY_BITFIELD              "lazy-bitfield-enabled"
+#define TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE        "max-download-active"
+#define TR_PREFS_KEY_MAX_SEED_ACTIVE            "max-seed-active"
 #define TR_PREFS_KEY_MSGLEVEL                   "message-level"
 #define TR_PREFS_KEY_OPEN_FILE_LIMIT            "open-file-limit"
 #define TR_PREFS_KEY_PEER_LIMIT_GLOBAL          "peer-limit-global"
@@ -188,6 +191,7 @@ const char* tr_getDefaultDownloadDir( void );
 #define TR_PREFS_KEY_PROXY                      "proxy"
 #define TR_PREFS_KEY_PROXY_TYPE                 "proxy-type"
 #define TR_PREFS_KEY_PROXY_USERNAME             "proxy-auth-username"
+#define TR_PREFS_KEY_QUEUE_ENABLED              "queue-enabled"
 #define TR_PREFS_KEY_RATIO                      "ratio-limit"
 #define TR_PREFS_KEY_RATIO_ENABLED              "ratio-limit-enabled"
 #define TR_PREFS_KEY_RENAME_PARTIAL_FILES       "rename-partial-files"
@@ -726,6 +730,21 @@ uint16_t   tr_sessionGetPeerLimitPerTorrent( const tr_session * );
 tr_priority_t   tr_torrentGetPriority( const tr_torrent * );
 void            tr_torrentSetPriority( tr_torrent *, tr_priority_t );
 
+/***
+****
+***/
+
+tr_bool      tr_sessionIsIgnoreSlowTorrentsEnabled( const tr_session * session );
+void         tr_sessionSetIgnoreSlowTorrentsEnabled( tr_session * session, tr_bool enabled );
+
+int          tr_sessionGetMaxDownloadActive( const tr_session * session );
+void         tr_sessionSetMaxDownloadActive( tr_session * session, int maxActive );
+
+int          tr_sessionGetMaxSeedActive( const tr_session * session );
+void         tr_sessionSetMaxSeedActive( tr_session * session, int maxActive );
+
+tr_bool      tr_sessionIsQueueEnabled( const tr_session* session );
+void         tr_sessionSetQueueEnabled( tr_session * session, tr_bool enabled );
 
 /**
  *  Load all the torrents in tr_getTorrentDir().
@@ -1127,6 +1146,8 @@ void          tr_torrentSetRatioMode( tr_torrent         * tor,
 
 tr_ratiolimit tr_torrentGetRatioMode( const tr_torrent   * tor );
 
+tr_bool       tr_torrentIsUnlimited( const tr_torrent    * tor );
+
 void          tr_torrentSetRatioLimit( tr_torrent        * tor,
                                        double              ratio );
 
@@ -1239,6 +1260,54 @@ tr_torrentSetAnnounceList( tr_torrent             * torrent,
                            const tr_tracker_info  * trackers,
                            int                      trackerCount );
 
+/**
+ * @brief returns a torrent's queueRank
+ */
+int tr_torrentGetQueueRank( const tr_torrent * tor );
+
+/**
+ * @brief sets a torrent's queueRank.
+ *
+ * queueRank is 0 for torrents that are unlimited/ignored, negative for 
+ * torrents that are seeding and is a unique whole number for all other 
+ * torrents. The queue starts downloading torrents starting from queueRank 1.
+ */
+void tr_torrentSetQueueRank( tr_torrent * tor, int rank );
+
+/**
+ * @brief sets a torrent's seedRank.
+ *
+ * seedRank is a queueRank which is negative. The more negative the number,
+ * the higher on the queue the torrent is.
+ */
+void tr_torrentSetSeedRank( tr_torrent * tor );
+
+/**
+ * @brief checks a torrent's queueRank and changes it if it's in a bad state.
+ */
+void tr_torrentCheckQueue( tr_torrent * tor );
+
+/**
+ * @brief comparator for sorting torrents by queue rank
+ *
+ * Compares first by queue and then by name for torrents that have equal queue
+ * rankings.
+ */
+int tr_sessionCompareTorrentByQueueRank( const void * va, const void * vb );
+
+typedef enum
+{
+    TR_QUEUE_IGNORED,   /* torrents ignored by the queue */
+    TR_QUEUE_SEED,      /* seeding torrents don't use queueRank */
+    TR_QUEUE_DOWNLOAD   /* queued torrents */
+}
+tr_queueType;
+
+/**
+ * @brief returns the size of the selected queue
+ */
+int
+tr_sessionGetQueueSize( tr_session * session , const tr_queueType type );
 
 /**
 ***

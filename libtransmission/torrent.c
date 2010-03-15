@@ -193,6 +193,11 @@ tr_torrentUsesSessionLimits( const tr_torrent * tor )
 ****
 ***/
 
+int tr_torrentGetQueueRank( const tr_torrent * tor )
+{
+    return tor->queueRank;
+}
+
 void
 tr_torrentSetRatioMode( tr_torrent *  tor, tr_ratiolimit mode )
 {
@@ -201,8 +206,14 @@ tr_torrentSetRatioMode( tr_torrent *  tor, tr_ratiolimit mode )
 
     if( mode != tor->ratioLimitMode )
     {
+        tr_bool oldLimit = tr_torrentIsUnlimited( tor );
         tor->ratioLimitMode = mode;
         tor->needsSeedRatioCheck = TRUE;
+
+        if( tr_torrentIsUnlimited( tor ) )
+            tr_torrentSetQueueRankIgnore( tor );
+        else if ( oldLimit )
+            tr_torrentSetQueueRankUnIgnore( tor );
 
         tr_torrentSetDirty( tor );
     }
@@ -214,6 +225,12 @@ tr_torrentGetRatioMode( const tr_torrent * tor )
     assert( tr_isTorrent( tor ) );
 
     return tor->ratioLimitMode;
+}
+
+inline tr_bool
+tr_torrentIsUnlimited( const tr_torrent * tor )
+{
+    return !tr_torrentGetSeedRatio( tor, NULL );
 }
 
 void
@@ -617,6 +634,7 @@ torrentInit( tr_torrent * tor, const tr_ctor * ctor )
 
     tor->session   = session;
     tor->uniqueId = nextUniqueId++;
+    tor->queueRank = -1;
     tor->magicNumber = TORRENT_MAGIC_NUMBER;
 
     tr_sha1( tor->obfuscatedHash, "req2", 4,
@@ -703,6 +721,9 @@ torrentInit( tr_torrent * tor, const tr_ctor * ctor )
 
     tor->tiers = tr_announcerAddTorrent( tor->session->announcer, tor );
     tor->tiersSubscription = tr_announcerSubscribe( tor->tiers, onTrackerResponse, tor );
+
+    if( !( loaded & TR_FR_QUEUERANK ) )
+        tr_torrentCheckQueue( tor );
 
     if( doStart )
         torrentStart( tor );
@@ -1338,6 +1359,7 @@ checkAndStartImpl( void * vtor )
     else
     {
         const time_t now = tr_time( );
+        tr_torrentCheckQueue( tor );
         tor->isRunning = TRUE;
         tor->needsSeedRatioCheck = TRUE;
         tor->error = TR_STAT_OK;
@@ -1418,6 +1440,8 @@ torrentRecheckDoneImpl( void * vtor )
 
         tr_torrentStart( tor );
     }
+    else
+        tr_torrentCheckQueue( tor );
 }
 
 static void
@@ -1552,6 +1576,7 @@ tr_torrentRemove( tr_torrent * tor )
     assert( tr_isTorrent( tor ) );
 
     tor->isDeleting = 1;
+    tr_torrentSetQueueRankIgnore( tor );
     tr_torrentFree( tor );
 }
 
@@ -1647,6 +1672,7 @@ tr_torrentRecheckCompleteness( tr_torrent * tor )
             tr_torinf( tor, _( "State changed from \"%1$s\" to \"%2$s\"" ),
                       getCompletionString( tor->completeness ),
                       getCompletionString( completeness ) );
+            tr_torrentCheckQueue( tor );
         }
 
         tor->completeness = completeness;
@@ -1850,6 +1876,8 @@ tr_torrentSetFileDLs( tr_torrent *      tor,
     tr_torrentInitFileDLs( tor, files, fileCount, doDownload );
     tr_torrentSetDirty( tor );
     tr_peerMgrRebuildRequests( tor );
+
+    tr_torrentCheckQueue( tor );
 
     tr_torrentUnlock( tor );
 }
@@ -2770,4 +2798,190 @@ char*
 tr_torrentBuildPartial( const tr_torrent * tor, tr_file_index_t fileNum )
 {
     return tr_strdup_printf( "%s.part", tor->info.files[fileNum].name );
+}
+
+/***
+****
+***/
+
+static void
+setQueueRank( tr_torrent * tor, int rank )
+{
+    tr_session * session;
+    tr_torrent * t = NULL;
+    const time_t now = tr_time( );
+
+    assert( tr_isTorrent( tor ) );
+
+    if( rank == tor->queueRank )
+        return;
+
+    session = tor->session;
+
+    if( rank > tor->queueRank && rank > 0 )
+    {
+        int maxRank = 0;
+        if( tor->queueRank <= 0 )
+        {
+            while(( t = tr_torrentNext( session, t )))
+            {
+                if( t == tor ) continue;
+                if( t->queueRank > maxRank )
+                    maxRank = t->queueRank;
+                if( t->queueRank >= rank )
+                {
+                    --t->queueRank;
+                    t->anyDate = now;
+                }
+            }
+            rank = MIN( maxRank + 1, rank );
+        }
+        else
+        {
+            while(( t = tr_torrentNext( session, t )))
+            {
+                if( t == tor ) continue;
+                if( t->queueRank > maxRank )
+                    maxRank = t->queueRank;
+                if( t->queueRank > tor->queueRank
+                    && t->queueRank <= rank )
+                {
+                    --t->queueRank;
+                    t->anyDate = now;
+                }
+            }
+            if( tor->queueRank > maxRank )
+                maxRank = tor->queueRank;
+            rank = MIN( maxRank, rank );
+        }
+    }
+    else if ( rank < tor->queueRank && tor->queueRank > 0 )
+    {
+        if( rank <= 0 )
+        {
+            while(( t = tr_torrentNext( session, t )))
+            {
+                if( t == tor ) continue;
+                if( t->queueRank > tor->queueRank )
+                {
+                    --t->queueRank;
+                    t->anyDate = now;
+                }
+            }
+        }
+        else
+        {
+            while(( t = tr_torrentNext( session, t )))
+            {
+                if( t == tor ) continue;
+                if( t->queueRank >= rank
+                    && t->queueRank < tor->queueRank )
+                {
+                    ++t->queueRank;
+                    t->anyDate = now;
+                }
+            }
+        }
+    }
+
+    tor->queueRank = rank;
+    tor->anyDate = tr_time( );
+    tr_torrentSetDirty( tor );
+}
+
+static void
+setSeedRank( tr_torrent * tor )
+{
+    int rank = 0, n, i;
+    int seeds = 0, leeches = 1;
+    const time_t now = tr_time(); 
+    tr_tracker_stat * st;
+    const tr_stat * stat;
+
+    assert( tr_isTorrent( tor ) );
+
+#define timecutoff (60*15) // keep torrents recently started in the queue
+    if( now - tor->startDate < timecutoff )
+        rank -= 0x2000;
+
+    st = tr_torrentTrackers( tor, &n );
+    for( i = 0; i < n; ++i )
+    {
+        const tr_tracker_stat *s = &st[i];
+        leeches += MAX( s->leecherCount, 0 );
+        seeds += MAX( s->seederCount, 0 );
+    }
+    tr_torrentTrackersFree( st, n );
+
+    stat = tr_torrentStatCached( tor );
+    leeches /= MAX(0.1, stat->percentRatio);
+
+    if( seeds == 0 )
+    {
+        rank -= 0x1000;
+        rank -= ( leeches > 0xFFF ) ? 0xFFF : leeches;
+    }
+    else
+    {
+        int ratio = ( ( leeches ) * 100 / seeds );
+        rank -= ( ratio > 0xFFF ) ? 0xFFF : ratio;
+    }
+
+    setQueueRank( tor, rank );
+}
+
+void
+tr_torrentCheckQueue( tr_torrent * tor )
+{
+    uint64_t leftUntilDone;
+
+    assert( tr_isTorrent( tor ) );
+
+    leftUntilDone = tr_cpLeftUntilDone( &tor->completion );
+    if( tr_torrentIsUnlimited( tor ) )
+        setQueueRank( tor, 0 );
+    else if( leftUntilDone == 0 && tor->queueRank > 0 )
+        setSeedRank( tor );
+    else if( leftUntilDone > 0 && tor->queueRank < 0 )
+        setQueueRank( tor, INT_MAX );
+}
+
+void
+tr_torrentSetQueueRank( tr_torrent * tor, int rank )
+{
+    uint64_t     leftUntilDone;
+
+    assert( tr_isTorrent( tor ) );
+
+    leftUntilDone = tr_cpLeftUntilDone( &tor->completion );
+    if( tr_torrentIsUnlimited( tor ) )
+        rank = 0;
+    else if( leftUntilDone == 0 )
+    {
+        if( rank > 0 )
+        {
+            setSeedRank( tor );
+            return;
+        }
+    }
+    else if( rank < 0 )
+        return;
+
+    setQueueRank( tor, rank );
+}
+
+void
+tr_torrentSetSeedRank( tr_torrent * tor )
+{
+    uint64_t leftUntilDone;
+
+    assert( tr_isTorrent( tor ) );
+
+    leftUntilDone = tr_cpLeftUntilDone( &tor->completion );
+    if( tor->queueRank == 0 )
+        return;
+    else if( leftUntilDone == 0 )
+        setSeedRank( tor );
+    else
+        tr_torrentCheckQueue( tor );
 }

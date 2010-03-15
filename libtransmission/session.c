@@ -52,6 +52,10 @@ enum
 {
     SAVE_INTERVAL_SECS = 120
 };
+enum
+{
+    QUEUE_INTERVAL_SECS = 60
+};
 
 
 #define dbgmsg( ... ) \
@@ -246,9 +250,12 @@ tr_sessionGetDefaultSettings( const char * configDir, tr_benc * d )
     tr_bencDictAddInt ( d, TR_PREFS_KEY_DSPEED,                   100 );
     tr_bencDictAddBool( d, TR_PREFS_KEY_DSPEED_ENABLED,           FALSE );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_ENCRYPTION,               TR_DEFAULT_ENCRYPTION );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS,     TRUE );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_INCOMPLETE_DIR,           incompleteDir );
     tr_bencDictAddBool( d, TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED,   FALSE );
     tr_bencDictAddBool( d, TR_PREFS_KEY_LAZY_BITFIELD,            TRUE );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE,      4 );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_SEED_ACTIVE,          4 );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_MSGLEVEL,                 TR_MSG_INF );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_OPEN_FILE_LIMIT,          atoi( TR_DEFAULT_OPEN_FILE_LIMIT_STR ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_LIMIT_GLOBAL,        atoi( TR_DEFAULT_PEER_LIMIT_GLOBAL_STR ) );
@@ -272,6 +279,7 @@ tr_sessionGetDefaultSettings( const char * configDir, tr_benc * d )
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PROXY_PORT,               80 );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PROXY_TYPE,               TR_PROXY_HTTP );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_PROXY_USERNAME,           "" );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_QUEUE_ENABLED,            FALSE );
     tr_bencDictAddReal( d, TR_PREFS_KEY_RATIO,                    2.0 );
     tr_bencDictAddBool( d, TR_PREFS_KEY_RATIO_ENABLED,            FALSE );
     tr_bencDictAddBool( d, TR_PREFS_KEY_RENAME_PARTIAL_FILES,     TRUE );
@@ -312,9 +320,12 @@ tr_sessionGetSettings( tr_session * s, struct tr_benc * d )
     tr_bencDictAddInt ( d, TR_PREFS_KEY_DSPEED,                   tr_sessionGetSpeedLimit( s, TR_DOWN ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_DSPEED_ENABLED,           tr_sessionIsSpeedLimited( s, TR_DOWN ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_ENCRYPTION,               s->encryptionMode );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS,     tr_sessionIsIgnoreSlowTorrentsEnabled( s ) );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_INCOMPLETE_DIR,           tr_sessionGetIncompleteDir( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED,   tr_sessionIsIncompleteDirEnabled( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_LAZY_BITFIELD,            s->useLazyBitfield );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE,      tr_sessionGetMaxDownloadActive( s ) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_SEED_ACTIVE,          tr_sessionGetMaxSeedActive( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_MSGLEVEL,                 tr_getMessageLevel( ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_OPEN_FILE_LIMIT,          tr_fdGetFileLimit( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_LIMIT_GLOBAL,        tr_sessionGetPeerLimit( s ) );
@@ -334,6 +345,7 @@ tr_sessionGetSettings( tr_session * s, struct tr_benc * d )
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PROXY_PORT,               s->proxyPort );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PROXY_TYPE,               s->proxyType );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_PROXY_USERNAME,           s->proxyUsername );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_QUEUE_ENABLED,            tr_sessionIsQueueEnabled( s ) );
     tr_bencDictAddReal( d, TR_PREFS_KEY_RATIO,                    s->desiredRatio );
     tr_bencDictAddBool( d, TR_PREFS_KEY_RATIO_ENABLED,            s->isRatioLimited );
     tr_bencDictAddBool( d, TR_PREFS_KEY_RENAME_PARTIAL_FILES,     tr_sessionIsIncompleteFileNamingEnabled( s ) );
@@ -468,6 +480,78 @@ onSaveTimer( int foo UNUSED, short bar UNUSED, void * vsession )
 ****
 ***/
 
+static tr_torrent **
+getQueueArray( tr_session * session, int * count, const tr_queueType type );
+
+#define slowSpeed 10 // in KBps
+
+static void
+onQueueTimer( int foo UNUSED, short bar UNUSED, void * vsession )
+{
+    tr_session * session = vsession;
+
+    if( tr_sessionIsQueueEnabled(session) )
+    {
+        tr_bool ignore = tr_sessionIsIgnoreSlowTorrentsEnabled( session );
+        int count, i, max;
+        tr_torrent ** torrents, * tor;
+
+        torrents = getQueueArray( session, &count, TR_QUEUE_DOWNLOAD );
+        max = tr_sessionGetMaxDownloadActive( session );
+        for( i = 0; i < count; ++i )
+        {
+            tor = torrents[i];
+            if( tor->error == TR_STAT_LOCAL_ERROR
+                || tor->verifyState != TR_VERIFY_NONE )
+                continue;
+            if( ignore )
+            {
+                const tr_stat * stat = tr_torrentStatCached( tor );
+                if( tor->isRunning && stat->pieceDownloadSpeed < slowSpeed )
+                    continue;
+            }
+            if( max > 0 )
+            {
+                tr_torrentStart( tor );
+                --max;
+            }
+            else if ( tor->isRunning )
+                tr_torrentStop( tor );
+        }
+        tr_free( torrents );
+
+        torrents = getQueueArray( session, &count, TR_QUEUE_SEED );
+        max = tr_sessionGetMaxSeedActive( session );
+        for( i = 0; i < count; ++i )
+        {
+            tor = torrents[i];
+            if( tor->error == TR_STAT_LOCAL_ERROR
+                || tor->verifyState != TR_VERIFY_NONE )
+                continue;
+            if( ignore )
+            {
+                const tr_stat * stat = tr_torrentStatCached( tor );
+                if( tor->isRunning && stat->pieceUploadSpeed < slowSpeed )
+                    continue;
+            }
+            if( max > 0 )
+            {
+                tr_torrentStart( tor );
+                --max;
+            }
+            else if ( tor->isRunning )
+                tr_torrentStop( tor );
+        }
+        tr_free( torrents );
+    }
+
+    tr_timerAdd( session->queueTimer, QUEUE_INTERVAL_SECS, 0 );
+}
+
+/***
+****
+***/
+
 static void tr_sessionInitImpl( void * );
 
 struct init_data
@@ -571,6 +655,10 @@ tr_sessionInitImpl( void * vdata )
     tr_bencInitDict( &settings, 0 );
     tr_sessionGetDefaultSettings( data->configDir, &settings );
     tr_bencMergeDicts( &settings, clientSettings );
+
+    session->queueTimer = tr_new0( struct event, 1 );
+    evtimer_set( session->queueTimer, onQueueTimer, session );
+    tr_timerAdd( session->queueTimer, QUEUE_INTERVAL_SECS , 0 );
 
     session->nowTimer = tr_new0( struct event, 1 );
     evtimer_set( session->nowTimer, onNowTimer, session );
@@ -698,6 +786,16 @@ sessionSetImpl( void * vdata )
         tr_sessionSetProxyUsername( session, str );
     if( tr_bencDictFindStr( settings, TR_PREFS_KEY_PROXY_PASSWORD, &str ) )
         tr_sessionSetProxyPassword( session, str );
+
+    /* torrent queueing */
+    if( tr_bencDictFindBool( settings, TR_PREFS_KEY_IGNORE_SLOW_TORRENTS, &boolVal ) )
+        tr_sessionSetIgnoreSlowTorrentsEnabled( session, boolVal );
+    if( tr_bencDictFindInt( settings, TR_PREFS_KEY_MAX_DOWNLOAD_ACTIVE, &i ) )
+        tr_sessionSetMaxDownloadActive( session, i );
+    if( tr_bencDictFindInt( settings, TR_PREFS_KEY_MAX_SEED_ACTIVE, &i ) )
+        tr_sessionSetMaxSeedActive( session, i );
+    if( tr_bencDictFindBool( settings, TR_PREFS_KEY_QUEUE_ENABLED, &boolVal ) )
+        tr_sessionSetQueueEnabled( session, boolVal );
 
     /* rpc server */
     if( session->rpcServer != NULL ) /* close the old one */
@@ -1466,6 +1564,114 @@ tr_sessionGetPeerLimitPerTorrent( const tr_session * session )
 ****
 ***/
 
+int
+tr_sessionCompareTorrentByQueueRank( const void * va, const void * vb )
+{
+    const tr_torrent * a = *(const tr_torrent**)va;
+    const tr_torrent * b = *(const tr_torrent**)vb;
+    int ret = a->queueRank - b->queueRank;
+    if( ret == 0 ){
+        const tr_info * ia = tr_torrentInfo( a );
+        const tr_info * ib = tr_torrentInfo( b );
+        ret = strcmp( ia->name, ib->name );
+    }
+    return ret;
+}
+
+int
+tr_sessionGetQueueSize( tr_session * session , const tr_queueType type )
+{
+    tr_torrent * tor = NULL;
+    int i = 0;
+    while(( tor = tr_torrentNext( session, tor )))
+    {
+        switch(type)
+        {
+            case TR_QUEUE_DOWNLOAD:
+                if( tor->queueRank > 0 )
+                    ++i;
+                break;
+            case TR_QUEUE_SEED:
+                if(tor->queueRank < 0 )
+                    ++i;
+                break;
+            case TR_QUEUE_IGNORED: 
+                if( tor->queueRank == 0 )
+                    ++i;
+                break;
+        }
+    }
+    return i;
+}
+
+static tr_torrent **
+getQueueArray( tr_session          * session,
+               int                 * count,
+               const tr_queueType    type)
+{
+    int i = 0;
+    tr_torrent ** torrents, * tor = NULL;
+    assert( tr_isSession( session ) );
+
+    torrents = tr_new( tr_torrent *, session->torrentCount);
+    while(( tor = tr_torrentNext( session, tor )))
+    {
+        switch(type)
+        {
+            case TR_QUEUE_DOWNLOAD:
+                if( tor->queueRank > 0 ) {
+                    torrents[i] = tor;
+                    ++i;
+                }
+                break;
+            case TR_QUEUE_SEED:
+                if(tor->queueRank < 0 ) {
+                    tr_torrentSetSeedRank( tor );
+                    torrents[i] = tor;
+                    ++i;
+                }
+                break;
+            case TR_QUEUE_IGNORED: 
+                if( tor->queueRank == 0 ) {
+                    torrents[i] = tor;
+                    ++i;
+                }
+                break;
+        }
+    }
+
+    if( type != TR_QUEUE_IGNORED )
+        qsort( torrents, i, sizeof( tr_torrent* ), tr_sessionCompareTorrentByQueueRank );
+
+    *count = i;
+    return torrents;
+}
+
+static void
+sessionCompactQueue( tr_session * session )
+{
+    int i, j;
+    tr_torrent ** torrents;
+
+    assert( tr_isSession( session ) );
+
+    torrents = getQueueArray( session, &j, TR_QUEUE_DOWNLOAD );
+    for( i = 0; i < j; i++ )
+    {
+        if( torrents[i]->queueRank != i + 1 )
+        {
+            torrents[i]->queueRank = i + 1;
+            tr_torrentSetDirty( torrents[i] );
+        }
+    }
+
+    tr_free( torrents );
+}
+
+/***
+****
+***/
+
 double
 tr_sessionGetPieceSpeed( const tr_session * session, tr_direction dir )
 {
@@ -1674,6 +1880,8 @@ tr_sessionLoadTorrents( tr_session * session,
     for( i = 0, l = list; l != NULL; l = l->next )
         torrents[i++] = (tr_torrent*) l->data;
     assert( i == n );
+
+    sessionCompactQueue( session );
 
     tr_list_free( &list, NULL );
 
@@ -2369,4 +2577,72 @@ tr_sessionGetActiveTorrentCount( tr_session * session )
             ++ret;
 
     return ret;
+}
+
+/***
+****
+***/
+
+tr_bool
+tr_sessionIsIgnoreSlowTorrentsEnabled( const tr_session * session )
+{
+    assert( tr_isSession( session ) );
+
+    return session->ignoreSlowTorrents;
+}
+
+void
+tr_sessionSetIgnoreSlowTorrentsEnabled( tr_session * session, tr_bool enabled )
+{
+    assert( tr_isSession( session ) );
+
+    session->ignoreSlowTorrents = enabled;
+}
+
+int
+tr_sessionGetMaxSeedActive( const tr_session * session )
+{
+    assert( tr_isSession( session ) );
+
+    return session->maxSeedActive;
+}
+
+void
+tr_sessionSetMaxSeedActive( tr_session * session , int maxActive )
+{
+    assert( tr_isSession( session ) );
+
+    session->maxSeedActive = maxActive;
+}
+
+int
+tr_sessionGetMaxDownloadActive( const tr_session * session )
+{
+    assert( tr_isSession( session ) );
+
+    return session->maxDownloadActive;
+}
+
+void
+tr_sessionSetMaxDownloadActive( tr_session * session , int maxActive )
+{
+    assert( tr_isSession( session ) );
+
+    session->maxDownloadActive = maxActive;
+}
+
+tr_bool
+tr_sessionIsQueueEnabled( const tr_session* session )
+{
+    assert( tr_isSession( session ) );
+
+    return session->queueEnabled;
+}
+
+void
+tr_sessionSetQueueEnabled( tr_session * session, tr_bool enabled )
+{
+    assert( tr_isSession( session ) );
+
+    session->queueEnabled = enabled;
 }

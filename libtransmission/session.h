@@ -123,6 +123,12 @@ struct tr_session
     int                          proxyPort;
     int                          peerSocketTOS;
 
+    tr_bool                      ignoreSlowTorrents;
+    tr_bool                      adaptiveQueue;
+    int                          maxDownloadActive;
+    int                          maxSeedActive;
+    tr_bool                      queueEnabled;
+
     int                          torrentCount;
     tr_torrent *                 torrentList;
 
@@ -158,6 +164,7 @@ struct tr_session
 
     struct event               * nowTimer;
     struct event               * saveTimer;
+    struct event               * queueTimer;
 
     /* monitors the "global pool" speeds */
     struct tr_bandwidth        * bandwidth;
