@@ -649,26 +649,19 @@ addLabels (tr_variant * args, const tr_quark key, const char * arg)
 {
   tr_variant * labels = tr_variantDictAddList (args, key, 100);
 
-  if (arg)
+  while (arg && *arg)
     {
-      const char * walk;
-
-      walk = arg;
-      while (walk && *walk)
-        {
-          const char * pch = strchr (walk, ',');
-          char * str;
-          if (pch)
-            {
-              str = tr_strndup (walk, pch-walk);
-              walk = pch + 1;
-            } else {
-              str = tr_strdup (walk);
-              walk += strlen (walk);
-            }
-          tr_variantListAddStr (labels, str);
-          tr_free (str);
-        }
+      const char * pch = strchr (arg, ',');
+      char * str;
+      if (pch) {
+          str = tr_strndup (arg, pch - arg);
+          arg = pch + 1;
+      } else {
+          str = tr_strdup (arg);
+          arg += strlen (arg);
+      }
+      tr_variantListAddStr (labels, str);
+      tr_free (str);
     }
 }
 
