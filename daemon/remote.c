@@ -631,25 +631,19 @@ addLabels (tr_benc *    args,
 {
     tr_benc * labels = tr_bencDictAddList (args, key, 100);
 
-    if (arg)
+    while (arg && *arg)
     {
-        const char * walk;
-
-        walk = arg;
-        while (walk && *walk)
-        {
-            const char * pch = strchr (walk, ',');
-            char * str;
-            if (pch) {
-                str = tr_strndup (walk, pch-walk);
-                walk = pch + 1;
-            } else {
-                str = tr_strdup (walk);
-                walk += strlen (walk);
-            }
-            tr_bencListAddStr (labels, str);
-            tr_free (str);
+        const char * pch = strchr (arg, ',');
+        char * str;
+        if (pch) {
+            str = tr_strndup (arg, pch - arg);
+            arg = pch + 1;
+        } else {
+            str = tr_strdup (arg);
+            arg += strlen (arg);
         }
+        tr_bencListAddStr (labels, str);
+        tr_free (str);
     }
 }
 
