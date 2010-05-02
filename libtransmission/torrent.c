@@ -643,10 +643,6 @@ torrentInit( tr_torrent * tor, const tr_ctor * ctor )
     assert( !tor->downloadedCur );
     assert( !tor->uploadedCur );
 
-    tr_ctorInitTorrentPriorities( ctor, tor );
-
-    tr_ctorInitTorrentWanted( ctor, tor );
-
     tr_torrentUncheck( tor );
 
     tr_torrentSetAddedDate( tor, tr_time( ) ); /* this is a default value to be
@@ -655,6 +651,9 @@ torrentInit( tr_torrent * tor, const tr_ctor * ctor )
     torrentInitFromInfo( tor );
     loaded = tr_torrentLoadResume( tor, ~0, ctor );
     tor->completeness = tr_cpGetStatus( &tor->completion );
+
+    tr_ctorInitTorrentPriorities( ctor, tor );
+    tr_ctorInitTorrentWanted( ctor, tor );
 
     refreshCurrentDir( tor );
 
@@ -1517,6 +1516,8 @@ closeTorrent( void * vtor )
     d = tr_bencListAddDict( &tor->session->removedTorrents, 2 );
     tr_bencDictAddInt( d, "id", tor->uniqueId );
     tr_bencDictAddInt( d, "date", tr_time( ) );
+
+    tr_torinf( tor, _( "Removing torrent" ) );
 
     stopTorrent( tor );
 

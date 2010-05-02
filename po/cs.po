@@ -8,14 +8,14 @@ msgstr ""
 "Project-Id-Version: transmission\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
 "POT-Creation-Date: 2010-02-10 20:02-0600\n"
-"PO-Revision-Date: 2009-12-20 17:09+0000\n"
-"Last-Translator: Adrian Guniš <andygun696@gmail.com>\n"
+"PO-Revision-Date: 2010-04-22 00:53+0000\n"
+"Last-Translator: Roman Horník <Unknown>\n"
 "Language-Team: Czech <cs@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;\n"
-"X-Launchpad-Export-Date: 2010-02-22 01:52+0000\n"
+"X-Launchpad-Export-Date: 2010-05-01 04:52+0000\n"
 "X-Generator: Launchpad (build Unknown)\n"
 
 #: ../gtk/actions.c:54
@@ -56,7 +56,7 @@ msgstr "Řadit dle v_elikosti"
 
 #: ../gtk/actions.c:79
 msgid "_Show Transmission"
-msgstr ""
+msgstr "_Zobrazit Transmission"
 
 #: ../gtk/actions.c:80
 msgid "Message _Log"
@@ -64,7 +64,7 @@ msgstr "Protoko_l zpráv"
 
 #: ../gtk/actions.c:95
 msgid "Enable Temporary Speed _Limits"
-msgstr ""
+msgstr "Povolit dočasné _omezení rychlosti"
 
 #: ../gtk/actions.c:96
 msgid "_Minimal View"
@@ -269,7 +269,7 @@ msgstr "Přidat torrent"
 
 #: ../gtk/add-dialog.c:458 ../gtk/tr-prefs.c:288
 msgid "Show _options dialog"
-msgstr ""
+msgstr "Zobrazit _okno s možnostmi"
 
 #: ../gtk/add-dialog.c:514
 msgid "Add URL"
@@ -429,7 +429,7 @@ msgstr "%1$s (%2$.1f%%)"
 #: ../gtk/details.c:778
 #, c-format
 msgid "%1$.1f%%"
-msgstr ""
+msgstr "%1$.1f%%"
 
 #: ../gtk/details.c:796
 #, c-format
@@ -459,7 +459,7 @@ msgstr "Získáno:"
 
 #: ../gtk/details.c:904
 msgid "Availability:"
-msgstr ""
+msgstr "Dostupnost:"
 
 #: ../gtk/details.c:908 ../gtk/stats.c:168 ../gtk/stats.c:180
 msgid "Downloaded:"
@@ -543,11 +543,11 @@ msgstr "%"
 
 #: ../gtk/details.c:1064
 msgid "Up Reqs"
-msgstr ""
+msgstr "Žádosti o upload"
 
 #: ../gtk/details.c:1066
 msgid "Dn Reqs"
-msgstr ""
+msgstr "Žádosti o download"
 
 #: ../gtk/details.c:1067
 msgid "Status"
@@ -604,7 +604,7 @@ msgstr "Zobrazit _více podrobností"
 #: ../gtk/details.c:1701
 #, c-format
 msgid "Got a list of %1$s%2$'d peers%3$s %4$s ago"
-msgstr ""
+msgstr "Seznam %1$s%2$'d peerů získán před %3$s %4$s"
 
 #: ../gtk/details.c:1705
 #, c-format
@@ -614,7 +614,7 @@ msgstr ""
 #: ../gtk/details.c:1708
 #, c-format
 msgid "Got an error %1$s\"%2$s\"%3$s %4$s ago"
-msgstr ""
+msgstr "Chyba obdržená před %1$s\"%2$s\"%3$s %4$s"
 
 #: ../gtk/details.c:1717
 msgid "No updates scheduled"
@@ -623,7 +623,7 @@ msgstr "Nenaplánovány žádné aktualizace"
 #: ../gtk/details.c:1723
 #, c-format
 msgid "Asking for more peers in %s"
-msgstr ""
+msgstr "Požadování více protějšků za %s"
 
 #: ../gtk/details.c:1727
 msgid "Queued to ask for more peers"
@@ -632,31 +632,31 @@ msgstr "Žádost o více protějšků zařazena do fronty"
 #: ../gtk/details.c:1732
 #, c-format
 msgid "Asking for more peers now... <small>%s</small>"
-msgstr ""
+msgstr "Žádá se o více protějšků... <small>%s</small>"
 
 #: ../gtk/details.c:1742
 #, c-format
 msgid "Tracker had %s%'d seeders and %'d leechers%s %s ago"
-msgstr ""
+msgstr "%s%'d seederů a %'d leecherů měl tracker před %s %s"
 
 #: ../gtk/details.c:1746
 #, c-format
 msgid "Got a scrape error \"%s%s%s\" %s ago"
-msgstr ""
+msgstr "Chyba scrape \"%s%s%s\" obdržena před %s"
 
 #: ../gtk/details.c:1756
 #, c-format
 msgid "Asking for peer counts in %s"
-msgstr ""
+msgstr "Dotaz na počet protějšků za %s"
 
 #: ../gtk/details.c:1760
 msgid "Queued to ask for peer counts"
-msgstr ""
+msgstr "Ve frontě s požadavkem k počtu peerů"
 
 #: ../gtk/details.c:1765
 #, c-format
 msgid "Asking for peer counts now... <small>%s</small>"
-msgstr ""
+msgstr "Nyní se dotazuji na aktuální počet protějšků... <small>%s</small>"
 
 #: ../gtk/details.c:1978
 msgid "List contains invalid URLs"
@@ -668,7 +668,7 @@ msgstr "Upravit trackery"
 
 #: ../gtk/details.c:2023
 msgid "Tracker Announce URLs"
-msgstr ""
+msgstr "Oznamovací URL trackeru"
 
 #: ../gtk/details.c:2026 ../gtk/makemeta-ui.c:453
 msgid ""
@@ -684,7 +684,7 @@ msgstr "Trackery"
 
 #: ../gtk/details.c:2093
 msgid "_Edit Trackers"
-msgstr ""
+msgstr "_Upravit trackery"
 
 #: ../gtk/details.c:2101
 msgid "Show _backup trackers"
@@ -700,7 +700,7 @@ msgstr "Protějšky"
 
 #: ../gtk/details.c:2188
 msgid "File listing not available for combined torrent properties"
-msgstr ""
+msgstr "Ve vlastnostech kombinovaných torrentů není seznam souborů dostupný"
 
 #: ../gtk/details.c:2192 ../gtk/makemeta-ui.c:402 ../gtk/tr-window.c:855
 msgid "Files"
@@ -806,6 +806,8 @@ msgstr "Průběh"
 msgid ""
 "Got signal %d; trying to shut down cleanly.  Do it again if it gets stuck."
 msgstr ""
+"Obdržel jsem signál %d; zkuste mne ukončit klasickým, čistým způsobem. Budu-"
+"li trucovat, zkuste to znovu."
 
 #: ../gtk/main.c:493
 msgid "Start with all torrents paused"
@@ -907,6 +909,7 @@ msgstr ""
 "  Jakub Žáček https://launchpad.net/~dawon\n"
 "  Kamil Páral https://launchpad.net/~kamil.paral\n"
 "  Kuvaly [LCT] https://launchpad.net/~kuvaly\n"
+"  Roman Horník https://launchpad.net/~roman.hornik\n"
 "  schunka https://launchpad.net/~schunka\n"
 "  syntax https://launchpad.net/~syntax"
 
@@ -1102,17 +1105,19 @@ msgstr[2] "Spuštěno %'d x"
 
 #: ../gtk/stats.c:107
 msgid "Reset your statistics?"
-msgstr ""
+msgstr "Vynulovat vaše statistiky?"
 
 #: ../gtk/stats.c:108
 msgid ""
 "These statistics are for your information only.  Resetting them doesn't "
 "affect the statistics logged by your BitTorrent trackers."
 msgstr ""
+"Tyto statistiky jsou pouze pro vaši informaci. Jejich vynulování neovlivní "
+"statistiky zaznamenané vašimi BitTorrent trackery."
 
 #: ../gtk/stats.c:119 ../gtk/stats.c:151
 msgid "_Reset"
-msgstr ""
+msgstr "_Vynulovat"
 
 #: ../gtk/stats.c:147 ../gtk/tr-window.c:999
 msgid "Statistics"
@@ -1216,12 +1221,12 @@ msgstr "Poměr: %s"
 #: ../gtk/torrent-cell-renderer.c:230
 #, c-format
 msgid "Tracker gave a warning: \"%s\""
-msgstr ""
+msgstr "Tracker oznámil varování: \"%s\""
 
 #: ../gtk/torrent-cell-renderer.c:231
 #, c-format
 msgid "Tracker gave an error: \"%s\""
-msgstr ""
+msgstr "Tracker oznámil chybu: \"%s\""
 
 #: ../gtk/torrent-cell-renderer.c:232
 #, c-format
@@ -1323,7 +1328,7 @@ msgstr "Automaticky přid_at torrenty z:"
 
 #: ../gtk/tr-prefs.c:300
 msgid "Append \"._part\" to incomplete files' names"
-msgstr ""
+msgstr "Přidat \"._part\" za názvy nekompletních souborů"
 
 #: ../gtk/tr-prefs.c:304
 msgid "Keep _incomplete torrents in:"
@@ -1748,7 +1753,7 @@ msgstr "_Pozastaveno"
 
 #: ../gtk/tr-window.c:1066
 msgid "999.9 KB/s"
-msgstr ""
+msgstr "999.9 KB/s"
 
 #: ../gtk/tr-window.c:1111
 #, c-format
@@ -1893,7 +1898,7 @@ msgstr "Neplatná metadata"
 #: ../libtransmission/bencode.c:1644
 #, c-format
 msgid "Saved \"%s\""
-msgstr ""
+msgstr "Uloženo \"%s\""
 
 #: ../libtransmission/bencode.c:1649 ../libtransmission/bencode.c:1656
 #: ../libtransmission/blocklist.c:294
@@ -1904,7 +1909,7 @@ msgstr "Nelze uložit soubor \"%1$s\": %2$s"
 #: ../libtransmission/bencode.c:1663 ../libtransmission/bencode.c:1673
 #, c-format
 msgid "Couldn't save temporary file \"%1$s\": %2$s"
-msgstr ""
+msgstr "Nelze uložit dočasný soubor \"%1$s\": %2$s"
 
 #: ../libtransmission/blocklist.c:78 ../libtransmission/blocklist.c:238
 #: ../libtransmission/utils.c:488
@@ -1978,7 +1983,7 @@ msgstr "Nelze spojit soket %d s %s, port %d (errno %d - %s)"
 
 #: ../libtransmission/net.c:360
 msgid "Is another copy of Transmission already running?"
-msgstr ""
+msgstr "Je spuštěna ještě další kopie Transmission?"
 
 #: ../libtransmission/net.c:365
 #, c-format
@@ -1988,7 +1993,7 @@ msgstr "Nelze získat port %d na %s: %s"
 #: ../libtransmission/net.c:367
 #, c-format
 msgid "Couldn't bind port %d on %s: %s (%s)"
-msgstr ""
+msgstr "Nelze získat port %d na %s: %s (%s)"
 
 #: ../libtransmission/port-forwarding.c:31
 msgid "Port Forwarding"
@@ -2042,6 +2047,8 @@ msgid ""
 "No data found!  Reconnect any disconnected drives, use \"Set Location\", or "
 "restart the torrent to re-download."
 msgstr ""
+"Nenalezena žádná data! Připojte znovu jakékoli odpojené jednotky, zvolte "
+"\"Nastavit umístění\" nebo restartujte torrent pro opětovné stažení."
 
 #: ../libtransmission/torrent.c:1407
 msgid ""

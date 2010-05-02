@@ -571,11 +571,11 @@
 {
     Torrent * torrent = [self representedObject];
     
-    //fill an all-white bar for magnet links
-    if ([torrent isMagnet])
+    //fill an all-white bar for magnet links 
+    if ([torrent isMagnet]) 
     {
-        [[NSColor whiteColor] set];
-        NSRectFill(barRect);
+        [[NSColor whiteColor] set]; 
+        NSRectFill(barRect); 
         return;
     }
     

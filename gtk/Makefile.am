@@ -23,7 +23,7 @@ AM_CFLAGS = \
     @LIBAPPINDICATOR_CFLAGS@ \
     @LIBEVENT_CFLAGS@ \
     @LIBCANBERRA_CFLAGS@ \
-    @LIBGCONF_CFLAGS@ \
+    @GCONF2_CFLAGS@ \
     @GTK_CFLAGS@ \
     @LIBCURL_CFLAGS@ \
     @GIO_CFLAGS@ \
@@ -46,7 +46,8 @@ noinst_HEADERS = \
     icons.h \
     file-list.h \
     lock.h \
-    logo.h \
+    logo-24.h \
+    logo-48.h \
     makemeta-ui.h \
     msgwin.h \
     notify.h \
@@ -106,7 +107,7 @@ transmission_LDADD = \
     $(top_builddir)/third-party/miniupnp/libminiupnp.a \
     $(top_builddir)/third-party/libnatpmp/libnatpmp.a \
     @LIBCANBERRA_LIBS@ \
-    @LIBGCONF_LIBS@ \
+    @GCONF2_LIBS@ \
     @DHT_LIBS@ \
     @GTK_LIBS@ \
     @GIO_LIBS@ \

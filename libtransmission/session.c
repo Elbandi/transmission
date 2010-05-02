@@ -214,12 +214,16 @@ open_incoming_peer_port( tr_session * session )
 const tr_address*
 tr_sessionGetPublicAddress( const tr_session * session, int tr_af_type )
 {
+    const struct tr_bindinfo * bindinfo;
+
     switch( tr_af_type )
     {
-        case TR_AF_INET: return &session->public_ipv4->addr;
-        case TR_AF_INET6: return &session->public_ipv6->addr; break;
-        default: return NULL;
+        case TR_AF_INET:  bindinfo = session->public_ipv4; break;
+        case TR_AF_INET6: bindinfo = session->public_ipv6; break;
+        default:          bindinfo = NULL;                 break;
     }
+
+    return bindinfo ? &bindinfo->addr : NULL;
 }
 
 /***
@@ -233,10 +237,8 @@ tr_sessionGetPublicAddress( const tr_session * session, int tr_af_type )
 #endif
 
 void
-tr_sessionGetDefaultSettings( const char * configDir, tr_benc * d )
+tr_sessionGetDefaultSettings( const char * configDir UNUSED, tr_benc * d )
 {
-    char * incompleteDir = tr_buildPath( configDir, "Incomplete", NULL );
-
     assert( tr_bencIsDict( d ) );
 
     tr_bencDictReserve( d, 35 );
@@ -246,7 +248,7 @@ tr_sessionGetDefaultSettings( const char * configDir, tr_benc * d )
     tr_bencDictAddInt ( d, TR_PREFS_KEY_DSPEED,                   100 );
     tr_bencDictAddBool( d, TR_PREFS_KEY_DSPEED_ENABLED,           FALSE );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_ENCRYPTION,               TR_DEFAULT_ENCRYPTION );
-    tr_bencDictAddStr ( d, TR_PREFS_KEY_INCOMPLETE_DIR,           incompleteDir );
+    tr_bencDictAddStr ( d, TR_PREFS_KEY_INCOMPLETE_DIR,           tr_getDefaultDownloadDir( ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED,   FALSE );
     tr_bencDictAddBool( d, TR_PREFS_KEY_LAZY_BITFIELD,            TRUE );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_MSGLEVEL,                 TR_MSG_INF );
@@ -260,11 +262,7 @@ tr_sessionGetDefaultSettings( const char * configDir, tr_benc * d )
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_SOCKET_TOS,          atoi( TR_DEFAULT_PEER_SOCKET_TOS_STR ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_PEX_ENABLED,              TRUE );
     tr_bencDictAddBool( d, TR_PREFS_KEY_PORT_FORWARDING,          TRUE );
-#ifdef HAVE_FALLOCATE64
-    tr_bencDictAddInt ( d, TR_PREFS_KEY_PREALLOCATION,            TR_PREALLOCATE_FULL );
-#else
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PREALLOCATION,            TR_PREALLOCATE_SPARSE );
-#endif
     tr_bencDictAddStr ( d, TR_PREFS_KEY_PROXY,                    "" );
     tr_bencDictAddBool( d, TR_PREFS_KEY_PROXY_AUTH_ENABLED,       FALSE );
     tr_bencDictAddBool( d, TR_PREFS_KEY_PROXY_ENABLED,            FALSE );
@@ -277,7 +275,7 @@ tr_sessionGetDefaultSettings( const char * configDir, tr_benc * d )
     tr_bencDictAddBool( d, TR_PREFS_KEY_RENAME_PARTIAL_FILES,     TRUE );
     tr_bencDictAddBool( d, TR_PREFS_KEY_RPC_AUTH_REQUIRED,        FALSE );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_RPC_BIND_ADDRESS,         "0.0.0.0" );
-    tr_bencDictAddBool( d, TR_PREFS_KEY_RPC_ENABLED,              TRUE );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_RPC_ENABLED,              FALSE );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_RPC_PASSWORD,             "" );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_RPC_USERNAME,             "" );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_RPC_WHITELIST,            TR_DEFAULT_RPC_WHITELIST );
@@ -296,8 +294,6 @@ tr_sessionGetDefaultSettings( const char * configDir, tr_benc * d )
     tr_bencDictAddInt ( d, TR_PREFS_KEY_UPLOAD_SLOTS_PER_TORRENT, 14 );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_BIND_ADDRESS_IPV4,        TR_DEFAULT_BIND_ADDRESS_IPV4 );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_BIND_ADDRESS_IPV6,        TR_DEFAULT_BIND_ADDRESS_IPV6 );
-
-    tr_free( incompleteDir );
 }
 
 void
@@ -629,6 +625,7 @@ tr_sessionInitImpl( void * vdata )
 }
 
 static void turtleBootstrap( tr_session *, struct tr_turtle_info * );
+static void setPeerPort( tr_session * session, tr_port port );
 
 static void
 sessionSetImpl( void * vdata )
@@ -714,7 +711,6 @@ sessionSetImpl( void * vdata )
         b.addr = tr_inaddr_any;
     b.socket = -1;
     session->public_ipv4 = tr_memdup( &b, sizeof( struct tr_bindinfo ) );
-    tr_webSetInterface( session, &session->public_ipv4->addr );
 
     str = TR_PREFS_KEY_BIND_ADDRESS_IPV6;
     tr_bencDictFindStr( settings, TR_PREFS_KEY_BIND_ADDRESS_IPV6, &str );
@@ -732,7 +728,7 @@ sessionSetImpl( void * vdata )
         tr_sessionSetPeerPortRandomOnStart( session, boolVal );
     if( !tr_bencDictFindInt( settings, TR_PREFS_KEY_PEER_PORT, &i ) )
         i = session->peerPort;
-    tr_sessionSetPeerPort( session, boolVal ? getRandomPort( session ) : i );
+    setPeerPort( session, boolVal ? getRandomPort( session ) : i );
     if( tr_bencDictFindBool( settings, TR_PREFS_KEY_PORT_FORWARDING, &boolVal ) )
         tr_sessionSetPortForwardingEnabled( session, boolVal );
 
@@ -943,7 +939,7 @@ tr_sessionIsLocked( const tr_session * session )
  **********************************************************************/
 
 static void
-setPeerPort( void * session )
+peerPortChanged( void * session )
 {
     tr_torrent * tor = NULL;
 
@@ -957,6 +953,14 @@ setPeerPort( void * session )
         tr_torrentChangeMyPort( tor );
 }
 
+static void
+setPeerPort( tr_session * session, tr_port port )
+{
+    session->peerPort = port;
+
+    tr_runInEventThread( session, peerPortChanged, session );
+}
+
 void
 tr_sessionSetPeerPort( tr_session * session, tr_port port )
 {
@@ -964,9 +968,7 @@ tr_sessionSetPeerPort( tr_session * session, tr_port port )
 
     if( session->peerPort != port )
     {
-        session->peerPort = port;
-
-        tr_runInEventThread( session, setPeerPort, session );
+        setPeerPort( session, port );
     }
 }
 
