@@ -20,8 +20,6 @@
 #include <stdlib.h> /* malloc() */
 #include <time.h> /* time_t */
 
-#include "transmission.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -401,6 +399,10 @@ const char* tr_strerror( int );
 /** @brief strips leading and trailing whitspace from a string
     @return the stripped string */
 char* tr_strstrip( char * str );
+
+/** @brief Returns true if the string ends with the specified case-insensitive suffix */
+tr_bool tr_str_has_suffix( const char *str, const char *suffix );
+
 
 /** @brief Portability wrapper for memmem() that uses the system implementation if available */
 const char* tr_memmem( const char * haystack, size_t haystack_len,

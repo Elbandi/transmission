@@ -30,6 +30,8 @@
 #import "NSApplicationAdditions.h"
 #import "NSStringAdditions.h"
 #import "UKKQueue.h"
+
+#import "transmission.h"
 #import "utils.h"
 
 #import <Sparkle/Sparkle.h>
@@ -479,6 +481,11 @@ tr_session * fHandle;
     tr_sessionSetDHTEnabled(fHandle, [fDefaults boolForKey: @"DHTGlobal"]);
 }
 
+- (void) setLPD: (id) sender
+{
+    tr_sessionSetLPDEnabled(fHandle, [fDefaults boolForKey: @"LocalPeerDiscoveryGlobal"]);
+}
+
 - (void) setEncryptionMode: (id) sender
 {
     const tr_encryption_mode mode = [fDefaults boolForKey: @"EncryptionPrefer"] ? 
@@ -554,6 +561,11 @@ tr_session * fHandle;
     
     [fBlocklistDateField setStringValue: [NSString stringWithFormat: @"%@: %@",
         NSLocalizedString(@"Last updated", "Prefs -> blocklist -> message"), updatedDateString]];
+}
+
+- (void) setAutoStartDownloads: (id) sender
+{
+    tr_sessionSetPaused(fHandle, ![fDefaults boolForKey: @"AutoStartDownload"]);
 }
 
 - (void) applySpeedSettings: (id) sender
@@ -1142,6 +1154,14 @@ tr_session * fHandle;
     const BOOL dht = tr_sessionIsDHTEnabled(fHandle);
     [fDefaults setBool: dht forKey: @"DHTGlobal"];
     
+    //dht
+    const BOOL lpd = tr_sessionIsLPDEnabled(fHandle);
+    [fDefaults setBool: lpd forKey: @"LocalPeerDiscovery"];
+    
+    //auto start
+    const BOOL autoStart = !tr_sessionGetPaused(fHandle);
+    [fDefaults setBool: autoStart forKey: @"AutoStartDownload"];
+    
     //port
     const tr_port port = tr_sessionGetPeerPort(fHandle);
     [fDefaults setInteger: port forKey: @"BindPort"];
@@ -1219,6 +1239,8 @@ tr_session * fHandle;
         //pex handled by bindings
         
         //dht handled by bindings
+        
+        //lpd handled by bindings
         
         [fPortField setIntValue: port];
         //port forwarding (nat) handled by bindings

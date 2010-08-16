@@ -44,6 +44,7 @@
 #include "details.h"
 #include "file-tree.h"
 #include "hig.h"
+#include "prefs.h"
 #include "session.h"
 #include "squeezelabel.h"
 #include "torrent.h"
@@ -117,10 +118,12 @@ class PeerItem: public QTreeWidgetItem
 ****
 ***/
 
-Details :: Details( Session& session, TorrentModel& model, QWidget * parent ):
+Details :: Details( Session& session, Prefs& prefs, TorrentModel& model, QWidget * parent ):
     QDialog( parent, Qt::Dialog ),
     mySession( session ),
+    myPrefs( prefs ),
     myModel( model ),
+    myChangedTorrents( false ),
     myHavePendingRefresh( false )
 {
     QVBoxLayout * layout = new QVBoxLayout( this );
@@ -142,8 +145,9 @@ Details :: Details( Session& session, TorrentModel& model, QWidget * parent ):
     layout->addWidget( t );
 
     QDialogButtonBox * buttons = new QDialogButtonBox( QDialogButtonBox::Close, Qt::Horizontal, this );
-    connect( buttons, SIGNAL(rejected()), this, SLOT(deleteLater()));
+    connect( buttons, SIGNAL(rejected()), this, SLOT(close()));
     layout->addWidget( buttons );
+    QWidget::setAttribute( Qt::WA_DeleteOnClose, true );
 
     connect( &myTimer, SIGNAL(timeout()), this, SLOT(onTimer()));
 
@@ -161,6 +165,8 @@ Details :: setIds( const QSet<int>& ids )
 {
     if( ids == myIds )
         return;
+
+    myChangedTorrents = true;
 
     // stop listening to the old torrents
     foreach( int id, myIds ) {
@@ -190,11 +196,28 @@ Details :: setIds( const QSet<int>& ids )
 ****
 ***/
 
+QString
+Details :: timeToStringRounded( int seconds )
+{
+    if( seconds > 60 ) seconds -= ( seconds % 60 );
+    return Utils::timeToString ( seconds );
+}
+
 void
 Details :: onTimer( )
 {
     if( !myIds.empty( ) )
+    {
+        QSet<int> infos;
+        foreach( int id, myIds ) {
+            const Torrent * tor = myModel.getTorrentFromId( id );
+            if( tor->isMagnet() )
+                infos.insert( tor->id() );
+        }
+        if( !infos.isEmpty() )
+            mySession.initTorrents( infos );
         mySession.refreshExtraStats( myIds );
+    }
 }
 
 void
@@ -236,15 +259,29 @@ Details :: refresh( )
     if( torrents.empty( ) )
         string = none;
     else {
-        string = torrents[0]->activityString( );
-        foreach( const Torrent* t, torrents ) {
-            if( string != t->activityString( ) ) {
-                string = mixed;
-                break;
-            }
+        bool isMixed = false;
+        bool allPaused = true;
+        bool allFinished = true;
+        const tr_torrent_activity activity = torrents[0]->getActivity( );
+        foreach( const Torrent * t, torrents ) {
+            if( activity != t->getActivity( ) )
+                isMixed = true;
+            if( activity != TR_STATUS_STOPPED )
+                allPaused = allFinished = false;
+            if( !t->isFinished( ) )
+                allFinished = false;
         }
+        if( isMixed )
+            string = mixed;
+        else if( allFinished )
+            string = tr( "Finished" );
+        else if( allPaused )
+            string = tr( "Paused" );
+        else
+            string = torrents[0]->activityString( );
     }
     myStateLabel->setText( string );
+    const QString stateString = string;
 
     // myHaveLabel
     double sizeWhenDone = 0;
@@ -254,32 +291,36 @@ Details :: refresh( )
     int64_t haveVerified = 0;
     int64_t haveUnverified = 0;
     int64_t verifiedPieces = 0;
-    foreach( const Torrent * t, torrents ) {
-        if( t->hasMetadata( ) ) {
-            haveTotal += t->haveTotal( );
-            haveUnverified += t->haveUnverified( );
-            const uint64_t v = t->haveVerified( );
-            haveVerified += v;
-            verifiedPieces += v / t->pieceSize( );
-            sizeWhenDone += t->sizeWhenDone( );
-            leftUntilDone += t->leftUntilDone( );
-            available += t->sizeWhenDone() - t->leftUntilDone() + t->desiredAvailable();
-        }
-    }
-    if( !haveVerified && !haveUnverified )
+    if( torrents.empty( ) )
         string = none;
     else {
-        const double d = 100.0 * ( sizeWhenDone ? ( sizeWhenDone - leftUntilDone ) / sizeWhenDone : 1 );
-        QString pct = locale.toString( d, 'f', 2 );
-        if( !haveUnverified )
-            string = tr( "%1 (%2%)" )
-                         .arg( Utils :: sizeToString( haveVerified + haveUnverified ) )
-                         .arg( pct );
-        else
-            string = tr( "%1 (%2%); %3 Unverified" )
-                         .arg( Utils :: sizeToString( haveVerified + haveUnverified ) )
-                         .arg( pct )
-                         .arg( Utils :: sizeToString( haveUnverified ) );
+        foreach( const Torrent * t, torrents ) {
+            if( t->hasMetadata( ) ) {
+                haveTotal += t->haveTotal( );
+                haveUnverified += t->haveUnverified( );
+                const uint64_t v = t->haveVerified( );
+                haveVerified += v;
+                verifiedPieces += v / t->pieceSize( );
+                sizeWhenDone += t->sizeWhenDone( );
+                leftUntilDone += t->leftUntilDone( );
+                available += t->sizeWhenDone() - t->leftUntilDone() + t->desiredAvailable();
+            }
+        }
+        if( !haveVerified && !haveUnverified )
+            string = none;
+        else {
+            const double d = 100.0 * ( sizeWhenDone ? ( sizeWhenDone - leftUntilDone ) / sizeWhenDone : 1 );
+            QString pct = locale.toString( d, 'f', 2 );
+            if( !haveUnverified )
+                string = tr( "%1 (%2%)" )
+                             .arg( Utils :: sizeToString( haveVerified + haveUnverified ) )
+                             .arg( pct );
+            else
+                string = tr( "%1 (%2%); %3 Unverified" )
+                             .arg( Utils :: sizeToString( haveVerified + haveUnverified ) )
+                             .arg( pct )
+                             .arg( Utils :: sizeToString( haveUnverified ) );
+        }
     }
     myHaveLabel->setText( string );
 
@@ -291,10 +332,10 @@ Details :: refresh( )
     myAvailabilityLabel->setText( string );
 
     // myDownloadedLabel
+    uint64_t d = 0, f = 0;
     if( torrents.empty( ) )
         string = none;
     else {
-        uint64_t d=0, f=0;
         foreach( const Torrent * t, torrents ) {
             d += t->downloadedEver( );
             f += t->failedEver( );
@@ -308,13 +349,39 @@ Details :: refresh( )
     }
     myDownloadedLabel->setText( string );
 
-    uint64_t sum = 0;
-    foreach( const Torrent * t, torrents ) sum += t->uploadedEver( );
-    myUploadedLabel->setText( Utils::sizeToString( sum ) );
+    uint64_t u = 0;
+    if( torrents.empty( ) )
+        string = none;
+    else {
+        foreach( const Torrent * t, torrents ) u += t->uploadedEver( );
+        string = QString( Utils::sizeToString( u ) );
+    }
+    myUploadedLabel->setText( string );
 
-    double d = 0;
-    foreach( const Torrent *t, torrents ) d += t->ratio( );
-    myRatioLabel->setText( Utils :: ratioToString( d / n ) );
+    if( torrents.empty( ) )
+        string = none;
+    else if( torrents.length() == 1 )
+        string = QString( Utils :: ratioToString( torrents.first()->ratio() ) );
+    else {
+        bool isMixed = false;
+        int ratioType = torrents.first()->ratio();
+        if( ratioType > 0 ) ratioType = 0;
+        foreach( const Torrent *t, torrents )
+        {
+            if( ratioType != ( t->ratio() >= 0 ? 0 : t->ratio() ) )
+            {
+                isMixed = true;
+                break;
+            }
+        }
+        if( isMixed )
+            string = mixed;
+        else if( ratioType < 0 )
+            string = QString( Utils :: ratioToString( ratioType ) );
+        else
+            string = QString( Utils :: ratioToString( (double)u / d ) );
+    }
+    myRatioLabel->setText( string );
 
     const QDateTime qdt_now = QDateTime::currentDateTime( );
 
@@ -331,7 +398,7 @@ Details :: refresh( )
                 allPaused = false;
         }
         if( allPaused )
-            string = tr( "Stopped" );
+            string = stateString; // paused || finished
         else if( baseline.isNull( ) )
             string = mixed;
         else
@@ -469,6 +536,7 @@ Details :: refresh( )
         }
     }
     myCommentBrowser->setText( string );
+    myCommentBrowser->setMaximumHeight( QWIDGETSIZE_MAX );
 
     // myOriginLabel
     if( torrents.empty( ) )
@@ -511,7 +579,7 @@ Details :: refresh( )
     ///  Options Tab
     ///
 
-    if( !torrents.empty( ) )
+    if( myChangedTorrents && !torrents.empty( ) )
     {
         int i;
         const Torrent * baseline = *torrents.begin();
@@ -587,122 +655,142 @@ Details :: refresh( )
 
     // tracker tab
     //
+    QMap<QString,QTreeWidgetItem*> trackers2;
+    QList<QTreeWidgetItem*> newItems2;
     const time_t now( time( 0 ) );
+    const bool showBackup = myPrefs.getBool( Prefs::SHOW_BACKUP_TRACKERS );
+    const bool showScrape = myPrefs.getBool( Prefs::SHOW_TRACKER_SCRAPES );
+    foreach( const Torrent * t, torrents )
+    {
+        const QString idStr( QString::number( t->id( ) ) );
+        TrackerStatsList trackerStats = t->trackerStats( );
 
-    // myScrapeTimePrevLabel
-    if( torrents.empty( ) )
-        string = none;
-    else {
-        QDateTime latest = torrents[0]->lastScrapeTime();
-        foreach( const Torrent * t, torrents ) {
-            const QDateTime e = t->lastScrapeTime();
-            if( latest < e )
-                latest = e;
-        }
-        string = latest.toString();
-    }
-    myScrapeTimePrevLabel->setText( string );
+        foreach( const TrackerStat& trackerStat, trackerStats )
+        {
+            const QString key( idStr + ":" + QString::number(trackerStat.id) );
+            QTreeWidgetItem * item = (QTreeWidgetItem*) myTrackerStats.value( key, 0 );
+            QString str;
 
-    // myScrapeResponseLabel
-    if( torrents.empty( ) )
-        string = none;
-    else {
-        string = torrents[0]->scrapeResponse( );
-        foreach( const Torrent * t, torrents ) {
-           if( string != t->scrapeResponse( ) ) {
-               string = mixed;
-               break;
-           }
-        }
-    }
-    myScrapeResponseLabel->setText( string );
-
-    // myScrapeTimeNextLabel
-    if( torrents.empty( ) )
-        string = none;
-    else {
-        QDateTime soonest = torrents[0]->nextScrapeTime( );
-        foreach( const Torrent * t, torrents ) {
-            const QDateTime e = t->nextScrapeTime( );
-            if( soonest > e )
-                soonest = e;
-        }
-        string = Utils::timeToString( soonest.toTime_t() - now );
-    }
-    myScrapeTimeNextLabel->setText( string );
-
-    // myAnnounceTimePrevLabel
-    if( torrents.empty( ) )
-        string = none;
-    else {
-        QDateTime latest = torrents[0]->lastAnnounceTime();
-        foreach( const Torrent * t, torrents ) {
-            const QDateTime e = t->lastAnnounceTime();
-            if( latest < e )
-                latest = e;
-        }
-        string = latest.toString();
-    }
-    myAnnounceTimePrevLabel->setText( string );
-
-    // myAnnounceTimeNextLabel
-    if( torrents.empty( ) )
-        string = none;
-    else {
-        QDateTime soonest = torrents[0]->nextAnnounceTime( );
-        foreach( const Torrent * t, torrents ) {
-            const QDateTime e = t->nextAnnounceTime( );
-            if( soonest > e )
-                soonest = e;
-        }
-        string = Utils::timeToString( soonest.toTime_t() - now );
-    }
-    myAnnounceTimeNextLabel->setText( string );
-
-    // myAnnounceManualLabel
-    if( torrents.empty( ) )
-        string = none;
-    else {
-        QDateTime soonest = torrents[0]->nextAnnounceTime( );
-        foreach( const Torrent * t, torrents ) {
-            const QDateTime e = t->nextAnnounceTime( );
-            if( soonest > e )
-                soonest = e;
-        }
-        if( soonest <= QDateTime::currentDateTime( ) )
-            string = tr( "Now" );
-        else
-            string = Utils::timeToString( soonest.toTime_t() - now );
-    }
-    myAnnounceManualLabel->setText( string );
-
-    // myAnnounceResponseLabel
-    if( torrents.empty( ) )
-        string = none;
-    else {
-        string = torrents[0]->announceResponse( );
-        foreach( const Torrent * t, torrents ) {
-           if( string != t->announceResponse( ) ) {
-               string = mixed;
-               break;
-           }
-        }
-    }
-    myAnnounceResponseLabel->setText( string );
-
-    // myTrackerLabel
-    if( torrents.empty( ) )
-        string = none;
-    else {
-        string = QUrl(torrents[0]->announceUrl()).host();
-        foreach( const Torrent * t, torrents ) {
-            if( string != QUrl(t->announceUrl()).host() ) {
-                string = mixed;
-                break;
+            if( item == 0 ) // new tracker
+            {
+                item = new QTreeWidgetItem( myTrackerTree );
+                newItems2 << item;
             }
+            str = trackerStat.host;
+            if( showBackup || !trackerStat.isBackup)
+            {
+                if( trackerStat.hasAnnounced )
+                {
+                    const QString tstr( timeToStringRounded( now - trackerStat.lastAnnounceTime ) );
+                    str += "\n";
+                    if( trackerStat.lastAnnounceSucceeded )
+                    {
+                        str += tr( "Got a list of %1 peers %2 ago" )
+                            .arg( trackerStat.lastAnnouncePeerCount )
+                            .arg( tstr );
+                    }
+                    else if( trackerStat.lastAnnounceTimedOut )
+                    {
+                        str += tr( "Peer list request timed out %1 ago; will retry" )
+                            .arg( tstr );
+                    }
+                    else
+                    {
+                        str += tr( "Got an error %1 ago" )
+                            .arg( tstr );
+                    }
+                }
+                switch( trackerStat.announceState )
+                {
+                    case TR_TRACKER_INACTIVE:
+                        if( trackerStat.hasAnnounced )
+                        {
+                            str += "\n";
+                            str += tr( "No updates scheduled" );
+                        }
+                        break;
+                    case TR_TRACKER_WAITING:
+                        {
+                            const QString tstr( timeToStringRounded( trackerStat.nextAnnounceTime - now ) );
+                            str += "\n";
+                            str += tr( "Asking for more peers in %1" )
+                                .arg( tstr );
+                        }
+                        break;
+                    case TR_TRACKER_QUEUED:
+                        str += "\n";
+                        str += tr( "Queued to ask for more peers" );
+                        break;
+                    case TR_TRACKER_ACTIVE:
+                        {
+                            const QString tstr( timeToStringRounded( now - trackerStat.lastAnnounceStartTime ) );
+                            str += "\n";
+                            str += tr( "Asking for more peers now... %1" )
+                                .arg( tstr );
+                        }
+                        break;
+                }
+                if( showScrape )
+                {
+                    if( trackerStat.hasScraped )
+                    {
+                        const QString tstr( timeToStringRounded( now - trackerStat.lastScrapeTime ) );
+                        str += "\n";
+                        if( trackerStat.lastScrapeSucceeded )
+                        {
+                            str += tr( "Tracker had %1 seeders and %2 leechers %3 ago" )
+                                .arg( trackerStat.seederCount )
+                                .arg( trackerStat.leecherCount )
+                                .arg( tstr );
+                        }
+                        else
+                        {
+                            str += tr( "Got a scrape error %1 ago" )
+                                .arg( tstr );
+                        }
+                    }
+                    switch( trackerStat.scrapeState )
+                    {
+                        case TR_TRACKER_INACTIVE:
+                            break;
+                        case TR_TRACKER_WAITING:
+                            {
+                                const QString tstr( timeToStringRounded( trackerStat.nextScrapeTime - now ) );
+                                str += "\n";
+                                str += tr( "Asking for peer counts in %1" )
+                                    .arg( tstr );
+                            }
+                            break;
+                        case TR_TRACKER_QUEUED:
+                            str += "\n";
+                            str += tr( "Queued to ask for peer counts" );
+                            break;
+                        case TR_TRACKER_ACTIVE:
+                            {
+                                const QString tstr( timeToStringRounded( now - trackerStat.lastScrapeStartTime ) );
+                                str += "\n";
+                                str += tr( "Asking for peer counts now... %1" )
+                                    .arg( tstr );
+                            }
+                            break;
+                    }
+                }
+            }
+
+            item->setText( 0, str );
+
+            trackers2.insert( key, item );
         }
     }
-    myTrackerLabel->setText( string );
+    myTrackerTree->addTopLevelItems( newItems2 );
+    foreach( QString key, myTrackerStats.keys() ) {
+        if( !trackers2.contains( key ) ) { // tracker has disappeared
+            QTreeWidgetItem * item = myTrackerStats.value( key, 0 );
+            myTrackerTree->takeTopLevelItem( myTrackerTree->indexOfTopLevelItem( item ) );
+            delete item;
+        }
+    }
+    myTrackerStats = trackers2;
 
     ///
     ///  Peers tab
@@ -789,10 +877,11 @@ Details :: refresh( )
     myPeers = peers2;
 
     if( single )
-        myFileTreeView->update( torrents[0]->files( ) );
+        myFileTreeView->update( torrents[0]->files( ) , myChangedTorrents );
     else
         myFileTreeView->clear( );
 
+    myChangedTorrents = false;
     myHavePendingRefresh = false;
     foreach( QWidget * w, myWidgets )
         w->setEnabled( true );
@@ -837,8 +926,7 @@ Details :: createInfoTab( )
     hig->addRow( tr( "Origin:" ), myOriginLabel = new SqueezeLabel );
     hig->addRow( tr( "Comment:" ), myCommentBrowser = new QTextBrowser );
     const int h = QFontMetrics(myCommentBrowser->font()).lineSpacing() * 4;
-    myCommentBrowser->setMinimumHeight( h );
-    myCommentBrowser->setMaximumHeight( h );
+    myCommentBrowser->setFixedHeight( h );
 
     hig->finish( );
 
@@ -848,6 +936,18 @@ Details :: createInfoTab( )
 /***
 ****
 ***/
+
+void
+Details :: onShowBackupTrackersToggled( bool val )
+{
+    myPrefs.set( Prefs::SHOW_BACKUP_TRACKERS, val );
+}
+
+void
+Details :: onShowTrackerScrapesToggled( bool val )
+{
+    myPrefs.set( Prefs::SHOW_TRACKER_SCRAPES, val );
+}
 
 void
 Details :: onHonorsSessionLimitsToggled( bool val )
@@ -934,7 +1034,7 @@ Details :: createOptionsTab( )
     hig->addWideControl( c );
     connect( c, SIGNAL(clicked(bool)), this, SLOT(onHonorsSessionLimitsToggled(bool)) );
 
-    c = new QCheckBox( tr( "Limit &download speed (KB/s):" ) );
+    c = new QCheckBox( tr( "Limit &download speed (KiB/s):" ) );
     mySingleDownCheck = c;
     s = new QSpinBox( );
     mySingleDownSpin = s;
@@ -944,7 +1044,7 @@ Details :: createOptionsTab( )
     connect( c, SIGNAL(clicked(bool)), this, SLOT(onDownloadLimitedToggled(bool)) );
     connect( s, SIGNAL(valueChanged(int)), this, SLOT(onDownloadLimitChanged(int)));
 
-    c = new QCheckBox( tr( "Limit &upload speed (KB/s):" ) );
+    c = new QCheckBox( tr( "Limit &upload speed (KiB/s):" ) );
     mySingleUpCheck = c;
     s = new QSpinBox( );
     mySingleUpSpin = s;
@@ -1012,24 +1112,36 @@ Details :: createOptionsTab( )
 QWidget *
 Details :: createTrackerTab( )
 {
-    HIG * hig = new HIG( );
+    QCheckBox * c;
+    QWidget * top = new QWidget;
+    QVBoxLayout * v = new QVBoxLayout( top );
 
-    hig->addSectionTitle( tr( "Scrape" ) );
-    hig->addRow( tr( "Last scrape at:" ), myScrapeTimePrevLabel = new SqueezeLabel );
-    hig->addRow( tr( "Tracker responded:" ), myScrapeResponseLabel = new SqueezeLabel );
-    hig->addRow( tr( "Next scrape in:" ), myScrapeTimeNextLabel = new SqueezeLabel );
-    hig->addSectionDivider( );
-    hig->addSectionTitle( tr( "Announce" ) );
-    hig->addRow( tr( "Tracker:" ), myTrackerLabel = new SqueezeLabel );
-    hig->addRow( tr( "Last announce at:" ), myAnnounceTimePrevLabel = new SqueezeLabel );
-    hig->addRow( tr( "Tracker responded:" ), myAnnounceResponseLabel = new SqueezeLabel );
-    hig->addRow( tr( "Next announce in:" ), myAnnounceTimeNextLabel = new SqueezeLabel );
-    hig->addRow( tr( "Manual announce allowed in:" ), myAnnounceManualLabel = new SqueezeLabel );
-    hig->finish( );
+    v->setSpacing( HIG :: PAD_BIG );
+    v->setContentsMargins( HIG::PAD_BIG, HIG::PAD_BIG, HIG::PAD_BIG, HIG::PAD_BIG );
 
-    myTrackerLabel->setScaledContents( true );
+    QStringList headers;
+    headers << tr("Trackers");
+    myTrackerTree = new QTreeWidget;
+    myTrackerTree->setHeaderLabels( headers );
+    myTrackerTree->setSelectionMode( QTreeWidget::NoSelection );
+    myTrackerTree->setRootIsDecorated( false );
+    myTrackerTree->setTextElideMode( Qt::ElideRight );
+    myTrackerTree->setAlternatingRowColors( true );
+    v->addWidget( myTrackerTree, 1 );
 
-    return hig;
+    c = new QCheckBox( tr( "Show &more details" ) );
+    c->setChecked( myPrefs.getBool( Prefs::SHOW_TRACKER_SCRAPES ) );
+    myShowTrackerScrapesCheck = c;
+    v->addWidget( c, 1 );
+    connect( c, SIGNAL(clicked(bool)), this, SLOT(onShowTrackerScrapesToggled(bool)) );
+
+    c = new QCheckBox( tr( "Show &backup trackers" ) );
+    c->setChecked( myPrefs.getBool( Prefs::SHOW_BACKUP_TRACKERS ) );
+    myShowBackupTrackersCheck = c;
+    v->addWidget( c, 1 );
+    connect( c, SIGNAL(clicked(bool)), this, SLOT(onShowBackupTrackersToggled(bool)) );
+
+    return top;
 }
 
 /***
@@ -1056,7 +1168,7 @@ Details :: createPeersTab( )
     v->addWidget( myPeerTree, 1 );
 
     const QFontMetrics m( font( ) );
-    QSize size = m.size( 0, "1024 MB/s" );
+    QSize size = m.size( 0, "1024 MiB/s" );
     myPeerTree->setColumnWidth( COL_UP, size.width( ) );
     myPeerTree->setColumnWidth( COL_DOWN, size.width( ) );
     size = m.size( 0, " 100% " );

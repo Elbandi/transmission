@@ -62,14 +62,21 @@ TorrentDelegate :: margin( const QStyle& style ) const
 QString
 TorrentDelegate :: progressString( const Torrent& tor ) const
 {
+    const bool isMagnet( !tor.hasMetadata( ) );
     const bool isDone( tor.isDone( ) );
     const bool isSeed( tor.isSeed( ) );
     const uint64_t haveTotal( tor.haveTotal( ) );
     QString str;
     double seedRatio;
-    bool hasSeedRatio;
+    const bool hasSeedRatio( tor.getSeedRatio( seedRatio ) );
 
-    if( !isDone )
+    if( isMagnet ) // magnet link with no metadata
+    {
+        /* %1 is the percentage of torrent metadata downloaded */
+        str = tr( "Magnetized transfer - retrieving metadata (%1%)" )
+            .arg( tor.metadataPercentDone() * 100.0, 0, 'f', 2 );
+    }
+    else if( !isDone ) // downloading
     {
         /* %1 is how much we've got,
            %2 is how much we'll have when done,
@@ -78,45 +85,67 @@ TorrentDelegate :: progressString( const Torrent& tor ) const
                                     .arg( Utils::sizeToString( tor.sizeWhenDone( ) ) )
                                     .arg( tor.percentDone( ) * 100.0, 0, 'f', 2 );
     }
-    else if( !isSeed )
+    else if( !isSeed ) // partial seed
     {
-        /* %1 is how much we've got,
-           %2 is the torrent's total size,
-           %3 is a percentage of the two,
-           %4 is how much we've uploaded,
-           %5 is our upload-to-download ratio */
-        str = tr( "%1 of %2 (%3%), uploaded %4 (Ratio: %5)" )
-              .arg( Utils::sizeToString( haveTotal ) )
-              .arg( Utils::sizeToString( tor.sizeWhenDone( ) ) )
-              .arg( tor.percentDone( ) * 100.0, 0, 'f', 2 )
-              .arg( Utils::sizeToString( tor.uploadedEver( ) ) )
-              .arg( Utils::ratioToString( tor.ratio( ) ) );
+        if( hasSeedRatio )
+        {
+            /* %1 is how much we've got,
+               %2 is the torrent's total size,
+               %3 is a percentage of the two,
+               %4 is how much we've uploaded,
+               %5 is our upload-to-download ratio
+               %6 is the ratio we want to reach before we stop uploading */
+            str = tr( "%1 of %2 (%3%), uploaded %4 (Ratio: %5 Goal: %6)" )
+                  .arg( Utils::sizeToString( haveTotal ) )
+                  .arg( Utils::sizeToString( tor.totalSize( ) ) )
+                  .arg( tor.percentComplete( ) * 100.0, 0, 'f', 2 )
+                  .arg( Utils::sizeToString( tor.uploadedEver( ) ) )
+                  .arg( Utils::ratioToString( tor.ratio( ) ) )
+                  .arg( Utils::ratioToString( seedRatio ) );
+        }
+        else
+        {
+            /* %1 is how much we've got,
+               %2 is the torrent's total size,
+               %3 is a percentage of the two,
+               %4 is how much we've uploaded,
+               %5 is our upload-to-download ratio */
+            str = tr( "%1 of %2 (%3%), uploaded %4 (Ratio: %5)" )
+                  .arg( Utils::sizeToString( haveTotal ) )
+                  .arg( Utils::sizeToString( tor.totalSize( ) ) )
+                  .arg( tor.percentComplete( ) * 100.0, 0, 'f', 2 )
+                  .arg( Utils::sizeToString( tor.uploadedEver( ) ) )
+                  .arg( Utils::ratioToString( tor.ratio( ) ) );
+        }
     }
-    else if(( hasSeedRatio = tor.getSeedRatio( seedRatio )))
+    else // seeding
     {
-        /* %1 is the torrent's total size,
-           %2 is how much we've uploaded,
-           %3 is our upload-to-download ratio,
-           $4 is the ratio we want to reach before we stop uploading */
-        str = tr( "%1, uploaded %2 (Ratio: %3 Goal %4)" )
-              .arg( Utils::sizeToString( haveTotal ) )
-              .arg( Utils::sizeToString( tor.uploadedEver( ) ) )
-              .arg( Utils::ratioToString( tor.ratio( ) ) )
-              .arg( Utils::ratioToString( seedRatio ) );
-    }
-    else /* seeding w/o a ratio */
-    {
-        /* %1 is the torrent's total size,
-           %2 is how much we've uploaded,
-           %3 is our upload-to-download ratio */
-        str = tr( "%1, uploaded %2 (Ratio: %3)" )
-              .arg( Utils::sizeToString( haveTotal ) )
-              .arg( Utils::sizeToString( tor.uploadedEver( ) ) )
-              .arg( Utils::ratioToString( tor.ratio( ) ) );
+        if( hasSeedRatio )
+        {
+            /* %1 is the torrent's total size,
+               %2 is how much we've uploaded,
+               %3 is our upload-to-download ratio,
+               %4 is the ratio we want to reach before we stop uploading */
+            str = tr( "%1, uploaded %2 (Ratio: %3 Goal %4)" )
+                  .arg( Utils::sizeToString( haveTotal ) )
+                  .arg( Utils::sizeToString( tor.uploadedEver( ) ) )
+                  .arg( Utils::ratioToString( tor.ratio( ) ) )
+                  .arg( Utils::ratioToString( seedRatio ) );
+        }
+        else /* seeding w/o a ratio */
+        {
+            /* %1 is the torrent's total size,
+               %2 is how much we've uploaded,
+               %3 is our upload-to-download ratio */
+            str = tr( "%1, uploaded %2 (Ratio: %3)" )
+                  .arg( Utils::sizeToString( haveTotal ) )
+                  .arg( Utils::sizeToString( tor.uploadedEver( ) ) )
+                  .arg( Utils::ratioToString( tor.ratio( ) ) );
+        }
     }
 
     /* add time when downloading */
-    if( hasSeedRatio || tor.isDownloading( ) )
+    if( ( hasSeedRatio && tor.isSeeding( ) ) || tor.isDownloading( ) )
     {
         str += tr( " - " );
         if( tor.hasETA( ) )
@@ -160,14 +189,6 @@ TorrentDelegate :: shortStatusString( const Torrent& tor ) const
 
     switch( tor.getActivity( ) )
     {
-        case TR_STATUS_STOPPED:
-            str = tr( "Paused" );
-            break;
-
-        case TR_STATUS_CHECK_WAIT:
-            str = tr( "Waiting to verify local data" );
-            break;
-
         case TR_STATUS_CHECK:
             str = tr( "Verifying local data (%1% tested)" ).arg( tor.getVerifyProgress()*100.0, 0, 'f', 1 );
             break;
@@ -180,6 +201,7 @@ TorrentDelegate :: shortStatusString( const Torrent& tor ) const
             break;
 
         default:
+            str = tor.activityString( );
             break;
     }
 
@@ -371,12 +393,13 @@ TorrentDelegate :: drawTorrent( QPainter * painter, const QStyleOptionViewItem& 
     painter->drawText( statusArea, 0, statusFM.elidedText( statusStr, Qt::ElideRight, statusArea.width( ) ) );
     painter->setFont( progressFont );
     painter->drawText( progArea, 0, progressFM.elidedText( progressStr, Qt::ElideRight, progArea.width( ) ) );
+    const bool isMagnet( !tor.hasMetadata( ) );
     myProgressBarStyle->rect = barArea;
     myProgressBarStyle->direction = option.direction;
     myProgressBarStyle->palette = option.palette;
     myProgressBarStyle->palette.setCurrentColorGroup( cg );
     myProgressBarStyle->state = progressBarState;
-    myProgressBarStyle->progress = int(myProgressBarStyle->minimum + ((tor.percentDone() * (myProgressBarStyle->maximum - myProgressBarStyle->minimum))));
+    myProgressBarStyle->progress = int(myProgressBarStyle->minimum + (((isMagnet ? tor.metadataPercentDone() : tor.percentDone()) * (myProgressBarStyle->maximum - myProgressBarStyle->minimum))));
     style->drawControl( QStyle::CE_ProgressBar, myProgressBarStyle, painter );
 
     painter->restore( );

@@ -12,6 +12,7 @@
 
 #include <assert.h>
 #include <ctype.h> /* isdigit */
+#include <errno.h>
 #include <stdlib.h> /* strtol */
 #include <string.h> /* strcmp */
 #include <unistd.h> /* unlink */
@@ -29,6 +30,9 @@
 #include "utils.h"
 #include "version.h"
 #include "web.h"
+
+#define RPC_VERSION     9
+#define RPC_VERSION_MIN 1
 
 #define RECENTLY_ACTIVE_SECONDS 60
 
@@ -169,7 +173,7 @@ getTorrents( tr_session * session,
     else /* all of them */
     {
         tr_torrent * tor = NULL;
-        const int    n = tr_sessionCountTorrents( session );
+        const int n = tr_sessionCountTorrents( session );
         torrents = tr_new0( tr_torrent *, n );
         while( ( tor = tr_torrentNext( session, tor ) ) )
             torrents[torrentCount++] = tor;
@@ -502,6 +506,8 @@ addField( const tr_torrent * tor, tr_benc * d, const char * key )
         tr_bencDictAddBool( d, key, tr_torrentUsesSessionLimits( tor ) );
     else if( tr_streq( key, keylen, "id" ) )
         tr_bencDictAddInt( d, key, st->id );
+    else if( tr_streq( key, keylen, "isFinished" ) )
+        tr_bencDictAddBool( d, key, st->finished );
     else if( tr_streq( key, keylen, "isPrivate" ) )
         tr_bencDictAddBool( d, key, tr_torrentIsPrivate( tor ) );
     else if( tr_streq( key, keylen, "leftUntilDone" ) )
@@ -898,26 +904,44 @@ gotNewBlocklist( tr_session       * session,
         tr_snprintf( result, sizeof( result ), "http error %ld: %s",
                      response_code, tr_webGetResponseStr( response_code ) );
     }
-    else /* success */
+    else /* successfully fetched the blocklist... */
     {
-        int ruleCount;
-        char * filename = tr_buildPath( tr_sessionGetConfigDir( session ), "blocklist.tmp", NULL );
-        FILE * fp;
+        const char * configDir = tr_sessionGetConfigDir( session );
+        char * filename = tr_buildPath( configDir, "blocklist.tmp", NULL );
+        FILE * fp = fopen( filename, "w+" );
 
-        /* download a new blocklist */
-        fp = fopen( filename, "w+" );
-        fwrite( response, 1, response_byte_count, fp );
-        fclose( fp );
+        if( fp == NULL )
+        {
+            tr_snprintf( result, sizeof( result ),
+                         _( "Couldn't save file \"%1$s\": %2$s" ),
+                         filename, tr_strerror( errno ) );
+        }
+        else
+        {
+            const size_t n = fwrite( response, 1, response_byte_count, fp );
+            fclose( fp );
 
-        /* feed it to the session */
-        ruleCount = tr_blocklistSetContent( session, filename );
+            if( n != response_byte_count )
+            {
+                tr_snprintf( result, sizeof( result ),
+                             _( "Couldn't save file \"%1$s\": %2$s" ),
+                             filename, tr_strerror( errno ) );
+            }
+            else
+            {
+                /* feed it to the session */
+                const int ruleCount = tr_blocklistSetContent( session, filename );
 
-        /* give the client a response */
-        tr_bencDictAddInt( data->args_out, "blocklist-size", ruleCount );
-        tr_snprintf( result, sizeof( result ), "success" );
+                /* give the client a response */
+                tr_bencDictAddInt( data->args_out, "blocklist-size", ruleCount );
+                tr_snprintf( result, sizeof( result ), "success" );
+            }
+
+            /* cleanup */
+            unlink( filename );
+        }
 
         /* cleanup */
-        unlink( filename );
         tr_free( filename );
     }
 
@@ -1190,6 +1214,8 @@ sessionSet( tr_session               * session,
         tr_sessionSetPexEnabled( session, boolVal );
     if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_DHT_ENABLED, &boolVal ) )
         tr_sessionSetDHTEnabled( session, boolVal );
+    if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_LPD_ENABLED, &boolVal ) )
+        tr_sessionSetLPDEnabled( session, boolVal );
     if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_PEER_PORT_RANDOM_ON_START, &boolVal ) )
         tr_sessionSetPeerPortRandomOnStart( session, boolVal );
     if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_PEER_PORT, &i ) )
@@ -1202,6 +1228,14 @@ sessionSet( tr_session               * session,
         tr_sessionSetRatioLimit( session, d );
     if( tr_bencDictFindBool( args_in, "seedRatioLimited", &boolVal ) )
         tr_sessionSetRatioLimited( session, boolVal );
+    if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_START, &boolVal ) )
+        tr_sessionSetPaused( session, !boolVal );
+    if( tr_bencDictFindStr( args_in, TR_PREFS_KEY_SCRIPT_TORRENT_DONE_FILENAME, &str ) )
+        tr_sessionSetTorrentDoneScript( session, str );
+    if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_SCRIPT_TORRENT_DONE_ENABLED, &boolVal ) )
+        tr_sessionSetTorrentDoneScriptEnabled( session, boolVal );
+    if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_TRASH_ORIGINAL, &boolVal ) )
+        tr_sessionSetDeleteSource( session, boolVal );
     if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_DSPEED, &i ) )
         tr_sessionSetSpeedLimit( session, TR_DOWN, i );
     if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_DSPEED_ENABLED, &boolVal ) )
@@ -1298,18 +1332,23 @@ sessionGet( tr_session               * s,
     tr_bencDictAddBool( d, TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED, tr_sessionIsIncompleteDirEnabled( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_PEX_ENABLED, tr_sessionIsPexEnabled( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_DHT_ENABLED, tr_sessionIsDHTEnabled( s ) );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_LPD_ENABLED, tr_sessionIsLPDEnabled( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_PORT, tr_sessionGetPeerPort( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_PORT_RANDOM_ON_START, tr_sessionGetPeerPortRandomOnStart( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_PORT_FORWARDING, tr_sessionIsPortForwardingEnabled( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_RENAME_PARTIAL_FILES, tr_sessionIsIncompleteFileNamingEnabled( s ) );
-    tr_bencDictAddInt ( d, "rpc-version", 8 );
-    tr_bencDictAddInt ( d, "rpc-version-minimum", 1 );
+    tr_bencDictAddInt ( d, "rpc-version", RPC_VERSION );
+    tr_bencDictAddInt ( d, "rpc-version-minimum", RPC_VERSION_MIN );
     tr_bencDictAddReal( d, "seedRatioLimit", tr_sessionGetRatioLimit( s ) );
     tr_bencDictAddBool( d, "seedRatioLimited", tr_sessionIsRatioLimited( s ) );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_START, !tr_sessionGetPaused( s ) );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_TRASH_ORIGINAL, tr_sessionGetDeleteSource( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_USPEED, tr_sessionGetSpeedLimit( s, TR_UP ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_USPEED_ENABLED, tr_sessionIsSpeedLimited( s, TR_UP ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_DSPEED, tr_sessionGetSpeedLimit( s, TR_DOWN ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_DSPEED_ENABLED, tr_sessionIsSpeedLimited( s, TR_DOWN ) );
+    tr_bencDictAddStr ( d, TR_PREFS_KEY_SCRIPT_TORRENT_DONE_FILENAME, tr_sessionGetTorrentDoneScript( s ) );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_SCRIPT_TORRENT_DONE_ENABLED, tr_sessionIsTorrentDoneScriptEnabled( s ) );
     tr_bencDictAddStr ( d, "version", LONG_VERSION_STRING );
     switch( tr_sessionGetEncryption( s ) ) {
         case TR_CLEAR_PREFERRED: str = "tolerated"; break;

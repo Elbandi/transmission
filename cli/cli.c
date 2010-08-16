@@ -47,7 +47,6 @@ static sig_atomic_t gotsig           = 0;
 static sig_atomic_t manualUpdate     = 0;
 
 static const char * torrentPath  = NULL;
-static const char * finishCall   = NULL;
 static const char * sourceFile   = NULL;
 static const char * comment      = NULL;
 
@@ -61,7 +60,7 @@ static const struct tr_option options[] =
     { 'b', "blocklist",            "Enable peer blocklists", "b",  0, NULL        },
     { 'B', "no-blocklist",         "Disable peer blocklists", "B",  0, NULL        },
     { 'c', "comment",              "Set the new torrent's comment", "c",  1, "<comment>" },
-    { 'd', "downlimit",            "Set max download speed in KB/s", "d",  1, "<speed>"   },
+    { 'd', "downlimit",            "Set max download speed in KiB/s", "d",  1, "<speed>"   },
     { 'D', "no-downlimit",         "Don't limit the download speed", "D",  0, NULL        },
     { 910, "encryption-required",  "Encrypt all peer connections", "er", 0, NULL        },
     { 911, "encryption-preferred", "Prefer encrypted peer connections", "ep", 0, NULL        },
@@ -76,7 +75,7 @@ static const struct tr_option options[] =
     { 'r', "private",              "Set the new torrent's 'private' flag", "r",  0, NULL        },
     { 's', "scrape",               "Scrape the torrent and exit", "s",  0, NULL        },
     { 't', "tos", "Peer socket TOS (0 to 255, default=" TR_DEFAULT_PEER_SOCKET_TOS_STR ")", "t", 1, "<tos>" },
-    { 'u', "uplimit",              "Set max upload speed in KB/s", "u",  1, "<speed>"   },
+    { 'u', "uplimit",              "Set max upload speed in KiB/s", "u",  1, "<speed>"   },
     { 'U', "no-uplimit",           "Don't limit the upload speed", "U",  0, NULL        },
     { 'v', "verify",               "Verify the specified torrent", "v",  0, NULL        },
     { 'w', "download-dir",         "Where to save downloaded data", "w",  1, "<path>"    },
@@ -135,14 +134,6 @@ escape( char *          out,
             out += tr_snprintf( out, 4, "%%%02X", (unsigned int)*in++ );
 
     *out = '\0';
-}
-
-static void
-torrentCompletenessChanged( tr_torrent       * torrent       UNUSED,
-                            tr_completeness    completeness  UNUSED,
-                            void             * user_data     UNUSED )
-{
-    system( finishCall );
 }
 
 static tr_bool waitingOnWeb;
@@ -257,8 +248,8 @@ getStatusStr( const tr_stat * st,
         tr_strlratio( ratioStr, st->ratio, sizeof( ratioStr ) );
         tr_snprintf(
             buf, buflen,
-            "Progress: %.1f%%, dl from %d of %d peers (%.0f KB/s), "
-            "ul to %d (%.0f KB/s) [%s]",
+            "Progress: %.1f%%, dl from %d of %d peers (%.0f KiB/s), "
+            "ul to %d (%.0f KiB/s) [%s]",
             tr_truncd( 100 * st->percentDone, 1 ),
             st->peersSendingToUs,
             st->peersConnected,
@@ -273,7 +264,7 @@ getStatusStr( const tr_stat * st,
         tr_strlratio( ratioStr, st->ratio, sizeof( ratioStr ) );
         tr_snprintf(
             buf, buflen,
-            "Seeding, uploading to %d of %d peer(s), %.0f KB/s [%s]",
+            "Seeding, uploading to %d of %d peer(s), %.0f KiB/s [%s]",
             st->peersGettingFromUs, st->peersConnected,
             st->pieceUploadSpeed, ratioStr );
     }
@@ -453,7 +444,6 @@ main( int     argc,
 #ifndef WIN32
     signal( SIGHUP, sigHandler );
 #endif
-    tr_torrentSetCompletenessCallback( tor, torrentCompletenessChanged, NULL );
     tr_torrentStart( tor );
 
     if( verify )
@@ -548,7 +538,8 @@ parseCommandLine( tr_benc * d, int argc, const char ** argv )
                       break;
             case 'D': tr_bencDictAddBool( d, TR_PREFS_KEY_DSPEED_ENABLED, FALSE );
                       break;
-            case 'f': finishCall = optarg;
+            case 'f': tr_bencDictAddStr( d, TR_PREFS_KEY_SCRIPT_TORRENT_DONE_FILENAME, optarg );
+                      tr_bencDictAddBool( d, TR_PREFS_KEY_SCRIPT_TORRENT_DONE_ENABLED, TRUE );
                       break;
             case 'g': /* handled above */
                       break;

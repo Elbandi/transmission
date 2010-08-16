@@ -21,12 +21,12 @@
 #include <unistd.h>
 #include <dirent.h>
 
-#include "crypto.h" /* tr_sha1 */
 #include "transmission.h"
+#include "crypto.h" /* tr_sha1 */
 #include "session.h"
 #include "bencode.h"
 #include "makemeta.h"
-#include "platform.h" /* threads, locks */
+#include "platform.h" /* threads, locks, TR_PATH_MAX */
 #include "utils.h" /* buildpath */
 #include "version.h"
 
@@ -315,7 +315,7 @@ getFileInfo( const char *                     topFile,
     tr_bencInitList( uninitialized_path, n );
     for( prev = pch = file->filename + topLen; ; ++pch )
     {
-        char buf[MAX_PATH_LENGTH];
+        char buf[TR_PATH_MAX];
 
         if( *pch && *pch != TR_PATH_DELIMITER )
             continue;

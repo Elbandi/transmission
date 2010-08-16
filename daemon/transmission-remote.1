@@ -24,7 +24,6 @@ and
 .Op Fl er | ep | et
 .Op Fl f
 .Op Fl g Ar files
-.Op Fl gpr Ar peers
 .Op Fl G Ar files
 .Op Fl gsr Ar ratio
 .Op Fl GSR
@@ -36,6 +35,9 @@ and
 .Op Fl N Ar netrc
 .Op Fl o | O
 .Op Fl p Ar port
+.Op Fl Bh
+.Op Fl Bn
+.Op Fl \&Bl
 .Op Fl ph Ar files
 .Op Fl pl Ar files
 .Op Fl pn Ar files
@@ -49,10 +51,6 @@ and
 .Op Fl si
 .Op Fl st
 .Op Fl t Ar all | Ar id | Ar hash
-.Op Fl td Ar number
-.Op Fl TD
-.Op Fl tu Ar number
-.Op Fl TU
 .Op Fl hl
 .Op Fl HL
 .Op Fl u Ar number | Fl U
@@ -60,6 +58,7 @@ and
 .Op Fl V
 .Op Fl w Ar download-dir
 .Op Fl x | X
+.Op Fl y | Y
 .Op Fl pi
 .Ek
 .Sh DESCRIPTION
@@ -105,6 +104,12 @@ to stop using the alt speed limits (in hhmm).
 Set the number of
 .Ar days
 on which to enable the speed scheduler, using a list such as "2,4-6".
+.It Fl -torrent-done-script Ar filename
+Specify a
+.Ar file
+to run each time a torrent finishes
+.It Fl -no-torrent-done-script
+Don't run any script when a torrent finishes
 .It Fl c Fl -incomplete-dir Ar dir
 When adding new torrents, store their contents in
 .Ar directory
@@ -112,11 +117,13 @@ until the torrent is done.
 .It Fl C Fl -no-incomplete-dir
 Don't store incomplete torrents in a different directory.
 .It Fl d Fl -downlimit Ar limit
-Limit the global download speed to
+Limit the maximum download speed to
 .Ar limit
-kilobytes per second.
+KiB/s.
+If current torrent(s) are selected this operates on them.  Otherwise, it changes the global setting.
 .It Fl D Fl -no-downlimit
-Remove the global download limit.
+Disable download speed limits.
+If current torrent(s) are selected this operates on them.  Otherwise, it changes the global setting.
 .It Fl er Fl -encryption-required
 Encrypt all peer connections.
 .It Fl ep Fl -encryption-preferred
@@ -173,8 +180,14 @@ Disable distribued hash table (DHT).
 Set the
 .Ar port
 for use when listening for incoming peer connections
-.It Fl pn Fl -priority-normal Ar all | file-index | files
-Mark file(s) as normal priority.
+.It Fl Bh Fl -bandwidth-high
+Give this torrent first chance at available bandwidth
+.It Fl Bn Fl -bandwidth-normal
+Give this torrent the bandwidth left over by high priority torrents
+.It Fl \&Bl Fl -bandwidth-low
+Give this torrent the bandwidth left over by high and normal priority torrents
+.It Fl ph Fl -priority-high Ar all | file-index | files
+Try to download the specified file(s) first.
 .Ar all
 marks all of the torrent's files as normal priority,
 .Ar file-index
@@ -182,14 +195,13 @@ sets a single file's priority as normal, and
 .Ar files
 sets multiple files' priorities as normal,
 such as "\-pn1,3-5" to normalize files #1, #3, #4, and #5.
-.It Fl ph Fl -priority-high Ar all | file-index | files
-Mark file(s) as high priority.
+.It Fl pn Fl -priority-normal Ar all | file-index | files
+Try to download the specified files normally.
 .It Fl pl Fl -priority-low Ar all | file-index | files
-Mark file(s) as low priority.
+Try to download the specified files last
 .It Fl pr Fl -peers Ar number
-Set the current torrent(s)' maximum number of peers
-.It Fl gpr Fl -global-peers Ar number
-Set the maximum number of peers allowed globally
+Set the maximum number of peers.
+If current torrent(s) are selected this operates on them.  Otherwise, it changes the global setting.
 .It Fl r Fl -remove
 Remove the current torrent(s).  This does not delete the downloaded data.
 .It Fl -remove-and-delete
@@ -209,6 +221,10 @@ Let the current torrent(s) use the global seedratio settings
 Start the current torrent(s)
 .It Fl S Fl -stop
 Stop the current torrent(s) from downloading or seeding
+.It Fl -start-paused
+Start added torrents paused
+.It Fl -no-start-paused
+Start added torrents unpaused
 .It Fl t Fl -torrent Ar all | id | torrent-hash
 Set the current torrent(s) for use by subsequent options.
 .Ar all
@@ -218,28 +234,22 @@ or
 .Ar hash .
 To set more than one current torrent, join their ids together in a list, such as
 "\-t2,4,6-8" to operate on the torrents whose IDs are 2, 4, 6, 7, and 8.
-.It Fl td Fl -torrent-downlimit Ar limit
-Limit the current torrent(s) download speed to
-.Ar limit
-kilobytes per second.
-.It Fl TD Fl -no-torrent-downlimit
-Don't use the current torrent(s) download limit.
-.It Fl tu Fl -torrent-uplimit Ar limit
-Limit the current torrent(s) upload speed to
-.Ar limit
-kilobytes per second.
-.It Fl TU Fl -no-torrent-uplimit
-Don't use the current torrent(s) upload limit.
+.It Fl -trash-torrent
+Delete torrents after adding
+.It Fl -no-trash-torrent
+Do not delete torrents after adding
 .It Fl hl Fl -honor-session
 Make the current torrent(s) honor the session limits.
 .It Fl HL Fl -no-honor-session
 Make the current torrent(s) not honor the session limits.
 .It Fl u Fl -uplimit Ar limit
-Limit the global upload speed to
+Limit the maximum upload speed to
 .Ar limit
-kilobytes per second.
+KiB/s.
+If current torrent(s) are selected this operates on them.  Otherwise, it changes the global setting.
 .It Fl U Fl -no-uplimit
-Remove the global upload limit.
+Disable upload speed limits.
+If current torrent(s) are selected this operates on them.  Otherwise, it changes the global setting.
 .It Fl v Fl -verify
 Verify the current torrent(s)
 .It Fl V Fl -version
@@ -252,6 +262,10 @@ as the default location for newly added torrents to download files to.
 Enable peer exchange (PEX).
 .It Fl X Fl -no-pex
 Disable peer exchange (PEX).
+.It Fl y Fl -lds
+Enable local peer discovery (LPD).
+.It Fl Y Fl -no-lds
+Disable local peer discovery (LPD).
 .It Fl pi Fl -peer-info
 List the current torrent's connected peers.
 In the `status' section of the list, the following shorthand is used:

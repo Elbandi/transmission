@@ -39,7 +39,7 @@
 
 enum
 {
-    MSEC_TO_SLEEP_PER_SECOND_DURING_VERIFY = 200
+    MSEC_TO_SLEEP_PER_SECOND_DURING_VERIFY = 100
 };
 
 /* #define STOPWATCH */
@@ -60,8 +60,10 @@ verifyTorrent( tr_torrent * tor, tr_bool * stopFlag )
     tr_piece_index_t pieceIndex = 0;
     const time_t begin = tr_time( );
     time_t end;
-    const int64_t buflen = 16384;
+    const int64_t buflen = 1024 * 128; /* 128 KiB buffer */
     uint8_t * buffer = tr_valloc( buflen );
+
+    tr_torrentUncheck( tor );
 
     SHA1_Init( &sha );
 

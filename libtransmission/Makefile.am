@@ -26,7 +26,6 @@ libtransmission_a_SOURCES = \
     ConvertUTF.c \
     crypto.c \
     fdlimit.c \
-    ggets.c \
     handshake.c \
     history.c \
     inout.c \
@@ -55,6 +54,7 @@ libtransmission_a_SOURCES = \
     torrent-ctor.c \
     torrent-magnet.c \
     tr-dht.c \
+    tr-lpd.c \
     tr-getopt.c \
     trevent.c \
     upnp.c \
@@ -76,7 +76,6 @@ noinst_HEADERS = \
     crypto.h \
     completion.h \
     fdlimit.h \
-    ggets.h \
     handshake.h \
     history.h \
     inout.h \
@@ -107,6 +106,7 @@ noinst_HEADERS = \
     tr-getopt.h \
     transmission.h \
     tr-dht.h \
+    tr-lpd.h \
     trevent.h \
     upnp.h \
     utils.h \

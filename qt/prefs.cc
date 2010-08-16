@@ -38,15 +38,15 @@ Prefs::PrefItem Prefs::myItems[] =
     { DIR_WATCH_ENABLED, "watch-dir-enabled", QVariant::Bool },
     { SHOW_TRAY_ICON, "show-notification-area-icon", QVariant::Bool },
     { SHOW_DESKTOP_NOTIFICATION, "show-desktop-notification", QVariant::Bool },
-    { START, "start-added-torrents", QVariant::Bool },
-    { TRASH_ORIGINAL, "trash-original-torrent-files", QVariant::Bool },
     { ASKQUIT, "prompt-before-exit", QVariant::Bool },
     { SORT_MODE, "sort-mode", TrTypes::SortModeType },
     { SORT_REVERSED, "sort-reversed", QVariant::Bool },
-    { MINIMAL_VIEW, "minimal-view", QVariant::Bool },
+    { COMPACT_VIEW, "compact-view", QVariant::Bool },
+    { SHOW_BACKUP_TRACKERS, "show-backup-trackers", QVariant::Bool },
     { FILTERBAR, "show-filterbar", QVariant::Bool },
     { STATUSBAR, "show-statusbar", QVariant::Bool },
     { STATUSBAR_STATS, "statusbar-stats", QVariant::String },
+    { SHOW_TRACKER_SCRAPES, "show-tracker-scrapes", QVariant::Bool },
     { TOOLBAR, "show-toolbar" , QVariant::Bool },
     { BLOCKLIST_DATE, "blocklist-date", QVariant::DateTime },
     { BLOCKLIST_UPDATES_ENABLED, "blocklist-updates-enabled" , QVariant::Bool },
@@ -88,9 +88,14 @@ Prefs::PrefItem Prefs::myItems[] =
     { PEER_PORT_RANDOM_ON_START, TR_PREFS_KEY_PEER_PORT_RANDOM_ON_START, QVariant::Bool },
     { PEER_PORT_RANDOM_LOW, TR_PREFS_KEY_PEER_PORT_RANDOM_LOW, QVariant::Int },
     { PEER_PORT_RANDOM_HIGH, TR_PREFS_KEY_PEER_PORT_RANDOM_HIGH, QVariant::Int },
+    { SCRIPT_TORRENT_DONE_ENABLED, TR_PREFS_KEY_SCRIPT_TORRENT_DONE_ENABLED, QVariant::Bool },
+    { SCRIPT_TORRENT_DONE_FILENAME, TR_PREFS_KEY_SCRIPT_TORRENT_DONE_FILENAME, QVariant::String },
     { SOCKET_TOS, TR_PREFS_KEY_PEER_SOCKET_TOS, QVariant::Int },
+    { START, TR_PREFS_KEY_START, QVariant::Bool },
+    { TRASH_ORIGINAL, TR_PREFS_KEY_TRASH_ORIGINAL, QVariant::Bool },
     { PEX_ENABLED, TR_PREFS_KEY_PEX_ENABLED, QVariant::Bool },
     { DHT_ENABLED, TR_PREFS_KEY_DHT_ENABLED, QVariant::Bool },
+    { LPD_ENABLED, TR_PREFS_KEY_LPD_ENABLED, QVariant::Bool },
     { PORT_FORWARDING, TR_PREFS_KEY_PORT_FORWARDING, QVariant::Bool },
     { PROXY_AUTH_ENABLED, TR_PREFS_KEY_PROXY_AUTH_ENABLED, QVariant::Bool },
     { PREALLOCATION, TR_PREFS_KEY_PREALLOCATION, QVariant::Int },
@@ -239,6 +244,8 @@ Prefs :: initDefaults( tr_benc * d )
     tr_bencDictAddInt( d, keyStr(BLOCKLIST_DATE), 0 );
     tr_bencDictAddInt( d, keyStr(BLOCKLIST_UPDATES_ENABLED), true );
     tr_bencDictAddStr( d, keyStr(OPEN_DIALOG_FOLDER), QDir::home().absolutePath().toLatin1() );
+    tr_bencDictAddInt( d, keyStr(SHOW_BACKUP_TRACKERS), false );
+    tr_bencDictAddInt( d, keyStr(SHOW_TRACKER_SCRAPES), false );
     tr_bencDictAddInt( d, keyStr(TOOLBAR), true );
     tr_bencDictAddInt( d, keyStr(FILTERBAR), true );
     tr_bencDictAddInt( d, keyStr(STATUSBAR), true );
@@ -256,9 +263,7 @@ Prefs :: initDefaults( tr_benc * d )
     tr_bencDictAddInt( d, keyStr(ASKQUIT), true );
     tr_bencDictAddStr( d, keyStr(SORT_MODE), "sort-by-name" );
     tr_bencDictAddInt( d, keyStr(SORT_REVERSED), false );
-    tr_bencDictAddInt( d, keyStr(MINIMAL_VIEW), false );
-    tr_bencDictAddInt( d, keyStr(START), true );
-    tr_bencDictAddInt( d, keyStr(TRASH_ORIGINAL), false );
+    tr_bencDictAddInt( d, keyStr(COMPACT_VIEW), false );
     tr_bencDictAddStr( d, keyStr(SESSION_REMOTE_HOST), "localhost" );
     tr_bencDictAddInt( d, keyStr(SESSION_REMOTE_PORT), atoi(TR_DEFAULT_RPC_PORT_STR) );
     tr_bencDictAddBool( d, keyStr(SESSION_IS_REMOTE), false );

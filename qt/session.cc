@@ -19,6 +19,8 @@
 #include <QCoreApplication>
 #include <QDesktopServices>
 #include <QMessageBox>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QSet>
 #include <QStyle>
 #include <QTextStream>
@@ -35,6 +37,7 @@
 #include "session.h"
 #include "session-dialog.h"
 #include "torrent.h"
+#include "utils.h"
 
 // #define DEBUG_HTTP
 
@@ -128,29 +131,34 @@ Session :: updatePref( int key )
 {
     if( myPrefs.isCore( key ) ) switch( key )
     {
-        case Prefs :: ALT_SPEED_LIMIT_UP:
         case Prefs :: ALT_SPEED_LIMIT_DOWN:
         case Prefs :: ALT_SPEED_LIMIT_ENABLED:
         case Prefs :: ALT_SPEED_LIMIT_TIME_BEGIN:
-        case Prefs :: ALT_SPEED_LIMIT_TIME_END:
-        case Prefs :: ALT_SPEED_LIMIT_TIME_ENABLED:
         case Prefs :: ALT_SPEED_LIMIT_TIME_DAY:
-        case Prefs :: BLOCKLIST_ENABLED:
+        case Prefs :: ALT_SPEED_LIMIT_TIME_ENABLED:
+        case Prefs :: ALT_SPEED_LIMIT_TIME_END:
+        case Prefs :: ALT_SPEED_LIMIT_UP:
         case Prefs :: BLOCKLIST_DATE:
+        case Prefs :: BLOCKLIST_ENABLED:
         case Prefs :: DHT_ENABLED:
         case Prefs :: DOWNLOAD_DIR:
+        case Prefs :: DSPEED:
+        case Prefs :: DSPEED_ENABLED:
         case Prefs :: INCOMPLETE_DIR:
         case Prefs :: INCOMPLETE_DIR_ENABLED:
+        case Prefs :: LPD_ENABLED:
         case Prefs :: PEER_LIMIT_GLOBAL:
         case Prefs :: PEER_LIMIT_TORRENT:
-        case Prefs :: USPEED_ENABLED:
-        case Prefs :: USPEED:
-        case Prefs :: DSPEED_ENABLED:
-        case Prefs :: DSPEED:
-        case Prefs :: PEX_ENABLED:
-        case Prefs :: PORT_FORWARDING:
         case Prefs :: PEER_PORT:
         case Prefs :: PEER_PORT_RANDOM_ON_START:
+        case Prefs :: PEX_ENABLED:
+        case Prefs :: PORT_FORWARDING:
+        case Prefs :: SCRIPT_TORRENT_DONE_ENABLED:
+        case Prefs :: SCRIPT_TORRENT_DONE_FILENAME:
+        case Prefs :: START:
+        case Prefs :: TRASH_ORIGINAL:
+        case Prefs :: USPEED:
+        case Prefs :: USPEED_ENABLED:
             sessionSet( myPrefs.keyStr(key), myPrefs.variant(key) );
             break;
 
@@ -214,14 +222,9 @@ Session :: Session( const char * configDir, Prefs& prefs ):
     myStats.secondsActive = 0;
     myCumulativeStats = myStats;
 
-    connect( &myHttp, SIGNAL(requestStarted(int)), this, SLOT(onRequestStarted(int)));
-    connect( &myHttp, SIGNAL(requestFinished(int,bool)), this, SLOT(onRequestFinished(int,bool)));
-    connect( &myHttp, SIGNAL(dataReadProgress(int,int)), this, SIGNAL(dataReadProgress()));
-    connect( &myHttp, SIGNAL(dataSendProgress(int,int)), this, SIGNAL(dataSendProgress()));
-    connect( &myHttp, SIGNAL(authenticationRequired(QString, quint16, QAuthenticator*)), this, SIGNAL(httpAuthenticationRequired()) );
+    connect( &myNAM, SIGNAL(finished(QNetworkReply*)), this, SLOT(onFinished(QNetworkReply*)) );
+    connect( &myNAM, SIGNAL(authenticationRequired(QNetworkReply*,QAuthenticator*)), this, SIGNAL(httpAuthenticationRequired()) );
     connect( &myPrefs, SIGNAL(changed(int)), this, SLOT(updatePref(int)) );
-
-    myBuffer.open( QIODevice::ReadWrite );
 }
 
 Session :: ~Session( )
@@ -236,7 +239,8 @@ Session :: ~Session( )
 void
 Session :: stop( )
 {
-    myHttp.abort( );
+    foreach( Reply myReply, myReplies )
+        myReply.networkReply->abort();
     myUrl.clear( );
 
     if( mySession )
@@ -268,14 +272,12 @@ Session :: start( )
         url.setScheme( "http" );
         url.setHost( host );
         url.setPort( port );
+        url.setPath( "/transmission/rpc" );
         if( auth ) {
             url.setUserName( user );
             url.setPassword( pass );
         }
         myUrl = url;
-
-        myHttp.setHost( host, port );
-        myHttp.setUser( user, pass );
     }
     else
     {
@@ -564,77 +566,91 @@ Session :: localSessionCallback( tr_session * session, const char * json, size_t
 }
 
 void
-Session :: exec( const char * request )
+Session :: exec( const char * json )
 {
     if( mySession  )
     {
-        tr_rpc_request_exec_json( mySession, request, strlen( request ), localSessionCallback, this );
+        tr_rpc_request_exec_json( mySession, json, strlen( json ), localSessionCallback, this );
     }
     else if( !myUrl.isEmpty( ) )
     {
-        static const QString path( "/transmission/rpc" );
-        QHttpRequestHeader header( "POST", path );
-        header.setValue( "User-Agent", QCoreApplication::instance()->applicationName() + "/" + LONG_VERSION_STRING );
-        header.setValue( "Content-Type", "application/json; charset=UTF-8" );
+        QNetworkRequest request;
+        request.setUrl( myUrl );
+        request.setRawHeader( "User-Agent", QString( QCoreApplication::instance()->applicationName() + "/" + LONG_VERSION_STRING ).toAscii() );
+        request.setRawHeader( "Content-Type", "application/json; charset=UTF-8" );
         if( !mySessionId.isEmpty( ) )
-            header.setValue( TR_RPC_SESSION_ID_HEADER, mySessionId );
+            request.setRawHeader( TR_RPC_SESSION_ID_HEADER, mySessionId.toAscii() );
+
         QBuffer * reqbuf = new QBuffer;
-        reqbuf->setData( QByteArray( request ) );
-        myHttp.request( header, reqbuf, &myBuffer );
+        reqbuf->setData( QByteArray( json ) );
+
+        QNetworkReply * reply = myNAM.post( request, reqbuf );
+        connect( reply, SIGNAL(downloadProgress(qint64,qint64)), this, SIGNAL(dataReadProgress()));
+        connect( reply, SIGNAL(uploadProgress(qint64,qint64)), this, SIGNAL(dataSendProgress()));
+
+        Reply myReply;
+        myReply.networkReply = reply;
+        myReply.buffer = reqbuf;
+        myReplies << myReply;
 #ifdef DEBUG_HTTP
-        std::cerr << "sending " << qPrintable(header.toString()) << "\nBody:\n" << request << std::endl;
+        std::cerr << "sending " << "POST " << qPrintable( myUrl.path() ) << std::endl;
+        foreach( QByteArray b, request.rawHeaderList() )
+            std::cerr << b.constData()
+                      << ": "
+                      << request.rawHeader( b ).constData()
+                      << std::endl;
+        std::cerr << "Body:\n" << json << std::endl;
 #endif
     }
 }
 
 void
-Session :: onRequestStarted( int id )
+Session :: onFinished( QNetworkReply * reply )
 {
-    Q_UNUSED( id );
-
-    assert( myBuffer.atEnd( ) );
-}
-
-void
-Session :: onRequestFinished( int id, bool error )
-{
-    Q_UNUSED( id );
-    QIODevice * sourceDevice = myHttp.currentSourceDevice( );
-
-    QHttpResponseHeader response = myHttp.lastResponse();
+    QBuffer * buffer;
+    for( QList<Reply>::iterator i = myReplies.begin(); i != myReplies.end(); ++i )
+    {
+        if( reply == i->networkReply )
+        {
+            buffer = i->buffer;
+            myReplies.erase( i );
+            break;
+        }
+    }
 
 #ifdef DEBUG_HTTP
-    std::cerr << "http request " << id << " ended.. response header: "
-              << qPrintable( myHttp.lastResponse().toString() )
-              << std::endl
-              << "json: " << myBuffer.buffer( ).constData( )
-              << std::endl;
+    std::cerr << "http response header: " << std::endl;
+    foreach( QByteArray b, reply->rawHeaderList() )
+        std::cerr << b.constData()
+                  << ": "
+                  << reply->rawHeader( b ).constData()
+                  << std::endl;
+    std::cerr << "json:\n" << reply->peek( reply->bytesAvailable() ).constData() << std::endl;
 #endif
 
-    if( ( response.statusCode() == 409 ) && ( myBuffer.buffer().indexOf("invalid session-id") != -1 ) )
+    if( ( reply->attribute( QNetworkRequest::HttpStatusCodeAttribute ).toInt() == 409 )
+        && ( reply->hasRawHeader( TR_RPC_SESSION_ID_HEADER ) ) )
     {
         // we got a 409 telling us our session id has expired.
         // update it and resubmit the request.
-        mySessionId = response.value( TR_RPC_SESSION_ID_HEADER );
-        exec( qobject_cast<QBuffer*>(sourceDevice)->buffer().constData() );
+        mySessionId = QString( reply->rawHeader( TR_RPC_SESSION_ID_HEADER ) );
+        exec( buffer->buffer().constData() );
     }
-    else if( error )
+    else if( reply->error() != QNetworkReply::NoError )
     {
-        std::cerr << "http error: " << qPrintable(myHttp.errorString()) << std::endl;
+        std::cerr << "http error: " << qPrintable( reply->errorString() ) << std::endl;
     }
     else
     {
-        const QByteArray& response( myBuffer.buffer( ) );
+        const QByteArray response( reply->readAll() );
         const char * json( response.constData( ) );
         int jsonLength( response.size( ) );
         if( jsonLength>0 && json[jsonLength-1] == '\n' ) --jsonLength;
         parseResponse( json, jsonLength );
     }
 
-    delete sourceDevice;
-    myBuffer.buffer( ).clear( );
-    myBuffer.reset( );
-    assert( myBuffer.bytesAvailable( ) < 1 );
+    delete buffer;
+    reply->deleteLater();
 }
 
 void
@@ -818,6 +834,13 @@ Session :: updateInfo( tr_benc * d )
         }
     }
 
+    tr_bool b;
+    double x;
+    if( tr_bencDictFindBool( d, "seedRatioLimited", &b ) )
+        myPrefs.set( Prefs::RATIO_ENABLED, b ? true : false );
+    if( tr_bencDictFindReal( d, "seedRatioLimit", &x ) )
+        myPrefs.set( Prefs::RATIO, x );
+
     /* Use the C API to get settings that, for security reasons, aren't supported by RPC */
     if( mySession != 0 )
     {
@@ -856,6 +879,14 @@ Session :: addTorrent( QString filename )
     addTorrent( filename, myPrefs.getString( Prefs::DOWNLOAD_DIR ) );
 }
 
+namespace
+{
+    bool isLink( const QString& str )
+    {
+        return Utils::isMagnetLink(str) || Utils::isURL(str);
+    }
+}
+
 void
 Session :: addTorrent( QString key, QString localPath )
 {
@@ -866,23 +897,29 @@ Session :: addTorrent( QString key, QString localPath )
     tr_bencDictAddStr( args, "download-dir", qPrintable(localPath) );
     tr_bencDictAddBool( args, "paused", !myPrefs.getBool( Prefs::START ) );
 
-    // if "key" is a readable local file, add it as metadata...
-    // otherwise it's probably a URL or magnet link, so pass it along
-    // for the daemon to handle
-    QFile file( key );
-    file.open( QIODevice::ReadOnly );
-    const QByteArray raw( file.readAll( ) );
-    file.close( );
-    if( !raw.isEmpty( ) )
-    {
-        int b64len = 0;
-        char * b64 = tr_base64_encode( raw.constData(), raw.size(), &b64len );
-        tr_bencDictAddRaw( args, "metainfo", b64, b64len  );
-        tr_free( b64 );
-    }
-    else
-    {
+    // figure out what to do with "key"....
+    bool keyHandled = false;
+    if( !keyHandled && isLink( key  )) {
         tr_bencDictAddStr( args, "filename", key.toUtf8().constData() );
+        keyHandled = true; // it's a URL or magnet link...
+    }
+    if( !keyHandled ) {
+        QFile file( key );
+        file.open( QIODevice::ReadOnly );
+        const QByteArray raw( file.readAll( ) );
+        file.close( );
+        if( !raw.isEmpty( ) ) {
+            int b64len = 0;
+            char * b64 = tr_base64_encode( raw.constData(), raw.size(), &b64len );
+            tr_bencDictAddRaw( args, "metainfo", b64, b64len  );
+            tr_free( b64 );
+            keyHandled = true; // it's a local file...
+        }
+    }
+    if( !keyHandled ) {
+        const QByteArray tmp = key.toUtf8();
+        tr_bencDictAddRaw( args, "metainfo", tmp.constData(), tmp.length() );
+        keyHandled = true; // treat it as base64
     }
 
     exec( &top );

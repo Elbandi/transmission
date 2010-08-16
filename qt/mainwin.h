@@ -91,7 +91,12 @@ class TrMainWindow: public QMainWindow
         void updateNetworkIcon( );
         QWidgetList myHidden;
 
+    public slots:
+        void openURL( QString );
+
     private slots:
+        void onPrefsDestroyed( );
+        void openPreferences( );
         void onDetailsDestroyed( );
         void onShowModeClicked( );
         void showAll( );
@@ -115,6 +120,7 @@ class TrMainWindow: public QMainWindow
         void trayActivated( QSystemTrayIcon::ActivationReason );
         void refreshPref( int key );
         void addTorrents( const QStringList& filenames );
+        void removeTorrents( const bool deleteFiles );
         void openHelp( );
         void openFolder( );
         void copyMagnetLinkToClipboard( );
@@ -184,7 +190,7 @@ class TrMainWindow: public QMainWindow
         void setFilterbarVisible( bool );
         void setStatusbarVisible( bool );
         void setTrayIconVisible( bool );
-        void setMinimalView( bool );
+        void setCompactView( bool );
         void refreshActionSensitivity( );
         void wrongAuthentication( );
 

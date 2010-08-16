@@ -18,7 +18,6 @@
 #include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
-#include <QFileDialog>
 #include <QFileIconProvider>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -42,6 +41,7 @@
 #include "prefs-dialog.h"
 #include "qticonloader.h"
 #include "session.h"
+#include "utils.h"
 
 /***
 ****
@@ -267,12 +267,12 @@ PrefsDialog :: createSpeedTab( )
     HIG * hig = new HIG( this );
     hig->addSectionTitle( tr( "Speed Limits" ) );
 
-        l = checkBoxNew( tr( "Limit &download speed (KB/s):" ), Prefs::DSPEED_ENABLED );
+        l = checkBoxNew( tr( "Limit &download speed (KiB/s):" ), Prefs::DSPEED_ENABLED );
         r = spinBoxNew( Prefs::DSPEED, 0, INT_MAX, 5 );
         hig->addRow( l, r );
         enableBuddyWhenChecked( qobject_cast<QCheckBox*>(l), r );
 
-        l = checkBoxNew( tr( "Limit &upload speed (KB/s):" ), Prefs::USPEED_ENABLED );
+        l = checkBoxNew( tr( "Limit &upload speed (KiB/s):" ), Prefs::USPEED_ENABLED );
         r = spinBoxNew( Prefs::USPEED, 0, INT_MAX, 5 );
         hig->addRow( l, r );
         enableBuddyWhenChecked( qobject_cast<QCheckBox*>(l), r );
@@ -293,11 +293,11 @@ PrefsDialog :: createSpeedTab( )
         QString s = tr( "<small>Override normal speed limits manually or at scheduled times</small>" );
         hig->addWideControl( new QLabel( s ) );
 
-        s = tr( "Limit d&ownload speed (KB/s):" );
+        s = tr( "Limit d&ownload speed (KiB/s):" );
         r = spinBoxNew( Prefs :: ALT_SPEED_LIMIT_DOWN, 0, INT_MAX, 5 );
         hig->addRow( s, r );
 
-        s = tr( "Limit u&pload speed (KB/s):" );
+        s = tr( "Limit u&pload speed (KiB/s):" );
         r = spinBoxNew( Prefs :: ALT_SPEED_LIMIT_UP, 0, INT_MAX, 5 );
         hig->addRow( s, r );
 
@@ -451,7 +451,7 @@ PrefsDialog :: createPrivacyTab( )
     hig->addSectionTitle( tr( "Blocklist" ) );
     QHBoxLayout * h = new QHBoxLayout( );
     QIcon i( style()->standardIcon( QStyle::StandardPixmap( QStyle::SP_BrowserReload ) ) );
-    QPushButton * w = new QPushButton( i, tr( "&Update blocklist" ) );
+    QWidget * w = new QPushButton( i, tr( "&Update blocklist" ) );
     connect( w, SIGNAL(clicked(bool)), this, SLOT(onUpdateBlocklistClicked()));
     myBlockWidgets << w;
     QWidget * l = checkBoxNew( "", Prefs::BLOCKLIST_ENABLED );
@@ -473,8 +473,12 @@ PrefsDialog :: createPrivacyTab( )
     hig->addSectionDivider( );
     hig->addSectionTitle( tr( "Privacy" ) );
     hig->addRow( tr( "&Encryption mode:" ), box );
-    hig->addWideControl( checkBoxNew( tr( "Use PE&X to find more peers" ), Prefs::PEX_ENABLED ) );
-    hig->addWideControl( checkBoxNew( tr( "Use &DHT to find more peers" ), Prefs::DHT_ENABLED ) );
+    hig->addWideControl( w = checkBoxNew( tr( "Use PE&X to find more peers" ), Prefs::PEX_ENABLED ) );
+    w->setToolTip( tr( "PEX is a tool for exchanging peer lists with the peers you're connected to." ) );
+    hig->addWideControl( w = checkBoxNew( tr( "Use &DHT to find more peers" ), Prefs::DHT_ENABLED ) );
+    w->setToolTip( tr( "DHT is a tool for finding peers without a tracker." ) );
+    hig->addWideControl( w = checkBoxNew( tr( "Use &Local Peer Discovery to find more peers" ), Prefs::LPD_ENABLED ) );
+    w->setToolTip( tr( "LPD is a tool for finding peers on your local network." ) );
 
     hig->finish( );
     updateBlocklistCheckBox( );
@@ -486,61 +490,54 @@ PrefsDialog :: createPrivacyTab( )
 ***/
 
 void
-PrefsDialog :: onIncompleteClicked( void )
+PrefsDialog :: onScriptClicked( void )
 {
-    const QString title = tr( "Select Incomplete Directory" );
-    const QString path = myPrefs.getString( Prefs::INCOMPLETE_DIR );
-    QFileDialog * d = new QFileDialog( this, title, path );
-    d->setFileMode( QFileDialog::Directory );
-    connect( d, SIGNAL(filesSelected(const QStringList&)),
-             this, SLOT(onIncompleteSelected(const QStringList&)) );
-    d->show( );
+    const QString title = tr( "Select \"Torrent Done\" Script" );
+    const QString myPath = myPrefs.getString( Prefs::SCRIPT_TORRENT_DONE_FILENAME );
+    const QString path = Utils::remoteFileChooser( this, title, myPath, false, mySession.isServer() );
+
+    if( !path.isEmpty() )
+        onLocationSelected( path, Prefs::SCRIPT_TORRENT_DONE_FILENAME );
 }
 
 void
-PrefsDialog :: onIncompleteSelected( const QStringList& list )
+PrefsDialog :: onIncompleteClicked( void )
 {
-    if( list.size() == 1 )
-        myPrefs.set( Prefs::INCOMPLETE_DIR, list.first( ) );
-}
+    const QString title = tr( "Select Incomplete Directory" );
+    const QString myPath = myPrefs.getString( Prefs::INCOMPLETE_DIR );
+    const QString path = Utils::remoteFileChooser( this, title, myPath, true, mySession.isServer() );
 
+    if( !path.isEmpty() )
+        onLocationSelected( path, Prefs::INCOMPLETE_DIR );
+}
 
 void
 PrefsDialog :: onWatchClicked( void )
 {
     const QString title = tr( "Select Watch Directory" );
-    const QString path = myPrefs.getString( Prefs::DIR_WATCH );
-    QFileDialog * d = new QFileDialog( this, title, path );
-    d->setFileMode( QFileDialog::Directory );
-    connect( d, SIGNAL(filesSelected(const QStringList&)),
-             this, SLOT(onWatchSelected(const QStringList&)) );
-    d->show( );
-}
+    const QString myPath = myPrefs.getString( Prefs::DIR_WATCH );
+    const QString path = Utils::remoteFileChooser( this, title, myPath, true, true );
 
-void
-PrefsDialog :: onWatchSelected( const QStringList& list )
-{
-    if( list.size() == 1 )
-        myPrefs.set( Prefs::DIR_WATCH, list.first( ) );
+    if( !path.isEmpty() )
+        onLocationSelected( path, Prefs::DIR_WATCH );
 }
 
 void
 PrefsDialog :: onDestinationClicked( void )
 {
     const QString title = tr( "Select Destination" );
-    const QString path = myPrefs.getString( Prefs::DOWNLOAD_DIR );
-    QFileDialog * d = new QFileDialog( this, title, path );
-    d->setFileMode( QFileDialog::Directory );
-    connect( d, SIGNAL(filesSelected(const QStringList&)),
-             this, SLOT(onDestinationSelected(const QStringList&)) );
-    d->show( );
+    const QString myPath = myPrefs.getString( Prefs::DOWNLOAD_DIR );
+    const QString path = Utils::remoteFileChooser( this, title, myPath, true, mySession.isServer() );
+
+    if( !path.isEmpty() )
+        onLocationSelected( path, Prefs::DOWNLOAD_DIR );
 }
 
 void
-PrefsDialog :: onDestinationSelected( const QStringList& list )
+PrefsDialog :: onLocationSelected( const QString& path, int key )
 {
-    if( list.size() == 1 )
-        myPrefs.set( Prefs::DOWNLOAD_DIR, list.first( ) );
+    myPrefs.set( key, path );
+    updatePref( key );
 }
 
 QWidget *
@@ -550,6 +547,8 @@ PrefsDialog :: createTorrentsTab( )
     const QFileIconProvider iconProvider;
     const QIcon folderIcon = iconProvider.icon( QFileIconProvider::Folder );
     const QPixmap folderPixmap = folderIcon.pixmap( iconSize );
+    const QIcon fileIcon = iconProvider.icon( QFileIconProvider::File );
+    const QPixmap filePixmap = fileIcon.pixmap( iconSize );
 
     QWidget *l, *r;
     HIG * hig = new HIG( this );
@@ -568,11 +567,21 @@ PrefsDialog :: createTorrentsTab( )
         hig->addWideControl( checkBoxNew( tr( "Mo&ve .torrent file to the trash" ), Prefs::TRASH_ORIGINAL ) );
         hig->addWideControl( checkBoxNew( tr( "Append \".&part\" to incomplete files' names" ), Prefs::RENAME_PARTIAL_FILES ) );
 
+        l = myIncompleteCheckbox = checkBoxNew( tr( "Keep &incomplete files in:" ), Prefs::INCOMPLETE_DIR_ENABLED );
         b = myIncompleteButton = new QPushButton;
         b->setIcon( folderPixmap );
         b->setStyleSheet( "text-align: left; padding-left: 5; padding-right: 5" );
-        connect( b, SIGNAL(clicked(bool)), this, SLOT(onDestinationClicked(void)) );
-        hig->addRow( tr( "Keep &incomplete files in:" ), b );
+        connect( b, SIGNAL(clicked(bool)), this, SLOT(onIncompleteClicked(void)) );
+        hig->addRow( myIncompleteCheckbox, b );
+        enableBuddyWhenChecked( qobject_cast<QCheckBox*>(l), b );
+
+        l = myTorrentDoneScriptCheckbox = checkBoxNew( tr( "Call scrip&t when torrent is completed" ), Prefs::SCRIPT_TORRENT_DONE_ENABLED );
+        b = myTorrentDoneScriptButton = new QPushButton;
+        b->setIcon( filePixmap );
+        b->setStyleSheet( "text-align: left; padding-left: 5; padding-right: 5" );
+        connect( b, SIGNAL(clicked(bool)), this, SLOT(onScriptClicked(void)) );
+        hig->addRow( myTorrentDoneScriptCheckbox, b );
+        enableBuddyWhenChecked( qobject_cast<QCheckBox*>(l), b );
 
         b = myDestinationButton = new QPushButton;
         b->setIcon( folderPixmap );
@@ -615,10 +624,10 @@ PrefsDialog :: PrefsDialog( Session& session, Prefs& prefs, QWidget * parent ):
     myLayout->addWidget( t );
 
     QDialogButtonBox * buttons = new QDialogButtonBox( QDialogButtonBox::Close, Qt::Horizontal, this );
-    connect( buttons, SIGNAL(rejected()), this, SLOT(hide()) ); // "close" triggers rejected
+    connect( buttons, SIGNAL(rejected()), this, SLOT(close()) ); // "close" triggers rejected
     myLayout->addWidget( buttons );
+    QWidget::setAttribute( Qt::WA_DeleteOnClose, true );
 
-    connect( &myPrefs, SIGNAL(changed(int)), this, SLOT(updatePref(int)));
     connect( &mySession, SIGNAL(sessionUpdated()), this, SLOT(sessionUpdated()));
 
     QList<int> keys;

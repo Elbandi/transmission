@@ -15,7 +15,9 @@
 #include <QApplication>
 #include <QDataStream>
 #include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
+#include <QInputDialog>
 #include <QObject>
 #include <QSet>
 #include <QStyle>
@@ -25,6 +27,24 @@
 
 #include "qticonloader.h"
 #include "utils.h"
+
+QString
+Utils :: remoteFileChooser( QWidget * parent, const QString& title, const QString& myPath, bool dir, bool local )
+{
+    QString path;
+
+    if( local )
+    {
+        if( dir )
+            path = QFileDialog::getExistingDirectory( parent, title, myPath );
+        else
+            path = QFileDialog::getOpenFileName( parent, title, myPath );
+    }
+    else
+        path = QInputDialog::getText( parent, title, tr( "Enter a location:" ), QLineEdit::Normal, myPath, NULL );
+
+    return path;
+}
 
 #define KILOBYTE_FACTOR 1024.0
 #define MEGABYTE_FACTOR ( 1024.0 * 1024.0 )
@@ -39,7 +59,7 @@ Utils :: sizeToString( double size )
     {
         str = tr( "None" );
     }
-    else if( size < 1024.0 )
+    else if( size < KILOBYTE_FACTOR )
     {
         const int i = (int)size;
         str = tr( "%Ln byte(s)", 0, i );
@@ -51,17 +71,17 @@ Utils :: sizeToString( double size )
         if( size < (int64_t)MEGABYTE_FACTOR )
         {
             displayed_size = (double)size / KILOBYTE_FACTOR;
-            str = tr( "%L1 KB" ).arg( displayed_size,  0, 'f', 1 );
+            str = tr( "%L1 KiB" ).arg( displayed_size,  0, 'f', 1 );
         }
         else if( size < (int64_t)GIGABYTE_FACTOR )
         {
             displayed_size = (double)size / MEGABYTE_FACTOR;
-            str = tr( "%L1 MB" ).arg( displayed_size,  0, 'f', 1 );
+            str = tr( "%L1 MiB" ).arg( displayed_size,  0, 'f', 1 );
         }
         else
         {
             displayed_size = (double) size / GIGABYTE_FACTOR;
-            str = tr( "%L1 GB" ).arg( displayed_size,  0, 'f', 1 );
+            str = tr( "%L1 GiB" ).arg( displayed_size,  0, 'f', 1 );
         }
     }
 
@@ -77,12 +97,22 @@ Utils :: ratioToString( double ratio )
         buf = tr( "None" );
     else if( (int)ratio == TR_RATIO_INF )
         buf = QString::fromUtf8( "\xE2\x88\x9E" );
-    else if( ratio < 10.0 )
-        buf.sprintf( "%'.2f", ratio );
-    else if( ratio < 100.0 )
-        buf.sprintf( "%'.1f", ratio );
     else
-        buf.sprintf( "%'.0f", ratio );
+    {
+        QStringList temp;
+
+        temp = QString().sprintf( "%f", ratio ).split( "." );
+        if( ratio < 100.0 )
+        {
+            if( ratio < 10.0 )
+                temp[1].truncate( 2 );
+            else
+                temp[1].truncate( 1 );
+            buf = temp.join( "." );
+        }
+        else
+            buf = QString( temp[0] );
+    }
 
     return buf;
 
@@ -143,12 +173,12 @@ Utils :: speedToString( const Speed& speed )
     const double kbps( speed.kbps( ) );
     QString str;
 
-    if( kbps < 1000.0 )  /* 0.0 KB to 999.9 KB */
-        str = tr( "%L1 KB/s" ).arg( kbps, 0, 'f', 1 );
-    else if( kbps < 102400.0 ) /* 0.98 MB to 99.99 MB */
-        str = tr( "%L1 MB/s" ).arg( kbps/1024.0, 0, 'f', 2 );
+    if( kbps < 1000.0 )  /* 0.0 KiB to 999.9 KiB */
+        str = tr( "%L1 KiB/s" ).arg( kbps, 0, 'f', 1 );
+    else if( kbps < 102400.0 ) /* 0.98 MiB to 99.99 MiB */
+        str = tr( "%L1 MiB/s" ).arg( kbps / KILOBYTE_FACTOR, 0, 'f', 2 );
     else // insane speeds
-        str = tr( "%L1 GB/s" ).arg( kbps/(1024.0*1024.0), 0, 'f', 1 );
+        str = tr( "%L1 GiB/s" ).arg( kbps / MEGABYTE_FACTOR, 0, 'f', 1 );
 
     return str;
 }
@@ -175,23 +205,29 @@ Utils :: guessMimeIcon( const QString& filename )
         suffixes[DISK] << "iso";
 
         fileIcons[DOCUMENT] = QtIconLoader :: icon( "text-x-generic", fallback );
-        suffixes[DOCUMENT] << "txt" << "doc" << "pdf" << "rtf" << "htm" << "html";
+        suffixes[DOCUMENT] << "abw" << "csv" << "doc" << "dvi" << "htm" << "html" << "ini" << "log"
+                           << "odp" << "ods" << "odt" << "pdf" << "ppt" << "ps" << "rtf" << "tex"
+                           << "txt" << "xml";
 
         fileIcons[PICTURE]  = QtIconLoader :: icon( "image-x-generic", fallback );
-        suffixes[PICTURE] << "jpg" << "jpeg" << "png" << "gif" << "tiff" << "pcx";
+        suffixes[PICTURE] << "bmp" << "gif" << "jpg" << "jpeg" << "pcx" << "png" << "psd" << "raw"
+                          << "tga" << "tiff";
 
         fileIcons[VIDEO] = QtIconLoader :: icon( "video-x-generic", fallback );
-        suffixes[VIDEO] << "avi" << "mpeg" << "mp4" << "mkv" << "mov";
+        suffixes[VIDEO] << "3gp" << "asf" << "avi" << "mov" << "mpeg" << "mpg" << "mp4" << "mkv"
+                        << "mov" << "ogm" << "ogv" << "qt" << "rm" << "wmv";
 
         fileIcons[ARCHIVE]  = QtIconLoader :: icon( "package-x-generic", fallback );
-        suffixes[ARCHIVE] << "rar" << "zip" << "sft" << "tar" << "7z" << "cbz";
+        suffixes[ARCHIVE] << "7z" << "ace" << "bz2" << "cbz" << "gz" << "gzip" << "lzma" << "rar"
+                          << "sft" << "tar" << "zip";
 
         fileIcons[AUDIO] = QtIconLoader :: icon( "audio-x-generic", fallback );
-        suffixes[AUDIO] << "aiff" << "au" << "m3u" << "mp2" << "wav" << "mp3" << "ape" << "mid"
-                        << "aac" << "ogg" << "ra" << "ram" << "flac" << "mpc" << "shn";
+        suffixes[AUDIO] << "aac" << "ac3" << "aiff" << "ape" << "au" << "flac" << "m3u" << "m4a"
+                        << "mid" << "midi" << "mp2" << "mp3" << "mpc" << "nsf" << "oga" << "ogg"
+                        << "ra" << "ram" << "shn" << "voc" << "wav" << "wma";
 
         fileIcons[APP] = QtIconLoader :: icon( "application-x-executable", fallback );
-        suffixes[APP] << "exe";
+        suffixes[APP] << "bat" << "cmd" << "com" << "exe";
     }
 
     QString suffix( QFileInfo( filename ).suffix( ).toLower( ) );

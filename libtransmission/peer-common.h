@@ -11,7 +11,7 @@
  */
 
 #ifndef __TRANSMISSION__
-#error only libtransmission should #include this header.
+ #error only libtransmission should #include this header.
 #endif
 
 #ifndef TR_PEER_H
@@ -33,7 +33,13 @@ enum
     /** when we're making requests from another peer,
         batch them together to send enough requests to
         meet our bandwidth goals for the next N seconds */
-    REQUEST_BUF_SECS = 10
+    REQUEST_BUF_SECS = 10,
+
+    /** this is the maximum size of a block request.
+        most bittorrent clients will reject requests
+        larger than this size. */
+    MAX_BLOCK_SIZE = ( 1024 * 16 )
+    
 };
 
 typedef enum
@@ -61,8 +67,7 @@ typedef enum
     TR_PEER_CLIENT_GOT_REJ,
     TR_PEER_PEER_GOT_DATA,
     TR_PEER_PEER_PROGRESS,
-    TR_PEER_ERROR,
-    TR_PEER_UPLOAD_ONLY
+    TR_PEER_ERROR
 }
 PeerEventType;
 
@@ -75,7 +80,6 @@ typedef struct
     float            progress;     /* for PEER_PROGRESS */
     int              err;          /* errno for GOT_ERROR */
     tr_bool          wasPieceData; /* for GOT_DATA */
-    tr_bool          uploadOnly;   /* for UPLOAD_ONLY */
     tr_port          port;         /* for GOT_PORT */
 }
 tr_peer_event;

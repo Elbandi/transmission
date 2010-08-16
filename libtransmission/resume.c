@@ -17,8 +17,9 @@
 #include "transmission.h"
 #include "bencode.h"
 #include "completion.h"
+#include "metainfo.h" /* tr_metainfoGetBasename() */
 #include "peer-mgr.h" /* pex */
-#include "platform.h" /* tr_getResumeDir */
+#include "platform.h" /* tr_getResumeDir() */
 #include "resume.h"
 #include "session.h"
 #include "torrent.h"
@@ -55,8 +56,9 @@
 #define KEY_RATIOLIMIT_RATIO       "ratio-limit"
 #define KEY_RATIOLIMIT_MODE        "ratio-mode"
 
-#define KEY_PROGRESS_MTIMES   "mtimes"
-#define KEY_PROGRESS_BITFIELD "bitfield"
+#define KEY_PROGRESS_MTIMES    "mtimes"
+#define KEY_PROGRESS_BITFIELD  "bitfield"
+#define KEY_PROGRESS_HAVE      "have"
 
 enum
 {
@@ -66,11 +68,11 @@ enum
 static char*
 getResumeFilename( const tr_torrent * tor )
 {
-    return tr_strdup_printf( "%s%c%s.%16.16s.resume",
-                             tr_getResumeDir( tor->session ),
-                             TR_PATH_DELIMITER,
-                             tr_torrentName( tor ),
-                             tor->info.hashString );
+    char * base = tr_metainfoGetBasename( tr_torrentInfo( tor ) );
+    char * filename = tr_strdup_printf( "%s" TR_PATH_DELIMITER_STR "%s.resume",
+                                        tr_getResumeDir( tor->session ), base );
+    tr_free( base );
+    return filename;
 }
 
 /***
@@ -115,7 +117,7 @@ addPeers( tr_torrent * tor, const uint8_t * buf, int buflen )
         memcpy( &pex, buf + ( i * sizeof( tr_pex ) ), sizeof( tr_pex ) );
         if( tr_isPex( &pex ) )
         {
-            tr_peerMgrAddPex( tor, TR_PEER_FROM_RESUME, &pex );
+            tr_peerMgrAddPex( tor, TR_PEER_FROM_RESUME, &pex, -1 );
             ++numAdded;
         }
     }
@@ -396,7 +398,9 @@ saveProgress( tr_benc *          dict,
         tr_bencListAddInt( m, mtimes[i] );
     }
 
-    /* add the bitfield */
+    /* add the progress */
+    if( tor->completeness == TR_SEED )
+        tr_bencDictAddStr( p, KEY_PROGRESS_HAVE, "all" );
     bitfield = tr_cpBlockBitfield( &tor->completion );
     tr_bencDictAddRaw( p, KEY_PROGRESS_BITFIELD,
                        bitfield->bits, bitfield->byteCount );
@@ -414,6 +418,8 @@ loadProgress( tr_benc *    dict,
 
     if( tr_bencDictFindDict( dict, KEY_PROGRESS, &p ) )
     {
+        const char * err;
+        const char * str;
         const uint8_t * raw;
         size_t          rawlen;
         tr_benc *       m;
@@ -459,26 +465,28 @@ loadProgress( tr_benc *    dict,
                 tor, "Torrent needs to be verified - unable to find mtimes" );
         }
 
-        if( tr_bencDictFindRaw( p, KEY_PROGRESS_BITFIELD, &raw, &rawlen ) )
+        err = NULL;
+        if( tr_bencDictFindStr( p, KEY_PROGRESS_HAVE, &str ) )
+        {
+            if( !strcmp( str, "all" ) )
+                tr_cpSetHaveAll( &tor->completion );
+            else
+                err = "Invalid value for HAVE";
+        }
+        else if( tr_bencDictFindRaw( p, KEY_PROGRESS_BITFIELD, &raw, &rawlen ) )
         {
             tr_bitfield tmp;
             tmp.byteCount = rawlen;
             tmp.bitCount = tmp.byteCount * 8;
             tmp.bits = (uint8_t*) raw;
             if( !tr_cpBlockBitfieldSet( &tor->completion, &tmp ) )
-            {
-                tr_torrentUncheck( tor );
-                tr_tordbg(
-                    tor,
-                    "Torrent needs to be verified - error loading bitfield" );
-            }
+                err = "Error loading bitfield";
         }
-        else
+        else err = "Couldn't find 'have' or 'bitfield'";
+        if( err != NULL )
         {
             tr_torrentUncheck( tor );
-            tr_tordbg(
-                tor,
-                "Torrent needs to be verified - unable to find bitfield" );
+            tr_tordbg( tor, "Torrent needs to be verified - %s", err );
         }
 
         tr_free( curMTimes );
@@ -493,10 +501,12 @@ loadProgress( tr_benc *    dict,
 ***/
 
 void
-tr_torrentSaveResume( const tr_torrent * tor )
+tr_torrentSaveResume( tr_torrent * tor )
 {
+    int err;
     tr_benc top;
-    char *  filename;
+    char * filename;
+
 
     if( !tr_isTorrent( tor ) )
         return;
@@ -527,7 +537,8 @@ tr_torrentSaveResume( const tr_torrent * tor )
     saveRatioLimits( &top, tor );
 
     filename = getResumeFilename( tor );
-    tr_bencToFile( &top, TR_FMT_BENC, filename );
+    if(( err = tr_bencToFile( &top, TR_FMT_BENC, filename )))
+        tr_torrentSetLocalError( tor, "Unable to save resume file: %s", tr_strerror( err ) );
     tr_free( filename );
 
     tr_bencFree( &top );

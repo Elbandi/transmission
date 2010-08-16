@@ -3,8 +3,8 @@ dnl STATUS: "X" for prerelease beta builds,
 dnl         "Z" for unsupported trunk builds,
 dnl         "0" for stable, supported releases
 dnl these should be the only two lines you need to change
-m4_define([user_agent_prefix],[1.92+])
-m4_define([peer_id_prefix],[-TR192Z-])
+m4_define([user_agent_prefix],[2.00+])
+m4_define([peer_id_prefix],[-TR200Z-])
 
 AC_INIT([transmission],
         [user_agent_prefix],
@@ -23,10 +23,6 @@ AC_PROG_LIBTOOL
 
 if test m4_substr(peer_id_prefix,6,1) = "0"; then
   supported_build=yes
-  if test "x$GCC" = "xyes" ; then
-    CFLAGS="$CFLAGS -g -O3 "
-    CXXFLAGS="$CXXFLAGS -g -O3 "
-  fi
   CPPFLAGS="$CPPFLAGS -DNDEBUG"
 else
   supported_build=no
@@ -108,7 +104,7 @@ fi
 AC_HEADER_STDC
 AC_HEADER_TIME
 
-AC_CHECK_FUNCS([pread pwrite lrintf strlcpy daemon dirname basename strcasecmp localtime_r fallocate64 posix_fallocate memmem strtold syslog valloc getpagesize posix_memalign])
+AC_CHECK_FUNCS([pread pwrite lrintf strlcpy daemon dirname basename strcasecmp localtime_r fallocate64 posix_fallocate memmem strtold syslog valloc getpagesize posix_memalign clearenv])
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 ACX_PTHREAD
@@ -202,30 +198,23 @@ AC_CHECK_LIB([rt],
              [libevent_extra_libs="-lrt"],
              [libevent_extra_libs=""])
 
-dnl build our copy of libevent whether we use it or not,
-dnl because "make dist" needs its Makefiles to exist, and
-dnl AM_CONDITIONAL + AC_CONFIG_SUBDIRS don't seem to play nice
-AC_CONFIG_SUBDIRS([third-party/libevent])
-libevent_source=bundled
-AC_CHECK_LIB([event],[evutil_vsnprintf],
-             [libevent_found=yes],
-             [libevent_found=no],
-             [$libevent_extra_libs])
-AC_CHECK_HEADER([event-config.h],
-                [libevent_headers_found=yes],
-                [libevent_headers_found=no])
-libevent_source=bundled
-if test "x$libevent_found" = "xyes" ; then
-    if test "x$libevent_headers_found" = "xyes"; then
-        libevent_source=system
-    fi
+
+dnl libevent
+dnl if the user specified LIBEVENT_LIBS or
+if test -n "$LIBEVENT_LIBS"; then
+    user_specified_libevent=yes
+elif test -n "$LIBEVENT_CFLAGS"; then
+    user_specified_libevent=yes
 fi
-if test "x$libevent_source" = "xbundled"; then
-    AC_MSG_WARN([using our own libevent from third-party/libevent/])
-    AC_MSG_WARN([if you are cross-compiling this is probably NOT what you want.])
-    LIBEVENT_CFLAGS="-I\$(top_srcdir)/third-party/libevent -I\$(top_builddir)/third-party/libevent"
-    LIBEVENT_LIBS="\$(top_builddir)/third-party/libevent/libevent.la"
+if test "x$user_specified_libevent" == "xyes"; then
+    AC_MSG_NOTICE([Using user-specified LIBEVENT_LIBS and LIBEVENT_CFLAGS])
 else
+    AC_CHECK_LIB([event],[evutil_vsnprintf],
+                 [],
+                 [AC_MSG_ERROR(libevent not found!)],
+                 [$libevent_extra_libs])
+    AC_CHECK_HEADER([event-config.h],[],
+                    [AC_MSG_ERROR(event-config.h not found!)])
     LIBEVENT_CFLAGS=""
     LIBEVENT_LIBS="-levent $libevent_extra_libs"
 fi
@@ -265,7 +254,7 @@ use_libappindicator=no
 use_libnotify=no
 use_dbus_glib=no
 use_canberra=no
-use_libgconf=no
+use_gconf2=no
 if test "x$want_gtk" = "xyes" ; then
     if test "x$have_gtk" = "xyes"; then
       build_gtk=yes
@@ -293,10 +282,13 @@ if test "x$build_gtk" = "xyes"; then
                   AS_HELP_STRING([--enable-libnotify],[enable notifications]),, 
                   [enable_libnotify=yes]) 
     use_libnotify=no
-    if test "x$enable_libnotify" = "xyes" ; then
-        if test "x$have_libnotify" = "xyes"; then
+    if test "x$have_libnotify" = "xyes"; then
+        if test "x$enable_libnotify" = "xyes" ; then
             use_libnotify=yes
             AC_DEFINE([HAVE_LIBNOTIFY], 1) 
+        else
+            LIBNOTIFY_CFLAGS=
+            LIBNOTIFY_LIBS=
         fi
     fi
 
@@ -309,12 +301,13 @@ if test "x$build_gtk" = "xyes"; then
                   AS_HELP_STRING([--enable-libappindicator],[enable AppIndicator support]),, 
                   [enable_libappindicator=yes])
     use_libappindicator=no
-    if test "x$enable_libappindicator" = "xyes" ; then
-        if test "x$have_libappindicator" = "xyes"; then
+    if test "x$have_libappindicator" = "xyes"; then
+        if test "x$enable_libappindicator" = "xyes" ; then
             use_libappindicator=yes
-            AC_SUBST(LIBAPPINDICATOR_LIBS) 
-            AC_SUBST(LIBAPPINDICATOR_CFLAGS) 
             AC_DEFINE([HAVE_LIBAPPINDICATOR], 1) 
+        else
+            LIBAPPINDICATOR_CFLAGS=
+            LIBAPPINDICATOR_LIBS=
         fi
     fi
 
@@ -325,24 +318,30 @@ if test "x$build_gtk" = "xyes"; then
     AC_ARG_ENABLE([libcanberra], 
                   AS_HELP_STRING([--enable-libcanberra],[enable sounds]),, 
                   [enable_libcanberra=yes]) 
-    if test "x$enable_libcanberra" = "xyes" ; then
-        if test "x$have_libcanberra" = "xyes"; then
+    if test "x$have_libcanberra" = "xyes"; then
+        if test "x$enable_libcanberra" = "xyes" ; then
             use_canberra=yes
             AC_DEFINE([HAVE_LIBCANBERRA], 1) 
+        else
+            LIBCANBERRA_CFLAGS=
+            LIBCANBERRA_LIBS=
         fi
     fi
 
-    PKG_CHECK_MODULES([LIBGCONF],
+    PKG_CHECK_MODULES([GCONF2],
                       [gconf-2.0 >= $GCONF2_MINIMUM],
-                      [have_libgconf=yes],
-                      [have_libgconf=no])
+                      [have_gconf2=yes],
+                      [have_gconf2=no])
     AC_ARG_ENABLE([gconf2], 
-                  AS_HELP_STRING([--enable-libgconf],[enable GConf support]),, 
-                  [enable_libgconf=yes]) 
-    if test "x$enable_libgconf" = "xyes" ; then
-        if test "x$have_libgconf" = "xyes"; then
-            use_libgconf=yes
-            AC_DEFINE([HAVE_LIBGCONF], 1) 
+                  AS_HELP_STRING([--enable-gconf2],[enable GConf support]),, 
+                  [enable_gconf2=yes]) 
+    if test "x$have_gconf2" = "xyes"; then
+        if test "x$enable_gconf2" = "xyes" ; then
+            use_gconf2=yes
+            AC_DEFINE([HAVE_GCONF2], 1) 
+        else
+            GCONF2_CFLAGS=
+            GCONF2_LIBS=
         fi
     fi
 
@@ -383,7 +382,7 @@ dnl it should be safe to re-edit 0.40 back down to 0.23
 use_nls=no
 if test "x$enable_nls" = "xyes" ; then
     use_nls=yes
-    IT_PROG_INTLTOOL([0.40.0],[no-xml])
+    IT_PROG_INTLTOOL([0.35.0],[no-xml])
     AC_CHECK_HEADERS([libintl.h])
     GETTEXT_PACKAGE=transmission
     AC_SUBST(GETTEXT_PACKAGE)
@@ -501,22 +500,24 @@ echo "
 
 Configuration:
 
-   Source code location:                                       ${srcdir}
-   Compiler:                                                   ${CXX}
-   System or bundled libevent:                                 ${libevent_source}
+   Source code location:                              ${srcdir}
+   Compiler:                                          ${CXX}
 
-   Build Command-Line client:                                  ${build_cli}
+   Build Command-Line client:                         ${build_cli}
 
-   Build GTK+ client:                                          ${build_gtk}
-      optional dbus support:                                   ${use_dbus_glib}
-      optional gio for optional watchdir support:              ${use_gio}
-      optional libnotify for 'download completed' popups:      ${use_libnotify}
-      optional libcanberra for 'download completed' sounds:    ${use_canberra}
-      optional libgconf to tell GNOME we handle magnet links:  ${use_libgconf}
-      optional libappindicator for Ubuntu-style system tray:   ${use_libappindicator}
+   Build GTK+ client:                                 ${build_gtk}
 
-   Build Daemon:                                               ${build_daemon}
+     Optional dependencies for GTK+ client:
 
-   Build Mac client:                                           ${build_mac}
+      * dbus support:                                 ${use_dbus_glib}
+      * gio for watchdir support:                     ${use_gio}
+      * libnotify for 'download completed' popups:    ${use_libnotify}
+      * libcanberra for 'download completed' sounds:  ${use_canberra}
+      * gconf2 to register as a magnet link handler:  ${use_gconf2}
+      * libappindicator for an Ubuntu-style tray:     ${use_libappindicator}
+
+   Build Daemon:                                      ${build_daemon}
+
+   Build Mac client:                                  ${build_mac}
 
 "
