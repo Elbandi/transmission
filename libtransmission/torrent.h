@@ -231,6 +231,7 @@ struct tr_torrent
     void                             * ratio_limit_hit_func_user_data;
 
     tr_bool                    isRunning;
+    tr_bool                    isStopping;
     tr_bool                    isDeleting;
     tr_bool                    startAfterVerify;
     tr_bool                    isDirty;
@@ -383,6 +384,8 @@ const char * tr_torrentName( const tr_torrent * tor )
 
     return tor->info.name;
 }
+
+uint32_t tr_getBlockSize( uint32_t pieceSize );
 
 /**
  * Tell the tr_torrent that one of its files has become complete

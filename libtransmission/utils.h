@@ -265,16 +265,15 @@ void tr_timerAddMsec( struct event * timer, int milliseconds ) TR_GNUC_NONNULL(1
 uint64_t tr_date( void );
 
 /** @brief sleep the specified number of milliseconds */
-void tr_wait_msec( uint64_t delay_milliseconds );
+void tr_wait_msec( long int delay_milliseconds );
 
 /**
  * @brief make a copy of 'str' whose non-utf8 content has been corrected or stripped
  * @return a newly-allocated string that must be freed with tr_free()
  * @param str the string to make a clean copy of
  * @param len the length of the string to copy.  If -1, the entire string is used.
- * @param err if an error occurs and err is non-NULL, it's set to TRUE.
  */
-char* tr_utf8clean( const char * str, int len, tr_bool * err ) TR_GNUC_MALLOC;
+char* tr_utf8clean( const char * str, int len ) TR_GNUC_MALLOC;
 
 
 /***

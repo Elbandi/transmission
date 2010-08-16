@@ -55,18 +55,6 @@ enum { TR_IO_READ, TR_IO_PREFETCH,
        TR_IO_WRITE
 };
 
-int64_t
-tr_lseek( int fd, int64_t offset, int whence )
-{
-#if defined( HAVE_LSEEK64 )
-    return lseek64( fd, (off64_t)offset, whence );
-#elif defined( WIN32 )
-    return _lseeki64( fd, offset, whence );
-#else
-    return lseek( fd, (off_t)offset, whence );
-#endif
-}
-
 /* returns 0 on success, or an errno on failure */
 static int
 readOrWriteBytes( tr_session       * session,
@@ -295,8 +283,8 @@ recalculateHash( tr_torrent       * tor,
     size_t   bytesLeft;
     uint32_t offset = 0;
     tr_bool  success = TRUE;
-    uint8_t * buffer = tr_sessionGetBuffer( tor->session );
-    const size_t buflen = SESSION_BUFFER_SIZE;
+    const size_t buflen = 1024 * 256; /* 256 KiB buffer */
+    void * buffer = tr_valloc( buflen );
     SHA_CTX  sha;
 
     assert( tor != NULL );
@@ -324,7 +312,7 @@ recalculateHash( tr_torrent       * tor,
     if( success )
         SHA1_Final( setme, &sha );
 
-    tr_sessionReleaseBuffer( tor->session );
+    tr_free( buffer );
     return success;
 }
 

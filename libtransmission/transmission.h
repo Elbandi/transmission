@@ -1276,8 +1276,13 @@ typedef enum
 }
 tr_completeness;
 
+/** 
+* @param wasRunning whether or not the torrent was running when
+*                   it changed its completeness state
+*/
 typedef void ( tr_torrent_completeness_func )( tr_torrent       * torrent,
                                                tr_completeness    completeness,
+                                               tr_bool            wasRunning,
                                                void             * user_data );
 
 typedef void ( tr_torrent_ratio_limit_hit_func )( tr_torrent   * torrent,
@@ -1709,7 +1714,7 @@ typedef struct tr_stat
 
     /** A warning or error message regarding the torrent.
         @see error */
-    char errorString[128];
+    char errorString[512];
 
     /** When tr_stat.status is TR_STATUS_CHECK or TR_STATUS_CHECK_WAIT,
         this is the percentage of how much of the files has been

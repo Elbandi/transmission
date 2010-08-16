@@ -84,6 +84,7 @@ struct cbdata
     GSList            * dupqueue;
     GSList            * details;
     GtkTreeSelection  * sel;
+    GtkWidget         * quit_dialog;
 };
 
 /**
@@ -281,7 +282,7 @@ accumulateStatusForeach( GtkTreeModel *      model,
                          GtkTreeIter *       iter,
                          gpointer            user_data )
 {
-    int                  activity = 0;
+    int activity = 0;
     struct counts_data * counts = user_data;
 
     ++counts->totalCount;
@@ -295,6 +296,16 @@ accumulateStatusForeach( GtkTreeModel *      model,
 }
 
 static void
+getTorrentCounts( struct cbdata * data, struct counts_data * counts )
+{
+    counts->activeCount = 0;
+    counts->inactiveCount = 0;
+    counts->totalCount = 0;
+
+    gtk_tree_selection_selected_foreach( data->sel, accumulateStatusForeach, counts );
+}
+
+static void
 accumulateCanUpdateForeach( GtkTreeModel *      model,
                             GtkTreePath  * path UNUSED,
                             GtkTreeIter *       iter,
@@ -305,17 +316,14 @@ accumulateCanUpdateForeach( GtkTreeModel *      model,
     *(int*)accumulated_status |= tr_torrentCanManualUpdate( tor );
 }
 
-static void
-refreshActions( struct cbdata * data )
+static gboolean
+refreshActions( gpointer gdata )
 {
     int canUpdate;
     struct counts_data counts;
-    GtkTreeSelection * s = data->sel;
+    struct cbdata * data = gdata;
 
-    counts.activeCount = 0;
-    counts.inactiveCount = 0;
-    counts.totalCount = 0;
-    gtk_tree_selection_selected_foreach( s, accumulateStatusForeach, &counts );
+    getTorrentCounts( data, &counts );
     action_sensitize( "pause-torrent", counts.activeCount != 0 );
     action_sensitize( "start-torrent", counts.inactiveCount != 0 );
     action_sensitize( "remove-torrent", counts.totalCount != 0 );
@@ -327,11 +335,11 @@ refreshActions( struct cbdata * data )
     action_sensitize( "copy-magnet-link-to-clipboard", counts.totalCount == 1 );
 
     canUpdate = 0;
-    gtk_tree_selection_selected_foreach( s, accumulateCanUpdateForeach, &canUpdate );
+    gtk_tree_selection_selected_foreach( data->sel, accumulateCanUpdateForeach, &canUpdate );
     action_sensitize( "update-tracker", canUpdate != 0 );
 
     {
-        GtkTreeView *  view = gtk_tree_selection_get_tree_view( s );
+        GtkTreeView * view = gtk_tree_selection_get_tree_view( data->sel );
         GtkTreeModel * model = gtk_tree_view_get_model( view );
         const int torrentCount = gtk_tree_model_iter_n_children( model, NULL ) != 0;
         action_sensitize( "select-all", torrentCount != 0 );
@@ -344,12 +352,14 @@ refreshActions( struct cbdata * data )
         action_sensitize( "pause-all-torrents", active != 0 );
         action_sensitize( "start-all-torrents", active != total );
     }
+
+    return FALSE;
 }
 
 static void
 selectionChangedCB( GtkTreeSelection * s UNUSED, gpointer data )
 {
-    refreshActions( data );
+    gtr_idle_add( refreshActions, data );
 }
 
 static void
@@ -795,6 +805,30 @@ toggleMainWindow( struct cbdata * cbdata )
 }
 
 static gboolean
+shouldConfirmBeforeExiting( struct cbdata * data )
+{
+    if( !pref_flag_get( PREF_KEY_ASKQUIT ) )
+        return FALSE;
+    else {
+        struct counts_data counts;
+        getTorrentCounts( data, &counts );
+        return counts.activeCount > 0;
+    }
+}
+
+static void
+maybeaskquit( struct cbdata * cbdata )
+{
+    if( !shouldConfirmBeforeExiting( cbdata ) )
+        wannaquit( cbdata );
+    else {
+        if( cbdata->quit_dialog == NULL )
+            cbdata->quit_dialog = askquit( cbdata->core, cbdata->wind, wannaquit, cbdata );
+        gtk_window_present( GTK_WINDOW( cbdata->quit_dialog ) );
+    }
+}
+
+static gboolean
 winclose( GtkWidget * w    UNUSED,
           GdkEvent * event UNUSED,
           gpointer         gdata )
@@ -804,7 +838,7 @@ winclose( GtkWidget * w    UNUSED,
     if( cbdata->icon != NULL )
         action_activate ( "toggle-main-window" );
     else
-        askquit( cbdata->core, cbdata->wind, wannaquit, cbdata );
+        maybeaskquit( cbdata );
 
     return TRUE; /* don't propagate event further */
 }
@@ -1685,7 +1719,7 @@ doAction( const char * action_name, gpointer user_data )
     }
     else if( !strcmp( action_name, "quit" ) )
     {
-        askquit( data->core, data->wind, wannaquit, data );
+        maybeaskquit( data );
     }
     else if( !strcmp( action_name, "select-all" ) )
     {

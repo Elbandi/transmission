@@ -321,7 +321,7 @@ tr_torrentCheckSeedRatio( tr_torrent * tor )
     {
         tr_torinf( tor, "Seed ratio reached; pausing torrent" );
 
-        tr_torrentStop( tor );
+        tor->isStopping = TRUE;
 
         /* maybe notify the client */
         if( tor->ratio_limit_hit_func != NULL )
@@ -346,6 +346,9 @@ tr_torrentSetLocalError( tr_torrent * tor, const char * fmt, ... )
     tor->errorTracker[0] = '\0';
     evutil_vsnprintf( tor->errorString, sizeof( tor->errorString ), fmt, ap );
     va_end( ap );
+
+    if( tor->isRunning )
+        tor->isStopping = TRUE;
 }
 
 static void
@@ -544,8 +547,8 @@ static void torrentStart( tr_torrent * tor );
  * (1) most clients decline requests over 16 KiB
  * (2) pieceSize must be a multiple of block size
  */
-static uint32_t
-getBlockSize( uint32_t pieceSize )
+uint32_t
+tr_getBlockSize( uint32_t pieceSize )
 {
     uint32_t b = pieceSize;
 
@@ -565,7 +568,7 @@ torrentInitFromInfo( tr_torrent * tor )
     uint64_t t;
     tr_info * info = &tor->info;
 
-    tor->blockSize = getBlockSize( info->pieceSize );
+    tor->blockSize = tr_getBlockSize( info->pieceSize );
 
     if( info->pieceSize )
         tor->lastPieceSize = info->totalSize % info->pieceSize;
@@ -761,7 +764,7 @@ torrentParseImpl( const tr_ctor * ctor, tr_info * setmeInfo,
     if( !didParse )
         result = TR_PARSE_ERR;
 
-    if( didParse && hasInfo && !getBlockSize( setmeInfo->pieceSize ) )
+    if( didParse && hasInfo && !tr_getBlockSize( setmeInfo->pieceSize ) )
         result = TR_PARSE_ERR;
 
     if( didParse && session && tr_torrentExists( session, setmeInfo->hash ) )
@@ -1360,7 +1363,6 @@ checkAndStartImpl( void * vtor )
     if( tor->preVerifyTotal && !tr_cpHaveTotal( &tor->completion ) )
     {
         tr_torrentSetLocalError( tor, _( "No data found!  Reconnect any disconnected drives, use \"Set Location\", or restart the torrent to re-download." ) );
-        tr_torrentStop( tor );
     }
     else
     {
@@ -1443,7 +1445,6 @@ torrentRecheckDoneImpl( void * vtor )
     if( tor->preVerifyTotal && !tr_cpHaveTotal( &tor->completion ) )
     {
         tr_torrentSetLocalError( tor, _( "Can't find local data.  Try \"Set Location\" to find it, or restart the torrent to re-download." ) );
-        tr_torrentStop( tor );
     }
     else if( tor->startAfterVerify )
     {
@@ -1533,6 +1534,7 @@ tr_torrentStop( tr_torrent * tor )
         tr_sessionLock( tor->session );
 
         tor->isRunning = 0;
+        tor->isStopping = 0;
         tr_torrentSetDirty( tor );
         tr_runInEventThread( tor->session, stopTorrent, tor );
 
@@ -1618,7 +1620,8 @@ getCompletionString( int type )
 
 static void
 fireCompletenessChange( tr_torrent       * tor,
-                        tr_completeness    status )
+                        tr_completeness    status,
+                        tr_bool            wasRunning )
 {
     assert( tr_isTorrent( tor ) );
     assert( ( status == TR_LEECH )
@@ -1626,7 +1629,8 @@ fireCompletenessChange( tr_torrent       * tor,
          || ( status == TR_PARTIAL_SEED ) );
 
     if( tor->completeness_func )
-        tor->completeness_func( tor, status, tor->completeness_func_user_data );
+        tor->completeness_func( tor, status, wasRunning,
+                                tor->completeness_func_user_data );
 }
 
 void
@@ -1696,6 +1700,7 @@ torrentCallScript( tr_torrent * tor, const char * script )
 void
 tr_torrentRecheckCompleteness( tr_torrent * tor )
 {
+    tr_bool wasRunning;
     tr_completeness completeness;
 
     assert( tr_isTorrent( tor ) );
@@ -1703,6 +1708,7 @@ tr_torrentRecheckCompleteness( tr_torrent * tor )
     tr_torrentLock( tor );
 
     completeness = tr_cpGetStatus( &tor->completion );
+    wasRunning = tor->isRunning;
 
     if( completeness != tor->completeness )
     {
@@ -1726,8 +1732,6 @@ tr_torrentRecheckCompleteness( tr_torrent * tor )
                 tor->doneDate = tor->anyDate = tr_time( );
             }
 
-            tr_torrentCheckSeedRatio( tor );
-
             if( tor->currentDir == tor->incompleteDir )
                 tr_torrentSetLocation( tor, tor->downloadDir, TRUE, NULL, NULL );
 
@@ -1735,7 +1739,7 @@ tr_torrentRecheckCompleteness( tr_torrent * tor )
                 torrentCallScript( tor, tr_sessionGetTorrentDoneScript( tor->session ) );
         }
 
-        fireCompletenessChange( tor, completeness );
+        fireCompletenessChange( tor, wasRunning, completeness );
 
         tr_torrentSetDirty( tor );
     }
@@ -2556,14 +2560,6 @@ setLocation( void * vdata )
         /* bad idea to move files while they're being verified... */
         tr_verifyRemove( tor );
 
-        /* if the torrent is running, stop it and set a flag to
-         * restart after we're done */
-        if( tor->isRunning )
-        {
-            tr_torrentStop( tor );
-            tor->startAfterVerify = TRUE;
-        }
-
         /* try to move the files.
          * FIXME: there are still all kinds of nasty cases, like what
          * if the target directory runs out of space halfway through... */
@@ -2618,10 +2614,6 @@ setLocation( void * vdata )
             tr_torrentSetDownloadDir( tor, location );
             if( verify_needed )
                 tr_torrentVerify( tor );
-            else if( tor->startAfterVerify ) {
-                tor->startAfterVerify = FALSE;
-                tr_torrentStart( tor );
-            }
         }
     }
 

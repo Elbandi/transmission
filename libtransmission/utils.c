@@ -16,6 +16,7 @@
 
 #if defined(SYS_DARWIN)
  #define HAVE_GETPAGESIZE
+ #define HAVE_ICONV_OPEN
  #define HAVE_VALLOC
  #undef HAVE_POSIX_MEMALIGN /* not supported on OS X 10.5 and lower */
 #endif
@@ -28,12 +29,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h> /* strerror, memset, memmem */
+#include <time.h> /* nanosleep() */
 
+#ifdef HAVE_ICONV_OPEN
+ #include <iconv.h>
+#endif
 #include <libgen.h> /* basename */
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h> /* usleep, stat, getcwd, getpagesize */
+#include <unistd.h> /* stat(), getcwd(), getpagesize() */
 
 #include "event.h"
 
@@ -806,12 +811,15 @@ tr_date( void )
 }
 
 void
-tr_wait_msec( uint64_t delay_milliseconds )
+tr_wait_msec( long int msec )
 {
 #ifdef WIN32
-    Sleep( (DWORD)delay_milliseconds );
+    Sleep( (DWORD)msec );
 #else
-    usleep( 1000 * delay_milliseconds );
+    struct timespec ts;
+    ts.tv_sec = msec / 1000;
+    ts.tv_nsec = ( msec % 1000 ) * 1000000;
+    nanosleep( &ts, NULL );
 #endif
 }
 
@@ -1175,8 +1183,68 @@ tr_lowerBound( const void * key,
 ****
 ***/
 
+static char*
+strip_non_utf8( const char * in, size_t inlen )
+{
+    char * ret;
+    const char * end;
+    const char zero = '\0';
+    struct evbuffer * buf = evbuffer_new( );
+ 
+    while( !tr_utf8_validate( in, inlen, &end ) )
+    {
+        const int good_len = end - in;
+
+        evbuffer_add( buf, in, good_len );
+        inlen -= ( good_len + 1 );
+        in += ( good_len + 1 );
+        evbuffer_add( buf, "?", 1 );
+    }
+ 
+    evbuffer_add( buf, in, inlen );
+    evbuffer_add( buf, &zero, 1 );
+    ret = tr_memdup( EVBUFFER_DATA( buf ), EVBUFFER_LENGTH( buf ) );
+    evbuffer_free( buf );
+    return ret;
+}
+
+static char*
+to_utf8( const char * in, size_t inlen )
+{
+    char * ret = NULL;
+
+#ifdef HAVE_ICONV_OPEN
+    int i;
+    const char * encodings[] = { "CURRENT", "ISO-8859-15" };
+    const int encoding_count = sizeof(encodings) / sizeof(encodings[1]);
+    const size_t buflen = inlen*4 + 10;
+    char * out = tr_new( char, buflen );
+
+    for( i=0; !ret && i<encoding_count; ++i )
+    {
+        char * inbuf = (char*) in;
+        char * outbuf = out;
+        size_t inbytesleft = inlen;
+        size_t outbytesleft = buflen;
+        const char * test_encoding = encodings[i];
+
+        iconv_t cd = iconv_open( "UTF-8", test_encoding );
+        if( cd != (iconv_t)-1 ) {
+            if( iconv( cd, &inbuf, &inbytesleft, &outbuf, &outbytesleft ) != (size_t)-1 )
+                ret = tr_strndup( out, buflen-outbytesleft );
+            iconv_close( cd );
+        }
+    }
+#endif
+
+    if( ret == NULL )
+        ret = strip_non_utf8( in, inlen );
+
+    return ret;
+}
+
 char*
-tr_utf8clean( const char * str, int max_len, tr_bool * err )
+tr_utf8clean( const char * str, int max_len )
 {
     char * ret;
     const char * end;
@@ -1184,36 +1252,10 @@ tr_utf8clean( const char * str, int max_len, tr_bool * err )
     if( max_len < 0 )
         max_len = (int) strlen( str );
 
-    if( err != NULL )
-        *err = FALSE;
-
     if( tr_utf8_validate( str, max_len, &end  ) )
-    {
         ret = tr_strndup( str, max_len );
-    }
     else
-    {
-        const char zero = '\0';
-        struct evbuffer * buf = evbuffer_new( );
-
-        while( !tr_utf8_validate ( str, max_len, &end ) )
-        {
-            const int good_len = end - str;
-
-            evbuffer_add( buf, str, good_len );
-            max_len -= ( good_len + 1 );
-            str += ( good_len + 1 );
-            evbuffer_add( buf, "?", 1 );
-
-            if( err != NULL )
-                *err = TRUE;
-        }
-
-        evbuffer_add( buf, str, max_len );
-        evbuffer_add( buf, &zero, 1 );
-        ret = tr_memdup( EVBUFFER_DATA( buf ), EVBUFFER_LENGTH( buf ) );
-        evbuffer_free( buf );
-    }
+        ret = to_utf8( str, max_len );
 
     assert( tr_utf8_validate( ret, -1, NULL ) );
     return ret;
@@ -1394,7 +1436,7 @@ tr_moveFile( const char * oldpath, const char * newpath, tr_bool * renamed )
     char * buf;
     struct stat st;
     off_t bytesLeft;
-    off_t buflen;
+    const off_t buflen = 1024 * 128; /* 128 KiB buffer */
 
     /* make sure the old file exists */
     if( stat( oldpath, &st ) ) {
@@ -1429,7 +1471,6 @@ tr_moveFile( const char * oldpath, const char * newpath, tr_bool * renamed )
     /* copy the file */
     in = tr_open_file_for_scanning( oldpath );
     out = tr_open_file_for_writing( newpath );
-    buflen = stat( newpath, &st ) ? 4096 : st.st_blksize;
     buf = tr_valloc( buflen );
     while( bytesLeft > 0 )
     {

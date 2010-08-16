@@ -457,7 +457,7 @@ options_page_new( struct DetailsImpl * d )
     tag = g_signal_connect( tb, "toggled", G_CALLBACK( down_speed_toggled_cb ), d );
     d->downLimitedCheckTag = tag;
 
-    w = gtk_spin_button_new_with_range( 1, INT_MAX, 5 );
+    w = gtk_spin_button_new_with_range( 0, INT_MAX, 5 );
     tag = g_signal_connect( w, "value-changed", G_CALLBACK( down_speed_spun_cb ), d );
     d->downLimitSpinTag = tag;
     hig_workarea_add_row_w( t, &row, tb, w, NULL );
@@ -468,7 +468,7 @@ options_page_new( struct DetailsImpl * d )
     tag = g_signal_connect( tb, "toggled", G_CALLBACK( up_speed_toggled_cb ), d );
     d->upLimitedCheckTag = tag;
 
-    w = gtk_spin_button_new_with_range( 1, INT_MAX, 5 );
+    w = gtk_spin_button_new_with_range( 0, INT_MAX, 5 );
     tag = g_signal_connect( w, "value-changed", G_CALLBACK( up_speed_spun_cb ), d );
     d->upLimitSpinTag = tag;
     hig_workarea_add_row_w( t, &row, tb, w, NULL );
@@ -1161,16 +1161,12 @@ initPeerRow( GtkListStore        * store,
              const tr_peer_stat  * peer )
 {
     int q[4];
-    char up_speed[128];
-    char down_speed[128];
     char collated_name[128];
     const char * client = peer->client;
 
     if( !client || !strcmp( client, "Unknown Client" ) )
         client = "";
 
-    tr_strlspeed( up_speed, peer->rateToPeer, sizeof( up_speed ) );
-    tr_strlspeed( down_speed, peer->rateToClient, sizeof( down_speed ) );
     if( sscanf( peer->addr, "%d.%d.%d.%d", q, q+1, q+2, q+3 ) != 4 )
         g_strlcpy( collated_name, peer->addr, sizeof( collated_name ) );
     else
@@ -1607,11 +1603,13 @@ setPeerViewColumns( GtkTreeView * peer_view )
 
             case PEER_COL_DOWNLOAD_RATE_STRING:
                 r = gtk_cell_renderer_text_new( );
+                g_object_set( G_OBJECT( r ), "xalign", 1.0f, NULL );
                 c = gtk_tree_view_column_new_with_attributes( t, r, "text", col, NULL );
                 sort_col = PEER_COL_DOWNLOAD_RATE_DOUBLE;
                 break;
             case PEER_COL_UPLOAD_RATE_STRING:
                 r = gtk_cell_renderer_text_new( );
+                g_object_set( G_OBJECT( r ), "xalign", 1.0f, NULL );
                 c = gtk_tree_view_column_new_with_attributes( t, r, "text", col, NULL );
                 sort_col = PEER_COL_UPLOAD_RATE_DOUBLE;
                 break;
