@@ -51,7 +51,7 @@ class FileTreeItem: public QObject
         int row( ) const;
         const QString& name( ) const { return myName; }
         QVariant data( int column ) const;
-        bool update( int index, bool want, int priority, uint64_t total, uint64_t have );
+        bool update( int index, bool want, int priority, uint64_t total, uint64_t have, bool torrentChanged );
         void twiddleWanted( QSet<int>& fileIds, bool& );
         void twiddlePriority( QSet<int>& fileIds, int& );
 
@@ -60,6 +60,7 @@ class FileTreeItem: public QObject
         void setSubtreeWanted( bool, QSet<int>& fileIds );
         QString priorityString( ) const;
         void getSubtreeSize( uint64_t& have, uint64_t& total ) const;
+        QString fileSizeName( ) const;
         double progress( ) const;
         int priority( ) const;
         int isSubtreeWanted( ) const;
@@ -101,7 +102,8 @@ class FileTreeModel: public QAbstractItemModel
         void addFile( int index, const QString& filename,
                       bool wanted, int priority,
                       uint64_t size, uint64_t have,
-                      QList<QModelIndex>& rowsAdded );
+                      QList<QModelIndex>& rowsAdded,
+                      bool torrentChanged );
 
     private:
         void clearSubtree( const QModelIndex & );
@@ -139,6 +141,7 @@ class FileTreeView: public QTreeView
         virtual ~FileTreeView( ) { }
         void clear( );
         void update( const FileList& files );
+        void update( const FileList& files, bool torrentChanged );
 
     signals:
         void priorityChanged( const QSet<int>& fileIndices, int );

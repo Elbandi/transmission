@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "event.h"
+#include <event.h>
 
 #include "transmission.h"
 #include "bencode.h"
@@ -483,6 +483,7 @@ testBool( void )
     check( tr_bencDictFindInt( &top, "key4", &intVal ) )
     check( intVal )
 
+    tr_bencFree( &top );
     return 0;
 }
 

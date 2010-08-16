@@ -223,29 +223,35 @@ new_entry( const char * key,
 }
 
 static void
-chosen_cb( GtkFileChooser * w,
-           gpointer         core )
+chosen_cb( GtkFileChooser * w, gpointer core )
 {
     const char * key = g_object_get_data( G_OBJECT( w ), PREF_KEY );
-    char *       value = gtk_file_chooser_get_filename( GTK_FILE_CHOOSER( w ) );
-
+    char * value = gtk_file_chooser_get_filename( GTK_FILE_CHOOSER( w ) );
     tr_core_set_pref( TR_CORE( core ), key, value );
     g_free( value );
 }
 
 static GtkWidget*
-new_path_chooser_button( const char * key,
-                         gpointer     core )
+new_path_chooser_button( const char * key, gpointer core )
 {
-    GtkWidget *  w = gtk_file_chooser_button_new(
-        NULL,
-        GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER );
+    GtkWidget *  w = gtk_file_chooser_button_new( NULL, GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER );
     const char * path = pref_string_get( key );
-
-    g_object_set_data_full( G_OBJECT( w ), PREF_KEY, g_strdup(
-                                key ), g_free );
+    g_object_set_data_full( G_OBJECT( w ), PREF_KEY, g_strdup( key ), g_free );
     g_signal_connect( w, "selection-changed", G_CALLBACK( chosen_cb ), core );
-    gtk_file_chooser_set_current_folder( GTK_FILE_CHOOSER( w ), path );
+    if( path != NULL )
+        gtk_file_chooser_set_current_folder( GTK_FILE_CHOOSER( w ), path );
+    return w;
+}
+
+static GtkWidget*
+new_file_chooser_button( const char * key, gpointer core )
+{
+    GtkWidget *  w = gtk_file_chooser_button_new( NULL, GTK_FILE_CHOOSER_ACTION_OPEN );
+    const char * path = pref_string_get( key );
+    g_object_set_data_full( G_OBJECT( w ), PREF_KEY, g_strdup( key ), g_free );
+    if( path != NULL )
+        gtk_file_chooser_set_filename( GTK_FILE_CHOOSER( w ), path );
+    g_signal_connect( w, "selection-changed", G_CALLBACK( chosen_cb ), core );
     return w;
 }
 
@@ -273,7 +279,7 @@ torrentPage( GObject * core )
     GtkWidget *  l;
 
     t = hig_workarea_create( );
-    hig_workarea_add_section_title( t, &row, _( "Adding Torrents" ) );
+    hig_workarea_add_section_title( t, &row, _( "Adding" ) );
 
 #ifdef HAVE_GIO
     s = _( "Automatically _add torrents from:" );
@@ -290,16 +296,22 @@ torrentPage( GObject * core )
     hig_workarea_add_wide_control( t, &row, w );
 
     s = _( "_Start when added" );
-    w = new_check_button( s, PREF_KEY_START, core );
+    w = new_check_button( s, TR_PREFS_KEY_START, core );
     hig_workarea_add_wide_control( t, &row, w );
 
     s = _( "Mo_ve .torrent file to the trash" );
-    w = new_check_button( s, PREF_KEY_TRASH_ORIGINAL, core );
+    w = new_check_button( s, TR_PREFS_KEY_TRASH_ORIGINAL, core );
     hig_workarea_add_wide_control( t, &row, w );
+
+    hig_workarea_add_section_divider( t, &row );
+    hig_workarea_add_section_title( t, &row, _( "Downloading" ) );
 
     s = _( "Append \"._part\" to incomplete files' names" );
     w = new_check_button( s, TR_PREFS_KEY_RENAME_PARTIAL_FILES, core );
     hig_workarea_add_wide_control( t, &row, w );
+
+    w = new_path_chooser_button( TR_PREFS_KEY_DOWNLOAD_DIR, core );
+    hig_workarea_add_row( t, &row, _( "Save to _Location:" ), w, NULL );
 
     s = _( "Keep _incomplete torrents in:" );
     l = new_check_button( s, TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED, core );
@@ -308,11 +320,15 @@ torrentPage( GObject * core )
     g_signal_connect( l, "toggled", G_CALLBACK( target_cb ), w );
     hig_workarea_add_row_w( t, &row, l, w, NULL );
 
-    w = new_path_chooser_button( TR_PREFS_KEY_DOWNLOAD_DIR, core );
-    hig_workarea_add_row( t, &row, _( "Save to _Location:" ), w, NULL );
+    s = _( "Call scrip_t when torrent is completed:" );
+    l = new_check_button( s, TR_PREFS_KEY_SCRIPT_TORRENT_DONE_ENABLED, core );
+    w = new_file_chooser_button( TR_PREFS_KEY_SCRIPT_TORRENT_DONE_FILENAME, core );
+    gtk_widget_set_sensitive( GTK_WIDGET( w ), pref_flag_get( TR_PREFS_KEY_SCRIPT_TORRENT_DONE_ENABLED ) );
+    g_signal_connect( l, "toggled", G_CALLBACK( target_cb ), w );
+    hig_workarea_add_row_w( t, &row, l, w, NULL );
 
     hig_workarea_add_section_divider( t, &row );
-    hig_workarea_add_section_title( t, &row, _( "Limits" ) );
+    hig_workarea_add_section_title( t, &row, _( "Seeding" ) );
 
     s = _( "_Seed torrent until its ratio reaches:" );
     w = new_check_button( s, TR_PREFS_KEY_RATIO_ENABLED, core );
@@ -551,6 +567,12 @@ privacyPage( GObject * core )
     s = _( "Use _DHT to find more peers" );
     w = new_check_button( s, TR_PREFS_KEY_DHT_ENABLED, core );
     s = _( "DHT is a tool for finding peers without a tracker." );
+    gtr_widget_set_tooltip_text( w, s );
+    hig_workarea_add_wide_control( t, &row, w );
+
+    s = _( "Use Local Peer Discovery to find more peers" );
+    w = new_check_button( s, TR_PREFS_KEY_LPD_ENABLED, core );
+    s = _( "LPD is a tool for finding peers on your local network." );
     gtr_widget_set_tooltip_text( w, s );
     hig_workarea_add_wide_control( t, &row, w );
 
@@ -1198,14 +1220,14 @@ bandwidthPage( GObject * core )
     t = hig_workarea_create( );
     hig_workarea_add_section_title( t, &row, _( "Speed Limits" ) );
 
-        s = _( "Limit _download speed (KB/s):" );
+        s = _( "Limit _download speed (KiB/s):" );
         w = new_check_button( s, TR_PREFS_KEY_DSPEED_ENABLED, core );
         w2 = new_spin_button( TR_PREFS_KEY_DSPEED, core, 0, INT_MAX, 5 );
         gtk_widget_set_sensitive( GTK_WIDGET( w2 ), pref_flag_get( TR_PREFS_KEY_DSPEED_ENABLED ) );
         g_signal_connect( w, "toggled", G_CALLBACK( target_cb ), w2 );
         hig_workarea_add_row_w( t, &row, w, w2, NULL );
 
-        s = _( "Limit _upload speed (KB/s):" );
+        s = _( "Limit _upload speed (KiB/s):" );
         w = new_check_button( s, TR_PREFS_KEY_USPEED_ENABLED, core );
         w2 = new_spin_button( TR_PREFS_KEY_USPEED, core, 0, INT_MAX, 5 );
         gtk_widget_set_sensitive( GTK_WIDGET( w2 ), pref_flag_get( TR_PREFS_KEY_USPEED_ENABLED ) );
@@ -1230,11 +1252,11 @@ bandwidthPage( GObject * core )
         gtk_misc_set_alignment( GTK_MISC( w ), 0.5f, 0.5f );
         hig_workarea_add_wide_control( t, &row, w );
 
-        s = _( "Limit do_wnload speed (KB/s):" );
+        s = _( "Limit do_wnload speed (KiB/s):" );
         w = new_spin_button( TR_PREFS_KEY_ALT_SPEED_DOWN, core, 0, INT_MAX, 5 );
         hig_workarea_add_row( t, &row, s, w, NULL );
 
-        s = _( "Limit u_pload speed (KB/s):" );
+        s = _( "Limit u_pload speed (KiB/s):" );
         w = new_spin_button( TR_PREFS_KEY_ALT_SPEED_UP, core, 0, INT_MAX, 5 );
         hig_workarea_add_row( t, &row, s, w, NULL );
 
@@ -1364,12 +1386,12 @@ peerPage( GObject * core )
     data->prefsTag = g_signal_connect( TR_CORE( core ), "prefs-changed", G_CALLBACK( onCorePrefsChanged ), data );
     g_object_weak_ref( G_OBJECT( t ), peerPageDestroyed, data );
 
-    s = _( "Use UPnP or NAT-PMP port _forwarding from my router" );
-    w = new_check_button( s, TR_PREFS_KEY_PORT_FORWARDING, core );
+    s = _( "Pick a _random port on startup" );
+    w = new_check_button( s, TR_PREFS_KEY_PEER_PORT_RANDOM_ON_START, core );
     hig_workarea_add_wide_control( t, &row, w );
 
-    s = _( "Pick a _random port every time Transmission is started" );
-    w = new_check_button( s, TR_PREFS_KEY_PEER_PORT_RANDOM_ON_START, core );
+    s = _( "Use UPnP or NAT-PMP port _forwarding from my router" );
+    w = new_check_button( s, TR_PREFS_KEY_PORT_FORWARDING, core );
     hig_workarea_add_wide_control( t, &row, w );
 
     hig_workarea_add_section_divider( t, &row );

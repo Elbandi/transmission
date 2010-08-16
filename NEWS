@@ -1,4 +1,74 @@
-=== Transmission 1.92 (2010/03/11) ===
+=== Transmission 2.00 (2010/06/15) ===
+[http://trac.transmissionbt.com/query?milestone=2.00&group=component&groupdesc=1&order=severity All tickets closed by this release]
+==== All Platforms ====
+  * "Local Peer Discovery" for finding peers on the local network
+  * Optimize download requests for the bandwidth available
+  * Smarter heuristics when deciding the order to connect to peers
+  * Faster verification of local data
+  * Faster startup
+  * Support more blocklist file formats
+  * Use IEC standard units (KiB, MiB, GiB) instead of (KB, MB, GB)
+  * Better handling of 404 tracker errors
+==== Mac ====
+  * Compact View replaces Minimal View, taking up considerably less space
+  * Show an Add Transfer window when adding magnet links
+  * "Resume All" now ignores finished transfers 
+  * Allow trackers to be pasted into the Create Window
+  * European Portuguese localization
+  * Removed Traditional Chinese localization because of lack of localizer
+==== GTK+ ====
+  * New filterbar to filter by tracker, private/public, etc.
+  * Compact View replaces Minimal View, taking up considerably less space
+  * Show the Torrent Options dialog when adding magnet links
+  * "Set Location" now supports moving multiple torrents at once
+  * The Properties window now fits on low resolution screens
+  * Add favicon support to the Properties dialog's Tracker tab
+==== Qt ====
+  * Show the Torrent Options dialog when adding magnet links
+  * Show all active trackers in the tracker display list
+  * Show file sizes in the file tree
+  * Added a confirm dialog when removing torrents
+  * Properties and torrent options no longer jump around while editing
+  * Allow setting locations for remote sessions
+  * Miscellaneous UI fixes
+==== Daemon ====
+  * Let users specify a script to be invoked when a torrent finishes downloading
+  * Better support for adding per-torrent settings when adding a new torrent
+  * Optional pidfile support
+  * Option to start torrents paused
+  * Option to delete .torrent files from watch directory
+==== Web Client ====
+  * The context menu now works when multiple rows are selected
+  * Show ETA for seeding torrents that have a seed ratio set
+
+=== Transmission 1.93 (2010/05/01) ===
+[http://trac.transmissionbt.com/query?milestone=1.93&group=component&groupdesc=1&order=severity All tickets closed by this release]
+==== All Platforms ====
+  * Fix rare crash when some peers disconnected unexpectedly
+  * Fix bug which didn't parse scheduled speed limit dates correctly
+  * Fix bug that broke magnet links whose names contained slashes
+  * Fix crash when updating the blocklist when the disk is full
+  * Fix slow file preallocation on Unix systems not using ext3/ext4
+  * Fix regression which broke the "bind-address-ipv4" configuration setting
+  * For better security, Web client connections are disabled by default
+  * Update to miniupnpc-1.4
+  * Transmission builds out-of-the-box with Curl 7.15.5. (Hello CentOS!)
+==== GTK+ ====
+  * Use the size for the system tray icon
+==== Qt ====
+  * Fix bug that crashed when removing more than one torrent at once
+  * Fix bug when parsing the remote password from the command line
+  * Add support for the "incomplete directory" in the preferences dialog
+  * Don't show "time remaining" for paused torrents
+==== Daemon ====
+  * Fix bug parsing RPC requests when setting which files to not download
+  * Fix possible crash when using inotify for the daemon's watchdir
+  * Fix bugs in the configure script
+  * Fix bug updating the blocklist over RPC
+==== Web Client ====
+  * Fix bug that broke the "reverse sort order" menu checkbox
+
+=== Transmission 1.92 (2010/03/14) ===
 [http://trac.transmissionbt.com/query?milestone=1.92&group=component&groupdesc=1&order=severity All tickets closed by this release]
 ==== All Platforms ====
   * Fix possible data corruption issue caused by data sent by bad peers during endgame

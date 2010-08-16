@@ -58,6 +58,39 @@ typedef QList<Peer> PeerList;
 Q_DECLARE_METATYPE(Peer)
 Q_DECLARE_METATYPE(PeerList)
 
+struct TrackerStat
+{
+    QString announce;
+    int announceState;
+    int downloadCount;
+    bool hasAnnounced;
+    bool hasScraped;
+    QString host;
+    int id;
+    bool isBackup;
+    int lastAnnouncePeerCount;
+    int lastAnnounceResult;
+    int lastAnnounceStartTime;
+    bool lastAnnounceSucceeded;
+    int lastAnnounceTime;
+    bool lastAnnounceTimedOut;
+    QString lastScrapeResult;
+    int lastScrapeStartTime;
+    bool lastScrapeSucceeded;
+    int lastScrapeTime;
+    bool lastScrapeTimedOut;
+    int leecherCount;
+    int nextAnnounceTime;
+    int nextScrapeTime;
+    int scrapeState;
+    int seederCount;
+    int tier;
+};
+
+typedef QList<TrackerStat> TrackerStatsList;
+Q_DECLARE_METATYPE(TrackerStat)
+Q_DECLARE_METATYPE(TrackerStatsList)
+
 struct TrFile
 {
     TrFile(): index(-1), priority(0), wanted(true), size(0), have(0) { }
@@ -115,6 +148,7 @@ class Torrent: public QObject
             UPLOADED_EVER,
             FAILED_EVER,
             TRACKERS,
+            TRACKERSTATS,
             MIME_ICON,
             SEED_RATIO_LIMIT,
             SEED_RATIO_MODE,
@@ -125,17 +159,11 @@ class Torrent: public QObject
             HONORS_SESSION_LIMITS,
             PEER_LIMIT,
             HASH_STRING,
+            IS_FINISHED,
             IS_PRIVATE,
             COMMENT,
             CREATOR,
-            LAST_ANNOUNCE_TIME,
-            LAST_SCRAPE_TIME,
             MANUAL_ANNOUNCE_TIME,
-            NEXT_ANNOUNCE_TIME,
-            NEXT_SCRAPE_TIME,
-            SCRAPE_RESPONSE,
-            ANNOUNCE_RESPONSE,
-            ANNOUNCE_URL,
             PEERS,
             TORRENT_FILE,
             BANDWIDTH_PRIORITY,
@@ -169,6 +197,8 @@ class Torrent: public QObject
         };
 
         static Property myProperties[];
+
+        bool magnetTorrent;
 
     public:
         typedef QList<const char*> KeyList;
@@ -208,9 +238,6 @@ class Torrent: public QObject
         QString getPath( ) const { return getString( DOWNLOAD_DIR ); }
         QString getError( ) const;
         QString hashString( ) const { return getString( HASH_STRING ); }
-        QString scrapeResponse( ) const { return getString( SCRAPE_RESPONSE ); }
-        QString announceResponse( ) const { return getString( ANNOUNCE_RESPONSE ); }
-        QString announceUrl( ) const { return getString( ANNOUNCE_URL ); }
         QString torrentFile( ) const { return getString( TORRENT_FILE ); }
         bool hasError( ) const { return !getError( ).isEmpty( ); }
         bool isDone( ) const { return getSize( LEFT_UNTIL_DONE ) == 0; }
@@ -226,8 +253,10 @@ class Torrent: public QObject
         uint64_t leftUntilDone( ) const { return getSize( LEFT_UNTIL_DONE ); }
         uint64_t pieceSize( ) const { return getSize( PIECE_SIZE ); }
         bool hasMetadata( ) const { return getDouble( METADATA_PERCENT_DONE ) >= 1.0; }
+        bool isMagnet( ) const { return magnetTorrent; }
         int  pieceCount( ) const { return getInt( PIECE_COUNT ); }
         double ratio( ) const { return getDouble( RATIO ); }
+        double percentComplete( ) const { return haveTotal() / (double)totalSize(); }
         double percentDone( ) const { return getDouble( PERCENT_DONE ); }
         double metadataPercentDone( ) const { return getDouble( METADATA_PERCENT_DONE ); }
         uint64_t downloadedEver( ) const { return getSize( DOWNLOADED_EVER ); }
@@ -242,11 +271,7 @@ class Torrent: public QObject
         QDateTime lastStarted( ) const { return getDateTime( DATE_STARTED ); }
         QDateTime dateAdded( ) const { return getDateTime( DATE_ADDED ); }
         QDateTime dateCreated( ) const { return getDateTime( DATE_CREATED ); }
-        QDateTime lastAnnounceTime( ) const { return getDateTime( LAST_ANNOUNCE_TIME ); }
-        QDateTime lastScrapeTime( ) const { return getDateTime( LAST_SCRAPE_TIME ); }
         QDateTime manualAnnounceTime( ) const { return getDateTime( MANUAL_ANNOUNCE_TIME ); }
-        QDateTime nextAnnounceTime( ) const { return getDateTime( NEXT_ANNOUNCE_TIME ); }
-        QDateTime nextScrapeTime( ) const { return getDateTime( NEXT_SCRAPE_TIME ); }
         bool canManualAnnounce( ) const { return isReadyToTransfer() && (manualAnnounceTime()<=QDateTime::currentDateTime()); }
         int peersWeAreDownloadingFrom( ) const { return getInt( PEERS_SENDING_TO_US ) + getInt( WEBSEEDS_SENDING_TO_US ); }
         int peersWeAreUploadingTo( ) const { return getInt( PEERS_GETTING_FROM_US ); }
@@ -266,20 +291,24 @@ class Torrent: public QObject
         int peerLimit( ) const { return getInt( PEER_LIMIT ); }
         double seedRatioLimit( ) const { return getDouble( SEED_RATIO_LIMIT ); }
         tr_ratiolimit seedRatioMode( ) const { return (tr_ratiolimit) getInt( SEED_RATIO_MODE ); }
+        TrackerStatsList trackerStats( ) const{ return myValues[TRACKERSTATS].value<TrackerStatsList>(); }
         PeerList peers( ) const{ return myValues[PEERS].value<PeerList>(); }
         const FileList& files( ) const { return myFiles; }
 
     public:
         QString activityString( ) const;
         tr_torrent_activity getActivity( ) const { return (tr_torrent_activity) getInt( ACTIVITY ); }
+        bool isFinished( ) const { return getBool( IS_FINISHED ); }
         bool isPaused( ) const { return getActivity( ) == TR_STATUS_STOPPED; }
         bool isVerifying( ) const { return getActivity( ) == TR_STATUS_CHECK; }
         bool isDownloading( ) const { return getActivity( ) == TR_STATUS_DOWNLOAD; }
+        bool isSeeding( ) const { return getActivity( ) == TR_STATUS_SEED; }
         bool isReadyToTransfer( ) const { return getActivity()==TR_STATUS_DOWNLOAD || getActivity()==TR_STATUS_SEED; }
         void notifyComplete( ) const;
 
     public:
         void update( tr_benc * dict );
+        void setMagnet( bool magnet ) { magnetTorrent = magnet; }
 
     private:
         const char * getMimeTypeString( ) const;

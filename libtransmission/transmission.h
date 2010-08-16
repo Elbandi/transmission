@@ -143,68 +143,74 @@ const char* tr_getDefaultConfigDir( const char * appname );
 const char* tr_getDefaultDownloadDir( void );
 
 
-#define TR_DEFAULT_BIND_ADDRESS_IPV4       "0.0.0.0"
-#define TR_DEFAULT_BIND_ADDRESS_IPV6            "::"
-#define TR_DEFAULT_OPEN_FILE_LIMIT_STR          "32"
-#define TR_DEFAULT_RPC_WHITELIST         "127.0.0.1"
-#define TR_DEFAULT_RPC_PORT_STR               "9091"
-#define TR_DEFAULT_PEER_PORT_STR             "51413"
-#define TR_DEFAULT_PEER_SOCKET_TOS_STR           "0"
-#define TR_DEFAULT_PEER_LIMIT_GLOBAL_STR       "240"
-#define TR_DEFAULT_PEER_LIMIT_TORRENT_STR       "60"
+#define TR_DEFAULT_BIND_ADDRESS_IPV4        "0.0.0.0"
+#define TR_DEFAULT_BIND_ADDRESS_IPV6             "::"
+#define TR_DEFAULT_OPEN_FILE_LIMIT_STR           "32"
+#define TR_DEFAULT_RPC_WHITELIST          "127.0.0.1"
+#define TR_DEFAULT_RPC_PORT_STR                "9091"
+#define TR_DEFAULT_PEER_PORT_STR              "51413"
+#define TR_DEFAULT_PEER_SOCKET_TOS_STR            "0"
+#define TR_DEFAULT_PEER_LIMIT_GLOBAL_STR        "240"
+#define TR_DEFAULT_PEER_LIMIT_TORRENT_STR        "60"
 
-#define TR_PREFS_KEY_ALT_SPEED_ENABLED          "alt-speed-enabled"
-#define TR_PREFS_KEY_ALT_SPEED_UP               "alt-speed-up"
-#define TR_PREFS_KEY_ALT_SPEED_DOWN             "alt-speed-down"
-#define TR_PREFS_KEY_ALT_SPEED_TIME_BEGIN       "alt-speed-time-begin"
-#define TR_PREFS_KEY_ALT_SPEED_TIME_ENABLED     "alt-speed-time-enabled"
-#define TR_PREFS_KEY_ALT_SPEED_TIME_END         "alt-speed-time-end"
-#define TR_PREFS_KEY_ALT_SPEED_TIME_DAY         "alt-speed-time-day"
-#define TR_PREFS_KEY_BIND_ADDRESS_IPV4          "bind-address-ipv4"
-#define TR_PREFS_KEY_BIND_ADDRESS_IPV6          "bind-address-ipv6"
-#define TR_PREFS_KEY_BLOCKLIST_ENABLED          "blocklist-enabled"
-#define TR_PREFS_KEY_DHT_ENABLED                "dht-enabled"
-#define TR_PREFS_KEY_DOWNLOAD_DIR               "download-dir"
-#define TR_PREFS_KEY_ENCRYPTION                 "encryption"
-#define TR_PREFS_KEY_INCOMPLETE_DIR             "incomplete-dir"
-#define TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED     "incomplete-dir-enabled"
-#define TR_PREFS_KEY_LAZY_BITFIELD              "lazy-bitfield-enabled"
-#define TR_PREFS_KEY_MSGLEVEL                   "message-level"
-#define TR_PREFS_KEY_OPEN_FILE_LIMIT            "open-file-limit"
-#define TR_PREFS_KEY_PEER_LIMIT_GLOBAL          "peer-limit-global"
-#define TR_PREFS_KEY_PEER_LIMIT_TORRENT         "peer-limit-per-torrent"
-#define TR_PREFS_KEY_PEER_PORT                  "peer-port"
-#define TR_PREFS_KEY_PEER_PORT_RANDOM_ON_START  "peer-port-random-on-start"
-#define TR_PREFS_KEY_PEER_PORT_RANDOM_LOW       "peer-port-random-low"
-#define TR_PREFS_KEY_PEER_PORT_RANDOM_HIGH      "peer-port-random-high"
-#define TR_PREFS_KEY_PEER_SOCKET_TOS            "peer-socket-tos"
-#define TR_PREFS_KEY_PEX_ENABLED                "pex-enabled"
-#define TR_PREFS_KEY_PORT_FORWARDING            "port-forwarding-enabled"
-#define TR_PREFS_KEY_PROXY_AUTH_ENABLED         "proxy-auth-enabled"
-#define TR_PREFS_KEY_PREALLOCATION              "preallocation"
-#define TR_PREFS_KEY_PROXY_ENABLED              "proxy-enabled"
-#define TR_PREFS_KEY_PROXY_PASSWORD             "proxy-auth-password"
-#define TR_PREFS_KEY_PROXY_PORT                 "proxy-port"
-#define TR_PREFS_KEY_PROXY                      "proxy"
-#define TR_PREFS_KEY_PROXY_TYPE                 "proxy-type"
-#define TR_PREFS_KEY_PROXY_USERNAME             "proxy-auth-username"
-#define TR_PREFS_KEY_RATIO                      "ratio-limit"
-#define TR_PREFS_KEY_RATIO_ENABLED              "ratio-limit-enabled"
-#define TR_PREFS_KEY_RENAME_PARTIAL_FILES       "rename-partial-files"
-#define TR_PREFS_KEY_RPC_AUTH_REQUIRED          "rpc-authentication-required"
-#define TR_PREFS_KEY_RPC_BIND_ADDRESS           "rpc-bind-address"
-#define TR_PREFS_KEY_RPC_ENABLED                "rpc-enabled"
-#define TR_PREFS_KEY_RPC_PASSWORD               "rpc-password"
-#define TR_PREFS_KEY_RPC_PORT                   "rpc-port"
-#define TR_PREFS_KEY_RPC_USERNAME               "rpc-username"
-#define TR_PREFS_KEY_RPC_WHITELIST_ENABLED      "rpc-whitelist-enabled"
-#define TR_PREFS_KEY_RPC_WHITELIST              "rpc-whitelist"
-#define TR_PREFS_KEY_DSPEED                     "speed-limit-down"
-#define TR_PREFS_KEY_DSPEED_ENABLED             "speed-limit-down-enabled"
-#define TR_PREFS_KEY_USPEED_ENABLED             "speed-limit-up-enabled"
-#define TR_PREFS_KEY_USPEED                     "speed-limit-up"
-#define TR_PREFS_KEY_UMASK                      "umask"
-#define TR_PREFS_KEY_UPLOAD_SLOTS_PER_TORRENT   "upload-slots-per-torrent"
+#define TR_PREFS_KEY_ALT_SPEED_ENABLED             "alt-speed-enabled"
+#define TR_PREFS_KEY_ALT_SPEED_UP                  "alt-speed-up"
+#define TR_PREFS_KEY_ALT_SPEED_DOWN                "alt-speed-down"
+#define TR_PREFS_KEY_ALT_SPEED_TIME_BEGIN          "alt-speed-time-begin"
+#define TR_PREFS_KEY_ALT_SPEED_TIME_ENABLED        "alt-speed-time-enabled"
+#define TR_PREFS_KEY_ALT_SPEED_TIME_END            "alt-speed-time-end"
+#define TR_PREFS_KEY_ALT_SPEED_TIME_DAY            "alt-speed-time-day"
+#define TR_PREFS_KEY_BIND_ADDRESS_IPV4             "bind-address-ipv4"
+#define TR_PREFS_KEY_BIND_ADDRESS_IPV6             "bind-address-ipv6"
+#define TR_PREFS_KEY_BLOCKLIST_ENABLED             "blocklist-enabled"
+#define TR_PREFS_KEY_DHT_ENABLED                   "dht-enabled"
+#define TR_PREFS_KEY_LPD_ENABLED                   "lpd-enabled"
+#define TR_PREFS_KEY_DOWNLOAD_DIR                  "download-dir"
+#define TR_PREFS_KEY_ENCRYPTION                    "encryption"
+#define TR_PREFS_KEY_INCOMPLETE_DIR                "incomplete-dir"
+#define TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED        "incomplete-dir-enabled"
+#define TR_PREFS_KEY_LAZY_BITFIELD                 "lazy-bitfield-enabled"
+#define TR_PREFS_KEY_MSGLEVEL                      "message-level"
+#define TR_PREFS_KEY_OPEN_FILE_LIMIT               "open-file-limit"
+#define TR_PREFS_KEY_PEER_LIMIT_GLOBAL             "peer-limit-global"
+#define TR_PREFS_KEY_PEER_LIMIT_TORRENT            "peer-limit-per-torrent"
+#define TR_PREFS_KEY_PEER_PORT                     "peer-port"
+#define TR_PREFS_KEY_PEER_PORT_RANDOM_ON_START     "peer-port-random-on-start"
+#define TR_PREFS_KEY_PEER_PORT_RANDOM_LOW          "peer-port-random-low"
+#define TR_PREFS_KEY_PEER_PORT_RANDOM_HIGH         "peer-port-random-high"
+#define TR_PREFS_KEY_PEER_SOCKET_TOS               "peer-socket-tos"
+#define TR_PREFS_KEY_PEER_CONGESTION_ALGORITHM     "peer-congestion-algorithm"
+#define TR_PREFS_KEY_PEX_ENABLED                   "pex-enabled"
+#define TR_PREFS_KEY_PORT_FORWARDING               "port-forwarding-enabled"
+#define TR_PREFS_KEY_PROXY_AUTH_ENABLED            "proxy-auth-enabled"
+#define TR_PREFS_KEY_PREALLOCATION                 "preallocation"
+#define TR_PREFS_KEY_PROXY_ENABLED                 "proxy-enabled"
+#define TR_PREFS_KEY_PROXY_PASSWORD                "proxy-auth-password"
+#define TR_PREFS_KEY_PROXY_PORT                    "proxy-port"
+#define TR_PREFS_KEY_PROXY                         "proxy"
+#define TR_PREFS_KEY_PROXY_TYPE                    "proxy-type"
+#define TR_PREFS_KEY_PROXY_USERNAME                "proxy-auth-username"
+#define TR_PREFS_KEY_RATIO                         "ratio-limit"
+#define TR_PREFS_KEY_RATIO_ENABLED                 "ratio-limit-enabled"
+#define TR_PREFS_KEY_RENAME_PARTIAL_FILES          "rename-partial-files"
+#define TR_PREFS_KEY_RPC_AUTH_REQUIRED             "rpc-authentication-required"
+#define TR_PREFS_KEY_RPC_BIND_ADDRESS              "rpc-bind-address"
+#define TR_PREFS_KEY_RPC_ENABLED                   "rpc-enabled"
+#define TR_PREFS_KEY_RPC_PASSWORD                  "rpc-password"
+#define TR_PREFS_KEY_RPC_PORT                      "rpc-port"
+#define TR_PREFS_KEY_RPC_USERNAME                  "rpc-username"
+#define TR_PREFS_KEY_RPC_WHITELIST_ENABLED         "rpc-whitelist-enabled"
+#define TR_PREFS_KEY_SCRIPT_TORRENT_DONE_FILENAME  "script-torrent-done-filename"
+#define TR_PREFS_KEY_SCRIPT_TORRENT_DONE_ENABLED   "script-torrent-done-enabled"
+#define TR_PREFS_KEY_RPC_WHITELIST                 "rpc-whitelist"
+#define TR_PREFS_KEY_DSPEED                        "speed-limit-down"
+#define TR_PREFS_KEY_DSPEED_ENABLED                "speed-limit-down-enabled"
+#define TR_PREFS_KEY_USPEED_ENABLED                "speed-limit-up-enabled"
+#define TR_PREFS_KEY_USPEED                        "speed-limit-up"
+#define TR_PREFS_KEY_UMASK                         "umask"
+#define TR_PREFS_KEY_UPLOAD_SLOTS_PER_TORRENT      "upload-slots-per-torrent"
+#define TR_PREFS_KEY_START                         "start-added-torrents"
+#define TR_PREFS_KEY_TRASH_ORIGINAL                "trash-original-torrent-files"
 
 
 /**
@@ -554,7 +560,7 @@ void          tr_sessionSetProxyPassword( tr_session * session,
 ***
 **/
 
-/** @brief Used by tr_sessionGetStats() and tr_sessionGetCumulativeStats() to give bandwidth statistics */ 
+/** @brief Used by tr_sessionGetStats() and tr_sessionGetCumulativeStats() to give bandwidth statistics */
 typedef struct tr_session_stats
 {
     float       ratio;        /* TR_RATIO_INF, TR_RATIO_NA, or total up/down */
@@ -587,6 +593,10 @@ tr_bool            tr_sessionIsPexEnabled( const tr_session * session );
 tr_bool            tr_sessionIsDHTEnabled( const tr_session * session );
 
 void               tr_sessionSetDHTEnabled( tr_session * session, tr_bool );
+
+tr_bool            tr_sessionIsLPDEnabled( const tr_session * session );
+
+void               tr_sessionSetLPDEnabled( tr_session * session, tr_bool enabled );
 
 void               tr_sessionSetLazyBitfieldEnabled( tr_session * session,
                                                      tr_bool       enabled );
@@ -631,8 +641,6 @@ typedef enum
 tr_port_forwarding;
 
 tr_port_forwarding tr_sessionGetPortForwarding( const tr_session * session );
-
-int tr_sessionCountTorrents( const tr_session * session );
 
 typedef enum
 {
@@ -726,6 +734,11 @@ uint16_t   tr_sessionGetPeerLimitPerTorrent( const tr_session * );
 tr_priority_t   tr_torrentGetPriority( const tr_torrent * );
 void            tr_torrentSetPriority( tr_torrent *, tr_priority_t );
 
+void       tr_sessionSetPaused        ( tr_session *, tr_bool isPaused );
+tr_bool    tr_sessionGetPaused        ( const tr_session * );
+
+void       tr_sessionSetDeleteSource  ( tr_session *, tr_bool deleteSource );
+tr_bool    tr_sessionGetDeleteSource  ( const tr_session * );
 
 /**
  *  Load all the torrents in tr_getTorrentDir().
@@ -736,7 +749,18 @@ tr_torrent ** tr_sessionLoadTorrents( tr_session  * session,
                                       tr_ctor     * ctor,
                                       int         * setmeCount );
 
-int tr_sessionGetActiveTorrentCount( tr_session * session );
+/**
+***
+**/
+
+tr_bool tr_sessionIsTorrentDoneScriptEnabled( const tr_session * );
+
+void tr_sessionSetTorrentDoneScriptEnabled( tr_session *, tr_bool isEnabled );
+
+const char * tr_sessionGetTorrentDoneScript( const tr_session * );
+
+void tr_sessionSetTorrentDoneScript( tr_session *, const char * scriptFilename );
+
 
 /** @} */
 
@@ -1043,7 +1067,7 @@ enum
 
 /**
  * @brief Tell transmsision where to find this torrent's local data.
- * 
+ *
  * if move_from_previous_location is `true', the torrent's incompleteDir
  * will be clobberred s.t. additional files being added will be saved
  * to the torrent's downloadDir.
@@ -1160,10 +1184,10 @@ enum
  *
  * @param priority must be one of TR_PRI_NORMAL, _HIGH, or _LOW
  */
-void tr_torrentSetFilePriorities( tr_torrent       * torrent,
-                                  tr_file_index_t  * files,
-                                  tr_file_index_t    fileCount,
-                                  tr_priority_t      priority );
+void tr_torrentSetFilePriorities( tr_torrent             * torrent,
+                                  const tr_file_index_t  * files,
+                                  tr_file_index_t          fileCount,
+                                  tr_priority_t            priority );
 
 /**
  * @brief Get this torrent's file priorities.
@@ -1175,10 +1199,10 @@ void tr_torrentSetFilePriorities( tr_torrent       * torrent,
 tr_priority_t*  tr_torrentGetFilePriorities( const tr_torrent * torrent );
 
 /** @brief Set a batch of files to be downloaded or not. */
-void tr_torrentSetFileDLs( tr_torrent       * torrent,
-                           tr_file_index_t  * files,
-                           tr_file_index_t    fileCount,
-                           tr_bool            do_download );
+void tr_torrentSetFileDLs( tr_torrent             * torrent,
+                           const tr_file_index_t  * files,
+                           tr_file_index_t          fileCount,
+                           tr_bool                  do_download );
 
 
 const tr_info * tr_torrentInfo( const tr_torrent * torrent );
@@ -1491,7 +1515,7 @@ typedef struct
 
     /* which tier this tracker is in */
     int tier;
-    
+
     /* used to match to a tr_tracker_info */
     uint32_t id;
 }
@@ -1641,16 +1665,15 @@ typedef enum
 }
 tr_torrent_activity;
 
-tr_torrent_activity tr_torrentGetActivity( tr_torrent * );
-
 enum
 {
-    TR_PEER_FROM_INCOMING  = 0,  /* connections made to the listening port */
-    TR_PEER_FROM_TRACKER   = 1,  /* peers received from a tracker */
-    TR_PEER_FROM_DHT       = 2,  /* peers learnt from the DHT */
-    TR_PEER_FROM_RESUME    = 3,  /* peers read from the .resume file */
-    TR_PEER_FROM_PEX       = 4,  /* peers discovered via PEX */
-    TR_PEER_FROM_LTEP      = 5,  /* peer address provided in an LTEP handshake */
+    TR_PEER_FROM_INCOMING  = 0, /* connections made to the listening port */
+    TR_PEER_FROM_LPD,           /* peers found by local announcements */
+    TR_PEER_FROM_TRACKER,       /* peers found from a tracker */
+    TR_PEER_FROM_DHT,           /* peers found from the DHT */
+    TR_PEER_FROM_PEX,           /* peers found from PEX */
+    TR_PEER_FROM_RESUME,        /* peers found in the .resume file */
+    TR_PEER_FROM_LTEP,          /* peer address provided in an LTEP handshake */
     TR_PEER_FROM__MAX
 };
 
@@ -1711,10 +1734,10 @@ typedef struct tr_stat
         @see tr_stat.leftUntilDone */
     float    percentDone;
 
-    /** The percentage of the actual ratio to the seed ratio.  This will be
-        equal to 1 if the ratio is reached or the torrent is set to seed forever.
+    /** How much has been uploaded to satisfy the seed ratio.
+        This is 1 if the ratio is reached or the torrent is set to seed forever.
         Range is [0..1] */
-    float    percentRatio;
+    float    seedRatioPercentDone;
 
     /** Speed all data being sent for this torrent. (KiB/s)
         This includes piece data, protocol messages, and TCP overhead */
@@ -1814,6 +1837,10 @@ typedef struct tr_stat
 
     /** The last time we uploaded or downloaded piece data on this torrent. */
     time_t    activityDate;
+    
+    /** A torrent is considered finished if it has met its seed ratio.
+        As a result, only paused torrents can be finished. */
+    tr_bool   finished;
 }
 tr_stat;
 

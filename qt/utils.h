@@ -27,7 +27,7 @@ class Utils: public QObject
         Utils( ) { }
         virtual ~Utils( ) { }
     public:
-
+        static QString remoteFileChooser( QWidget * parent, const QString& title, const QString& myPath, bool dir, bool local );
         static QString sizeToString( double size );
         static QString speedToString( const Speed& speed );
         static QString ratioToString( double ratio );
@@ -36,6 +36,16 @@ class Utils: public QObject
 
         // meh
         static void toStderr( const QString& qstr );
+
+        /// 
+        /// URLs
+        ///
+
+        static bool isMagnetLink( const QString& s ) { return s.startsWith( "magnet:?" ); }
+
+        static bool isURL( const QString& s ) { return s.startsWith( "http://" )
+                                                    || s.startsWith( "https://" )
+                                                    || s.startsWith( "ftp://" ); }
 
 };
 

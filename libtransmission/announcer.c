@@ -24,6 +24,7 @@
 #include "publish.h"
 #include "session.h"
 #include "tr-dht.h"
+#include "tr-lpd.h"
 #include "torrent.h"
 #include "utils.h"
 #include "web.h"
@@ -60,12 +61,15 @@ enum
     MAX_TRACKER_RESPONSE_TIME_SECS = ( 60 * 2 ),
 
     /* the value of the 'numwant' argument passed in tracker requests. */
-    NUMWANT = 200,
+    NUMWANT = 80,
 
     /* how long to put slow (nonresponsive) trackers in the penalty box */
     SLOW_HOST_PENALTY_SECS = ( 60 * 10 ),
 
-    UPKEEP_INTERVAL_SECS = 1
+    UPKEEP_INTERVAL_SECS = 1,
+
+    /* this is an upper limit for the frequency of LDS announces */
+    LPD_HOUSEKEEPING_INTERVAL_SECS = 30
 
 };
 
@@ -202,6 +206,7 @@ typedef struct tr_announcer
     tr_session * session;
     struct event * upkeepTimer;
     int slotsAvailable;
+    time_t lpdHouseKeepingAt;
 }
 tr_announcer;
 
@@ -231,10 +236,25 @@ getHost( tr_announcer * announcer, const char * url )
 static void
 onUpkeepTimer( int foo UNUSED, short bar UNUSED, void * vannouncer );
 
+static inline time_t
+calcRescheduleWithJitter( const int minPeriod )
+{
+    const double jitterFac = 0.1;
+
+    assert( minPeriod > 0 );
+
+    return tr_time()
+        + minPeriod
+        + tr_cryptoWeakRandInt( (int) ( minPeriod * jitterFac ) + 1 );
+}
+
 void
 tr_announcerInit( tr_session * session )
 {
     tr_announcer * a;
+
+    const time_t relaxUntil =
+        calcRescheduleWithJitter( LPD_HOUSEKEEPING_INTERVAL_SECS / 3 );
 
     assert( tr_isSession( session ) );
 
@@ -243,6 +263,7 @@ tr_announcerInit( tr_session * session )
     a->stops = TR_PTR_ARRAY_INIT;
     a->session = session;
     a->slotsAvailable = MAX_CONCURRENT_TASKS;
+    a->lpdHouseKeepingAt = relaxUntil;
     a->upkeepTimer = tr_new0( struct event, 1 );
     evtimer_set( a->upkeepTimer, onUpkeepTimer, a );
     tr_timerAdd( a->upkeepTimer, UPKEEP_INTERVAL_SECS, 0 );
@@ -560,7 +581,7 @@ getTier( tr_announcer * announcer, int torrentId, int tierId )
 ****  PUBLISH
 ***/
 
-static const tr_tracker_event emptyEvent = { 0, NULL, NULL, 0, 0 };
+static const tr_tracker_event emptyEvent = { 0, NULL, NULL, NULL, 0, 0 };
 
 static void
 publishMessage( tr_tier * tier, const char * msg, int type )
@@ -571,6 +592,7 @@ publishMessage( tr_tier * tier, const char * msg, int type )
         tr_tracker_event event = emptyEvent;
         event.messageType = type;
         event.text = msg;
+        event.tracker = tier->currentTracker ? tier->currentTracker->announce : NULL;
         tr_publisherPublish( &tiers->publisher, tier, &event );
     }
 }
@@ -596,24 +618,35 @@ publishWarning( tr_tier * tier, const char * msg )
 }
 
 static int
-publishNewPeers( tr_tier * tier, tr_bool allAreSeeds,
+getSeedProbability( int seeds, int leechers )
+{
+    if( !seeds )
+        return 0;
+
+    if( seeds>=0 && leechers>=0 )
+        return (int)((100.0*seeds)/(seeds+leechers));
+
+    return -1; /* unknown */
+}
+
+static int
+publishNewPeers( tr_tier * tier, int seeds, int leechers,
                  const void * compact, int compactLen )
 {
     tr_tracker_event e = emptyEvent;
 
     e.messageType = TR_TRACKER_PEERS;
-    e.allAreSeeds = allAreSeeds;
+    e.seedProbability = getSeedProbability( seeds, leechers );
     e.compact = compact;
     e.compactLen = compactLen;
 
-    if( compactLen )
-        tr_publisherPublish( &tier->tor->tiers->publisher, tier, &e );
+    tr_publisherPublish( &tier->tor->tiers->publisher, tier, &e );
 
     return compactLen / 6;
 }
 
 static int
-publishNewPeersCompact( tr_tier * tier, tr_bool allAreSeeds,
+publishNewPeersCompact( tr_tier * tier, int seeds, int leechers,
                         const void * compact, int compactLen )
 {
     int i;
@@ -639,7 +672,7 @@ publishNewPeersCompact( tr_tier * tier, tr_bool allAreSeeds,
         compactWalk += 6;
     }
 
-    publishNewPeers( tier, allAreSeeds, array, arrayLen );
+    publishNewPeers( tier, seeds, leechers, array, arrayLen );
 
     tr_free( array );
 
@@ -647,7 +680,7 @@ publishNewPeersCompact( tr_tier * tier, tr_bool allAreSeeds,
 }
 
 static int
-publishNewPeersCompact6( tr_tier * tier, tr_bool allAreSeeds,
+publishNewPeersCompact6( tr_tier * tier, int seeds, int leechers,
                          const void * compact, int compactLen )
 {
     int i;
@@ -671,7 +704,8 @@ publishNewPeersCompact6( tr_tier * tier, tr_bool allAreSeeds,
         memcpy( walk + sizeof( addr ), &port, 2 );
         walk += sizeof( tr_address ) + 2;
     }
-    publishNewPeers( tier, allAreSeeds, array, arrayLen );
+
+    publishNewPeers( tier, seeds, leechers, array, arrayLen );
     tr_free( array );
 
     return peerCount;
@@ -763,7 +797,6 @@ static tr_bool
 announceURLIsSupported( const char * announce )
 {
     return ( announce != NULL )
-        && ( strstr( announce, "tracker.thepiratebay.org" ) == NULL ) /* dead */
         && ( ( strstr( announce, "http://" ) == announce ) ||
              ( strstr( announce, "https://" ) == announce ) );
 }
@@ -887,7 +920,7 @@ tr_announcerResetTorrent( tr_announcer * announcer, tr_torrent * tor )
         tr_tier ** tiers = (tr_tier**) tr_ptrArrayPeek( &tor->tiers->tiers, &n );
         for( i=0; i<n; ++i ) {
             tr_tier * tier = tiers[i];
-            if( !tier->wasCopied )    
+            if( !tier->wasCopied )
                 tierAddAnnounce( tier, STARTED, now );
         }
     }
@@ -1196,12 +1229,18 @@ parseAnnounceResponse( tr_tier     * tier,
     int scrapeFields = 0;
     const int bencLoaded = !tr_bencLoad( response, responseLen, &benc, NULL );
 
+    if( getenv( "TR_CURL_VERBOSE" ) != NULL )
+    {
+        char * str = tr_bencToStr( &benc, TR_FMT_JSON, NULL );
+        fprintf( stderr, "Announce response:\n< %s\n", str );
+        tr_free( str );
+    }
+
     dbgmsg( tier, "response len: %d, isBenc: %d", (int)responseLen, (int)bencLoaded );
     publishErrorClear( tier );
     if( bencLoaded && tr_bencIsDict( &benc ) )
     {
         int peerCount = 0;
-        int incomplete = -1;
         size_t rawlen;
         int64_t i;
         tr_benc * tmp;
@@ -1245,16 +1284,18 @@ parseAnnounceResponse( tr_tier     * tier,
             tier->currentTracker->tracker_id = tr_strdup( str );
         }
 
-        if( tr_bencDictFindInt( &benc, "complete", &i ) )
-        {
+        if( !tr_bencDictFindInt( &benc, "complete", &i ) )
+            tier->currentTracker->seederCount = 0;
+        else {
             ++scrapeFields;
             tier->currentTracker->seederCount = i;
         }
 
-        if( tr_bencDictFindInt( &benc, "incomplete", &i ) )
-        {
+        if( !tr_bencDictFindInt( &benc, "incomplete", &i ) )
+            tier->currentTracker->leecherCount = 0;
+        else {
             ++scrapeFields;
-            tier->currentTracker->leecherCount = incomplete = i;
+            tier->currentTracker->leecherCount = i;
         }
 
         if( tr_bencDictFindInt( &benc, "downloaded", &i ) )
@@ -1266,17 +1307,19 @@ parseAnnounceResponse( tr_tier     * tier,
         if( tr_bencDictFindRaw( &benc, "peers", &raw, &rawlen ) )
         {
             /* "compact" extension */
-            const int allAreSeeds = incomplete == 0;
-            peerCount += publishNewPeersCompact( tier, allAreSeeds, raw, rawlen );
+            const int seeders = tier->currentTracker->seederCount;
+            const int leechers = tier->currentTracker->leecherCount;
+            peerCount += publishNewPeersCompact( tier, seeders, leechers, raw, rawlen );
             gotPeers = TRUE;
         }
         else if( tr_bencDictFindList( &benc, "peers", &tmp ) )
         {
             /* original version of peers */
-            const tr_bool allAreSeeds = incomplete == 0;
+            const int seeders = tier->currentTracker->seederCount;
+            const int leechers = tier->currentTracker->leecherCount;
             size_t byteCount = 0;
             uint8_t * array = parseOldPeers( tmp, &byteCount );
-            peerCount += publishNewPeers( tier, allAreSeeds, array, byteCount );
+            peerCount += publishNewPeers( tier, seeders, leechers, array, byteCount );
             gotPeers = TRUE;
             tr_free( array );
         }
@@ -1284,8 +1327,9 @@ parseAnnounceResponse( tr_tier     * tier,
         if( tr_bencDictFindRaw( &benc, "peers6", &raw, &rawlen ) )
         {
             /* "compact" extension */
-            const tr_bool allAreSeeds = incomplete == 0;
-            peerCount += publishNewPeersCompact6( tier, allAreSeeds, raw, rawlen );
+            const int seeders = tier->currentTracker->seederCount;
+            const int leechers = tier->currentTracker->leecherCount;
+            peerCount += publishNewPeersCompact6( tier, seeders, leechers, raw, rawlen );
             gotPeers = TRUE;
         }
 
@@ -1428,6 +1472,20 @@ onAnnounceDone( tr_session   * session,
             tierAddAnnounce( tier, announceEvent, now + interval );
             tier->manualAnnounceAllowedAt = now + tier->announceMinIntervalSec;
         }
+        else if( ( responseCode == 404 ) || ( 500 <= responseCode && responseCode <= 599 ) )
+        {
+            /* 404: The requested resource could not be found but may be
+             * available again in the future.  Subsequent requests by
+             * the client are permissible. */
+
+            /* 5xx: indicate cases in which the server is aware that it
+             * has erred or is incapable of performing the request.
+             * So we pause a bit and try again. */
+
+            const int interval = getRetryInterval( tier->currentTracker->host );
+            tier->manualAnnounceAllowedAt = ~(time_t)0;
+            tierAddAnnounce( tier, announceEvent, now + interval );
+        }
         else if( 400 <= responseCode && responseCode <= 499 )
         {
             /* The request could not be understood by the server due to
@@ -1437,16 +1495,6 @@ onAnnounceDone( tr_session   * session,
                 publishErrorMessageAndStop( tier, _( "Tracker returned a 4xx message" ) );
             tier->announceAt = 0;
             tier->manualAnnounceAllowedAt = ~(time_t)0;
-        }
-        else if( 500 <= responseCode && responseCode <= 599 )
-        {
-            /* Response status codes beginning with the digit "5" indicate
-             * cases in which the server is aware that it has erred or is
-             * incapable of performing the request.  So we pause a bit and
-             * try again. */
-            const int interval = getRetryInterval( tier->currentTracker->host );
-            tier->manualAnnounceAllowedAt = ~(time_t)0;
-            tierAddAnnounce( tier, announceEvent, now + interval );
         }
         else
         {
@@ -1495,13 +1543,19 @@ getNextAnnounceEvent( tr_tier * tier )
     assert( tier != NULL );
     assert( tr_isTorrent( tier->tor ) );
 
-    /* special case #1: if "stopped" is in the queue, ignore everything before it */
     events = (const char**) tr_ptrArrayPeek( &tier->announceEvents, &n );
+
+    /* special case #1: if "stopped" is in the queue,
+     * ignore everything before it except "completed" */
     if( pos == -1 ) {
-        for( i=0; i<n; ++i )
+        tr_bool completed = FALSE;
+        for( i = 0; i < n; ++i ) {
+            if( !strcmp( events[i], "completed" ) )
+                completed = TRUE;
             if( !strcmp( events[i], "stopped" ) )
                 break;
-        if( i <  n )
+        }
+        if( !completed && ( i <  n ) )
             pos = i;
     }
 
@@ -1879,6 +1933,16 @@ fprintf( stderr, "[%s] announce.c has %d requests ready to send (announce: %d, s
                         now + 25 * 60 + tr_cryptoWeakRandInt( 3 * 60 );
             }
         }
+    }
+
+    /* Local Peer Discovery */
+    if( announcer->lpdHouseKeepingAt <= now )
+    {
+        tr_lpdAnnounceMore( now, LPD_HOUSEKEEPING_INTERVAL_SECS );
+
+        /* reschedule more LDS announces for ( the future + jitter ) */
+        announcer->lpdHouseKeepingAt =
+            calcRescheduleWithJitter( LPD_HOUSEKEEPING_INTERVAL_SECS );
     }
 }
 

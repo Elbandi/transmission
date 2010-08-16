@@ -2,17 +2,17 @@
 <archive type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="7.10">
 	<data>
 		<int key="IBDocument.SystemTarget">1050</int>
-		<string key="IBDocument.SystemVersion">10C540</string>
-		<string key="IBDocument.InterfaceBuilderVersion">740</string>
-		<string key="IBDocument.AppKitVersion">1038.25</string>
-		<string key="IBDocument.HIToolboxVersion">458.00</string>
+		<string key="IBDocument.SystemVersion">10D573</string>
+		<string key="IBDocument.InterfaceBuilderVersion">762</string>
+		<string key="IBDocument.AppKitVersion">1038.29</string>
+		<string key="IBDocument.HIToolboxVersion">460.00</string>
 		<object class="NSMutableDictionary" key="IBDocument.PluginVersions">
 			<string key="NS.key.0">com.apple.InterfaceBuilder.CocoaPlugin</string>
-			<string key="NS.object.0">740</string>
+			<string key="NS.object.0">762</string>
 		</object>
 		<object class="NSMutableArray" key="IBDocument.EditedObjectIDs">
 			<bool key="EncodedWithXMLCoder">YES</bool>
-			<integer value="931"/>
+			<integer value="6"/>
 		</object>
 		<object class="NSArray" key="IBDocument.PluginDependencies">
 			<bool key="EncodedWithXMLCoder">YES</bool>
@@ -63,7 +63,7 @@
 							<bool key="NSEnabled">YES</bool>
 							<object class="NSTextFieldCell" key="NSCell" id="585844623">
 								<int key="NSCellFlags">67239488</int>
-								<int key="NSCellFlags2">4196352</int>
+								<int key="NSCellFlags2">4196864</int>
 								<string key="NSContents">No Torrent Selected</string>
 								<object class="NSFont" key="NSSupport">
 									<string key="NSName">LucidaGrande-Bold</string>
@@ -130,8 +130,8 @@
 							<reference key="NSSuperview" ref="429007171"/>
 							<bool key="NSEnabled">YES</bool>
 							<object class="NSTextFieldCell" key="NSCell" id="615989236">
-								<int key="NSCellFlags">67239424</int>
-								<int key="NSCellFlags2">272629760</int>
+								<int key="NSCellFlags">67239488</int>
+								<int key="NSCellFlags2">272631808</int>
 								<string key="NSContents">info</string>
 								<object class="NSFont" key="NSSupport">
 									<string key="NSName">LucidaGrande</string>
@@ -156,15 +156,19 @@
 								<object class="NSButtonCell" id="120462994">
 									<int key="NSCellFlags">67239424</int>
 									<int key="NSCellFlags2">0</int>
-									<string key="NSContents">General Info</string>
+									<string key="NSContents"/>
 									<object class="NSFont" key="NSSupport" id="737793924">
 										<string key="NSName">LucidaGrande</string>
 										<double key="NSSize">13</double>
 										<int key="NSfFlags">1044</int>
 									</object>
 									<reference key="NSControlView" ref="1020839921"/>
-									<int key="NSButtonFlags">104612095</int>
+									<int key="NSButtonFlags">108282111</int>
 									<int key="NSButtonFlags2">6</int>
+									<object class="NSCustomResource" key="NSNormalImage">
+										<string key="NSClassName">NSImage</string>
+										<string key="NSResourceName">InfoGeneral</string>
+									</object>
 									<string key="NSAlternateContents"/>
 									<string key="NSKeyEquivalent"/>
 									<int key="NSPeriodicDelay">200</int>
@@ -173,12 +177,16 @@
 								<object class="NSButtonCell" id="308477966">
 									<int key="NSCellFlags">67239424</int>
 									<int key="NSCellFlags2">0</int>
-									<string key="NSContents">Activity</string>
+									<string key="NSContents"/>
 									<reference key="NSSupport" ref="737793924"/>
 									<reference key="NSControlView" ref="1020839921"/>
 									<int key="NSTag">1</int>
-									<int key="NSButtonFlags">104612095</int>
+									<int key="NSButtonFlags">108282111</int>
 									<int key="NSButtonFlags2">6</int>
+									<object class="NSCustomResource" key="NSNormalImage">
+										<string key="NSClassName">NSImage</string>
+										<string key="NSResourceName">InfoActivity</string>
+									</object>
 									<string key="NSAlternateContents"/>
 									<string key="NSKeyEquivalent"/>
 									<int key="NSPeriodicDelay">400</int>
@@ -187,12 +195,16 @@
 								<object class="NSButtonCell" id="570838979">
 									<int key="NSCellFlags">67239424</int>
 									<int key="NSCellFlags2">0</int>
-									<string key="NSContents">Tracker</string>
+									<string key="NSContents"/>
 									<reference key="NSSupport" ref="737793924"/>
 									<reference key="NSControlView" ref="1020839921"/>
 									<int key="NSTag">2</int>
-									<int key="NSButtonFlags">104612095</int>
+									<int key="NSButtonFlags">108282111</int>
 									<int key="NSButtonFlags2">6</int>
+									<object class="NSCustomResource" key="NSNormalImage">
+										<string key="NSClassName">NSImage</string>
+										<string key="NSResourceName">InfoTracker</string>
+									</object>
 									<string key="NSAlternateContents"/>
 									<string key="NSKeyEquivalent"/>
 									<int key="NSPeriodicDelay">400</int>
@@ -201,12 +213,16 @@
 								<object class="NSButtonCell" id="38805807">
 									<int key="NSCellFlags">67239424</int>
 									<int key="NSCellFlags2">0</int>
-									<string key="NSContents">Peers</string>
+									<string key="NSContents"/>
 									<reference key="NSSupport" ref="737793924"/>
 									<reference key="NSControlView" ref="1020839921"/>
 									<int key="NSTag">3</int>
-									<int key="NSButtonFlags">104612095</int>
+									<int key="NSButtonFlags">108282111</int>
 									<int key="NSButtonFlags2">6</int>
+									<object class="NSCustomResource" key="NSNormalImage">
+										<string key="NSClassName">NSImage</string>
+										<string key="NSResourceName">InfoPeers</string>
+									</object>
 									<string key="NSAlternateContents"/>
 									<string key="NSKeyEquivalent"/>
 									<int key="NSPeriodicDelay">400</int>
@@ -215,12 +231,16 @@
 								<object class="NSButtonCell" id="530185020">
 									<int key="NSCellFlags">67239424</int>
 									<int key="NSCellFlags2">0</int>
-									<string key="NSContents">Files</string>
+									<string key="NSContents"/>
 									<reference key="NSSupport" ref="737793924"/>
 									<reference key="NSControlView" ref="1020839921"/>
 									<int key="NSTag">4</int>
-									<int key="NSButtonFlags">104612095</int>
+									<int key="NSButtonFlags">108806399</int>
 									<int key="NSButtonFlags2">6</int>
+									<object class="NSCustomResource" key="NSNormalImage">
+										<string key="NSClassName">NSImage</string>
+										<string key="NSResourceName">InfoFiles</string>
+									</object>
 									<string key="NSAlternateContents"/>
 									<string key="NSKeyEquivalent"/>
 									<int key="NSPeriodicDelay">400</int>
@@ -229,12 +249,16 @@
 								<object class="NSButtonCell" id="219666447">
 									<int key="NSCellFlags">-2080244224</int>
 									<int key="NSCellFlags2">0</int>
-									<string key="NSContents">Options</string>
+									<string key="NSContents"/>
 									<reference key="NSSupport" ref="737793924"/>
 									<reference key="NSControlView" ref="1020839921"/>
 									<int key="NSTag">5</int>
-									<int key="NSButtonFlags">-2042871553</int>
+									<int key="NSButtonFlags">-2038677249</int>
 									<int key="NSButtonFlags2">6</int>
+									<object class="NSCustomResource" key="NSNormalImage">
+										<string key="NSClassName">NSImage</string>
+										<string key="NSResourceName">InfoOptions</string>
+									</object>
 									<int key="NSPeriodicDelay">400</int>
 									<int key="NSPeriodicInterval">75</int>
 								</object>
@@ -714,9 +738,9 @@ AAB0ZXh0AAAAAENvcHlyaWdodCBBcHBsZSBDb21wdXRlciwgSW5jLiwgMjAwNQAAAAA</bytes>
 					<string>InfoTextField</string>
 					<string>com.apple.InterfaceBuilder.CocoaPlugin</string>
 					<integer value="1"/>
-					<string>{{897, 867}, {403, 75}}</string>
+					<string>{{500, 881}, {403, 75}}</string>
 					<string>com.apple.InterfaceBuilder.CocoaPlugin</string>
-					<string>{{897, 867}, {403, 75}}</string>
+					<string>{{500, 881}, {403, 75}}</string>
 					<integer value="1"/>
 					<string>{{687, 827}, {350, 75}}</string>
 					<boolean value="NO"/>
@@ -1433,6 +1457,7 @@ AAB0ZXh0AAAAAENvcHlyaWdodCBBcHBsZSBDb21wdXRlciwgSW5jLiwgMjAwNQAAAAA</bytes>
 			</object>
 		</object>
 		<int key="IBDocument.localizationMode">0</int>
+		<string key="IBDocument.TargetRuntimeIdentifier">IBCocoaFramework</string>
 		<object class="NSMutableDictionary" key="IBDocument.PluginDeclaredDependencies">
 			<string key="NS.key.0">com.apple.InterfaceBuilder.CocoaPlugin.macosx</string>
 			<integer value="1050" key="NS.object.0"/>
@@ -1448,5 +1473,30 @@ AAB0ZXh0AAAAAENvcHlyaWdodCBBcHBsZSBDb21wdXRlciwgSW5jLiwgMjAwNQAAAAA</bytes>
 		<bool key="IBDocument.PluginDeclaredDependenciesTrackSystemTargetVersion">YES</bool>
 		<string key="IBDocument.LastKnownRelativeProjectPath">../Transmission.xcodeproj</string>
 		<int key="IBDocument.defaultPropertyAccessControl">3</int>
+		<object class="NSMutableDictionary" key="IBDocument.LastKnownImageSizes">
+			<bool key="EncodedWithXMLCoder">YES</bool>
+			<object class="NSArray" key="dict.sortedKeys">
+				<bool key="EncodedWithXMLCoder">YES</bool>
+				<string>InfoActivity</string>
+				<string>InfoFiles</string>
+				<string>InfoGeneral</string>
+				<string>InfoOptions</string>
+				<string>InfoPeers</string>
+				<string>InfoTabBorder</string>
+				<string>InfoTracker</string>
+				<string>NSApplicationIcon</string>
+			</object>
+			<object class="NSMutableArray" key="dict.values">
+				<bool key="EncodedWithXMLCoder">YES</bool>
+				<string>{20.2475, 20.2475}</string>
+				<string>{20, 20}</string>
+				<string>{20, 20}</string>
+				<string>{20, 20}</string>
+				<string>{20, 20}</string>
+				<string>{1, 25}</string>
+				<string>{20.2475, 20.2475}</string>
+				<string>{512, 512}</string>
+			</object>
+		</object>
 	</data>
 </archive>

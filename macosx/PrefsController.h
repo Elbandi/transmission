@@ -84,6 +84,7 @@
 
 - (void) setPEX: (id) sender;
 - (void) setDHT: (id) sender;
+- (void) setLPD: (id) sender;
 
 - (void) setEncryptionMode: (id) sender;
 
@@ -91,6 +92,8 @@
 - (void) updateBlocklist: (id) sender;
 - (void) setBlocklistAutoUpdate: (id) sender;
 - (void) updateBlocklistFields;
+
+- (void) setAutoStartDownloads: (id) sender;
 
 - (void) setBadge: (id) sender;
 

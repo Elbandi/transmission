@@ -26,10 +26,15 @@
 #endif
 
 #ifdef WIN32
- #include <windows.h>
- #define MAX_PATH_LENGTH  MAX_PATH
+ #include <windows.h> /* MAX_PATH */
+ #define TR_PATH_MAX MAX_PATH
 #else
- #define MAX_PATH_LENGTH  2048
+ #include <limits.h> /* PATH_MAX */
+ #ifdef PATH_MAX
+  #define TR_PATH_MAX PATH_MAX
+ #else
+  #define TR_PATH_MAX 4096
+ #endif
 #endif
 
 /**
@@ -41,7 +46,7 @@
  * @brief invoked by tr_sessionInit() to set up the locations of the resume, torrent, and clutch directories.
  * @see tr_getResumeDir()
  * @see tr_getTorrentDir()
- * @see tr_getClutchDir()
+ * @see tr_getWebClientDir()
  */
 void tr_setConfigDir( tr_session * session, const char * configDir );
 
@@ -51,8 +56,8 @@ const char * tr_getResumeDir( const tr_session * );
 /** @brief return the directory where .torrent files are stored */
 const char * tr_getTorrentDir( const tr_session * );
 
-/** @brief return the directory where Clutch's web ui files are kept */
-const char * tr_getClutchDir( const tr_session * );
+/** @brief return the directory where the Web Client's web ui files are kept */
+const char * tr_getWebClientDir( const tr_session * );
 
 /** @} */
 

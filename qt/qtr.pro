@@ -7,7 +7,7 @@ LICENSE = "GPL"
 target.path = /bin
 INSTALLS += target
 
-CONFIG += qt thread debug link_pkgconfig
+CONFIG += qt qdbus thread debug link_pkgconfig
 QT += network
 PKGCONFIG = fontconfig libcurl openssl
 
@@ -17,14 +17,14 @@ LIBS += $${TRANSMISSION_TOP}/libtransmission/libtransmission.a
 LIBS += $${TRANSMISSION_TOP}/third-party/dht/libdht.a
 LIBS += $${TRANSMISSION_TOP}/third-party/miniupnp/libminiupnp.a
 LIBS += $${TRANSMISSION_TOP}/third-party/libnatpmp/libnatpmp.a
-LIBS += $${TRANSMISSION_TOP}/third-party/libevent/.libs/libevent.a
+LIBS += -levent
 
 TRANSLATIONS += transmission_en.ts transmission_ru.ts
 
 FORMS += mainwin.ui
 RESOURCES += application.qrc
-SOURCES += about.cc app.cc details.cc file-tree.cc filters.cc hig.cc \
-           license.cc mainwin.cc make-dialog.cc options.cc prefs.cc \
+SOURCES += about.cc app.cc dbus-adaptor.cc details.cc file-tree.cc filters.cc \
+           hig.cc license.cc mainwin.cc make-dialog.cc options.cc prefs.cc \
            prefs-dialog.cc qticonloader.cc relocate.cc session.cc \
            session-dialog.cc squeezelabel.cc stats-dialog.cc torrent.cc \
            torrent-delegate.cc torrent-delegate-min.cc torrent-filter.cc \

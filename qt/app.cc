@@ -14,6 +14,9 @@
 #include <ctime>
 #include <iostream>
 
+#include <QDBusConnection>
+#include <QDBusError>
+#include <QDBusMessage>
 #include <QDialogButtonBox>
 #include <QIcon>
 #include <QLabel>
@@ -26,6 +29,7 @@
 #include <libtransmission/version.h>
 
 #include "app.h"
+#include "dbus-adaptor.h"
 #include "mainwin.h"
 #include "options.h"
 #include "prefs.h"
@@ -37,6 +41,10 @@
 
 namespace
 {
+    const char * DBUS_SERVICE     ( "com.transmissionbt.Transmission"  );
+    const char * DBUS_OBJECT_PATH ( "/com/transmissionbt/Transmission" );
+    const char * DBUS_INTERFACE   ( "com.transmissionbt.Transmission"  );
+
     const char * MY_NAME( "transmission" );
 
     const tr_option opts[] =
@@ -45,7 +53,7 @@ namespace
         { 'm', "minimized",  "Start minimized in system tray", "m", 0, NULL },
         { 'p', "port",  "Port to use when connecting to an existing session", "p", 1, "<port>" },
         { 'r', "remote",  "Connect to an existing session at the specified hostname", "r", 1, "<host>" },
-        { 'u', "username", "Username to use when connecting to an existing session", "v", 1, "<username>" },
+        { 'u', "username", "Username to use when connecting to an existing session", "u", 1, "<username>" },
         { 'v', "version", "Show version number and exit", "v", 0, NULL },
         { 'w', "password", "Password to use when connecting to an existing session", "w", 1, "<password>" },
         { 0, NULL, NULL, NULL, 0, NULL }
@@ -116,7 +124,7 @@ MyApp :: MyApp( int& argc, char ** argv ):
             case 'u': username = optarg; break;
             case 'w': password = optarg; break;
             case 'm': minimized = true; break;
-            case 'v':        Utils::toStderr( QObject::tr( "transmission %1" ).arg( LONG_VERSION_STRING ) ); exit( 0 ); break;
+            case 'v':        Utils::toStderr( QObject::tr( "transmission %1" ).arg( LONG_VERSION_STRING ) ); ::exit( 0 ); break;
             case TR_OPT_ERR: Utils::toStderr( QObject::tr( "Invalid option" ) ); showUsage( ); break;
             default:         filenames.append( optarg ); break;
         }
@@ -138,7 +146,7 @@ MyApp :: MyApp( int& argc, char ** argv ):
     if( username != 0 )
         myPrefs->set( Prefs::SESSION_REMOTE_USERNAME, username );
     if( password != 0 )
-        myPrefs->set( Prefs::SESSION_REMOTE_USERNAME, password );
+        myPrefs->set( Prefs::SESSION_REMOTE_PASSWORD, password );
     if( ( host != 0 ) || ( port != 0 ) || ( username != 0 ) || ( password != 0 ) )
         myPrefs->set( Prefs::SESSION_IS_REMOTE, true );
 
@@ -151,6 +159,8 @@ MyApp :: MyApp( int& argc, char ** argv ):
     connect( mySession, SIGNAL(torrentsUpdated(tr_benc*,bool)), myModel, SLOT(updateTorrents(tr_benc*,bool)) );
     connect( mySession, SIGNAL(torrentsUpdated(tr_benc*,bool)), myWindow, SLOT(refreshActionSensitivity()) );
     connect( mySession, SIGNAL(torrentsRemoved(tr_benc*)), myModel, SLOT(removeTorrents(tr_benc*)) );
+    // when the session source gets changed, request a full refresh
+    connect( mySession, SIGNAL(sourceChanged()), this, SLOT(onSessionSourceChanged()) );
     // when the model sees a torrent for the first time, ask the session for full info on it
     connect( myModel, SIGNAL(torrentsAdded(QSet<int>)), mySession, SLOT(initTorrents(QSet<int>)) );
 
@@ -199,7 +209,7 @@ MyApp :: MyApp( int& argc, char ** argv ):
         QDialog * dialog = new QDialog( myWindow );
         dialog->setModal( true );
         QVBoxLayout * v = new QVBoxLayout( dialog );
-        QLabel * l = new QLabel( tr( "Transmission is a file sharing program.  When you run a torrent, its data will be made available to others by means of upload.  And of course, any content you share is your sole responsibility.\n\nYou probably knew this, so we won't tell you again." ) );
+        QLabel * l = new QLabel( tr( "Transmission is a file-sharing program.  When you run a torrent, its data will be made available to others by means of upload.  You and you alone are fully responsible for exercising proper judgement and abiding by your local laws." ) );
         l->setWordWrap( true );
         v->addWidget( l );
         QDialogButtonBox * box = new QDialogButtonBox;
@@ -217,7 +227,15 @@ MyApp :: MyApp( int& argc, char ** argv ):
     }
 
     for( QStringList::const_iterator it=filenames.begin(), end=filenames.end(); it!=end; ++it )
-        mySession->addTorrent( *it );
+        addTorrent( *it );
+
+    // register as the dbus handler for Transmission
+    new TrDBusAdaptor( this );
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    if (!bus.registerService("com.transmissionbt.Transmission"))
+        fprintf(stderr, "%s\n", qPrintable(bus.lastError().message()));
+    if( !bus.registerObject( "/com/transmissionbt/Transmission", this ))
+        fprintf(stderr, "%s\n", qPrintable(bus.lastError().message()));
 }
 
 void
@@ -284,6 +302,14 @@ MyApp :: maybeUpdateBlocklist( )
 }
 
 void
+MyApp :: onSessionSourceChanged( )
+{
+    mySession->initTorrents( );
+    mySession->refreshSessionStats( );
+    mySession->refreshSessionInfo( );
+}
+
+void
 MyApp :: refreshTorrents( )
 {
     // usually we just poll the torrents that have shown recent activity,
@@ -298,19 +324,35 @@ MyApp :: refreshTorrents( )
     }
 }
 
+/***
+****
+***/
+
 void
-MyApp :: addTorrent( const QString& filename )
+MyApp :: addTorrent( const QString& key )
 {
-    if( myPrefs->getBool( Prefs :: OPTIONS_PROMPT ) ) {
-        Options * o = new Options( *mySession, *myPrefs, filename, myWindow );
-        o->show( );
-        QApplication :: alert( o );
-    } else {
-        mySession->addTorrent( filename );
-        QApplication :: alert ( myWindow );
+    if( !myPrefs->getBool( Prefs :: OPTIONS_PROMPT ) )
+    {
+        mySession->addTorrent( key );
     }
+    else if( Utils::isMagnetLink( key ) || QFile( key ).exists( ) )
+    {
+        Options * o = new Options( *mySession, *myPrefs, key, myWindow );
+        o->show( );
+    }
+    else if( Utils::isURL( key ) )
+    {
+        myWindow->openURL( key );
+    }
+
+    raise( );
 }
 
+void
+MyApp :: raise( )
+{
+    QApplication :: alert ( myWindow );
+}
 
 /***
 ****
@@ -319,6 +361,50 @@ MyApp :: addTorrent( const QString& filename )
 int
 main( int argc, char * argv[] )
 {
+    // find .torrents, URLs, magnet links, etc in the command-line args
+    int c;
+    QStringList addme;
+    const char * optarg;
+    char ** argvv = argv;
+    while( ( c = tr_getopt( getUsage( ), argc, (const char **)argvv, opts, &optarg ) ) )
+        if( c == TR_OPT_UNK )
+            addme.append( optarg );
+
+    // try to delegate the work to an existing copy of Transmission
+    // before starting ourselves...
+    bool delegated = false;
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    for( int i=0, n=addme.size(); i<n; ++i )
+    {
+        const QString key = addme[i];
+
+        QDBusMessage request = QDBusMessage::createMethodCall( DBUS_SERVICE,
+                                                               DBUS_OBJECT_PATH,
+                                                               DBUS_INTERFACE,
+                                                               "AddMetainfo" );
+        QList<QVariant> arguments;
+        arguments.push_back( QVariant( key ) );
+        request.setArguments( arguments );
+
+        QDBusMessage response = bus.call( request );
+        arguments = response.arguments( );
+        delegated |= (arguments.size()==1) && arguments[0].toBool();
+    }
+    if( addme.empty() )
+    {
+        QDBusMessage request = QDBusMessage::createMethodCall( DBUS_SERVICE,
+                                                               DBUS_OBJECT_PATH,
+                                                               DBUS_INTERFACE,
+                                                               "PresentWindow" );
+        QDBusMessage response = bus.call( request );
+        QList<QVariant> arguments = response.arguments( );
+        delegated |= (arguments.size()==1) && arguments[0].toBool();
+    }
+
+    if( delegated )
+        return 0;
+
+    tr_optind = 1;
     MyApp app( argc, argv );
     return app.exec( );
 }

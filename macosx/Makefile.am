@@ -17,16 +17,21 @@ EXTRA_DIST = \
     UKKQueue \
     TransmissionHelp \
     Images \
+    de.lproj \
     en.lproj \
     es.lproj \
     fr.lproj \
     it.lproj \
     nl.lproj \
+    pt.lproj \
+    pt_PT.lproj \
     ru.lproj \
     zh_CN.lproj \
     zh_TW.lproj \
     AboutWindowController.h \
     AboutWindowController.m \
+    AddMagnetWindowController.h \
+    AddMagnetWindowController.m \
     AddWindowController.h \
     AddWindowController.m \
     Badger.h \
@@ -91,6 +96,7 @@ EXTRA_DIST = \
     InfoPeersViewController.m \
     InfoTrackersViewController.h \
     InfoTrackersViewController.m \
+    InfoViewController.h \
     InfoWindowController.h \
     InfoWindowController.m \
     main.m \

@@ -84,14 +84,18 @@ struct tr_session
     tr_bool                      isPortRandom;
     tr_bool                      isPexEnabled;
     tr_bool                      isDHTEnabled;
+    tr_bool                      isLPDEnabled;
     tr_bool                      isBlocklistEnabled;
     tr_bool                      isProxyEnabled;
     tr_bool                      isProxyAuthEnabled;
+    tr_bool                      isTorrentDoneScriptEnabled;
     tr_bool                      isClosed;
     tr_bool                      useLazyBitfield;
     tr_bool                      isIncompleteFileNamingEnabled;
     tr_bool                      isRatioLimited;
     tr_bool                      isIncompleteDirEnabled;
+    tr_bool                      pauseAddedTorrent;
+    tr_bool                      deleteSourceTorrent;
 
     tr_benc                      removedTorrents;
 
@@ -122,9 +126,12 @@ struct tr_session
 
     int                          proxyPort;
     int                          peerSocketTOS;
+    char *                       peer_congestion_algorithm;
 
     int                          torrentCount;
     tr_torrent *                 torrentList;
+
+    char *                       torrentDoneScript;
 
     char *                       tag;
     char *                       configDir;
@@ -176,6 +183,8 @@ struct tr_session
 
 tr_bool      tr_sessionAllowsDHT( const tr_session * session );
 
+tr_bool      tr_sessionAllowsLPD( const tr_session * session );
+
 const char * tr_sessionFindTorrentFile( const tr_session * session,
                                         const char *       hashString );
 
@@ -195,6 +204,8 @@ tr_bool      tr_sessionIsLocked( const tr_session * );
 const struct tr_address*  tr_sessionGetPublicAddress( const tr_session *, int tr_af_type );
 
 struct tr_bindsockets * tr_sessionGetBindSockets( tr_session * );
+
+int tr_sessionCountTorrents( const tr_session * session ); 
 
 enum
 {

@@ -40,12 +40,24 @@
 
 - (id) init
 {
-    self = [super initWithNibName: @"InfoFileView" bundle: nil];
+    if ((self = [super initWithNibName: @"InfoFileView" bundle: nil]))
+    {
+        [self setTitle: NSLocalizedString(@"Files", "Inspector view -> title")];
+    }
+    
     return self;
 }
 
 - (void) awakeFromNib
 {
+    const CGFloat height = [[NSUserDefaults standardUserDefaults] floatForKey: @"InspectorContentHeightFiles"];
+    if (height != 0.0)
+    {
+        NSRect viewRect = [[self view] frame];
+        viewRect.size.height = height;
+        [[self view] setFrame: viewRect];
+    }
+    
     [[fFileFilterField cell] setPlaceholderString: NSLocalizedString(@"Filter", "inspector -> file filter")];
 }
 
@@ -58,9 +70,7 @@
 
 - (void) setInfoForTorrents: (NSArray *) torrents
 {
-    if (fTorrents && [fTorrents isEqualToArray: torrents])
-        return;
-    
+    //don't check if it's the same in case the metadata changed
     [fTorrents release];
     fTorrents = [torrents retain];
     
@@ -74,6 +84,11 @@
     
     if ([fTorrents count] == 1)
         [fFileController reloadData];
+}
+
+- (void) saveViewSize
+{
+    [[NSUserDefaults standardUserDefaults] setFloat: NSHeight([[self view] frame]) forKey: @"InspectorContentHeightFiles"];
 }
 
 - (void) setFileFilterText: (id) sender

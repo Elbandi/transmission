@@ -27,7 +27,7 @@
 
 #include "transmission.h"
 #include "bandwidth.h"
-#include "list.h" /* __tr_list */
+#include "list.h" /* tr_list */
 #include "net.h" /* tr_address */
 
 struct evbuffer;
@@ -106,7 +106,7 @@ typedef struct tr_peerIo
 
     struct evbuffer     * inbuf;
     struct evbuffer     * outbuf;
-    struct __tr_list      outbuf_datatypes; /* struct tr_datatype */
+    struct tr_list      * outbuf_datatypes; /* struct tr_datatype */
 
     struct event          event_read;
     struct event          event_write;
@@ -149,30 +149,30 @@ tr_bool     tr_isPeerIo         ( const tr_peerIo         * io );
 ***
 **/
 
-void        tr_peerIoEnableLTEP( tr_peerIo * io, tr_bool flag );
-
-static inline tr_bool tr_peerIoSupportsLTEP( const tr_peerIo * io )
+static inline void tr_peerIoEnableFEXT( tr_peerIo * io, tr_bool flag )
 {
-    assert( tr_isPeerIo( io ) );
-
-    return io->extendedProtocolSupported;
+    io->fastExtensionSupported = flag;
 }
-
-void        tr_peerIoEnableFEXT( tr_peerIo * io, tr_bool flag );
-
 static inline tr_bool tr_peerIoSupportsFEXT( const tr_peerIo * io )
 {
-    assert( tr_isPeerIo( io ) );
-
     return io->fastExtensionSupported;
 }
 
-void        tr_peerIoEnableDHT( tr_peerIo * io, tr_bool flag );
+static inline void tr_peerIoEnableLTEP( tr_peerIo * io, tr_bool flag )
+{
+    io->extendedProtocolSupported = flag;
+}
+static inline tr_bool tr_peerIoSupportsLTEP( const tr_peerIo * io )
+{
+    return io->extendedProtocolSupported;
+}
 
+static inline void tr_peerIoEnableDHT( tr_peerIo * io, tr_bool flag )
+{
+    io->dhtSupported = flag;
+}
 static inline tr_bool tr_peerIoSupportsDHT( const tr_peerIo * io )
 {
-    assert( tr_isPeerIo( io ) );
-
     return io->dhtSupported;
 }
 

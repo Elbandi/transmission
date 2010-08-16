@@ -90,15 +90,6 @@ tr_torrent_dispose( GObject * o )
     parent->dispose( o );
 }
 
-void
-tr_torrent_clear( TrTorrent * tor )
-{
-    g_return_if_fail( tor );
-    g_return_if_fail( tor->priv );
-
-    tor->priv->handle = NULL;
-}
-
 static void
 tr_torrent_class_init( gpointer              g_class,
                        gpointer g_class_data UNUSED )
@@ -209,68 +200,10 @@ tr_torrent_new_ctor( tr_session   * session,
 
         /* #1294: don't delete the source .torrent file if it's our internal copy */
         if( !is_internal )
-            tr_file_trash_or_remove( source );
+            gtr_file_trash_or_remove( source );
     }
 
     return tor ? maketorrent( tor ) : NULL;
-}
-
-char *
-tr_torrent_status_str( TrTorrent * gtor )
-{
-    char *          top = NULL;
-
-    const tr_stat * st = tr_torrent_stat( gtor );
-
-    const int       tpeers = MAX ( st->peersConnected, 0 );
-    const int       upeers = MAX ( st->peersGettingFromUs, 0 );
-    const int       eta = st->eta;
-
-    switch( st->activity )
-    {
-        case TR_STATUS_CHECK_WAIT:
-            top =
-                g_strdup_printf( _( "Waiting to verify local data (%.1f%% tested)" ),
-                                 tr_truncd( 100 * st->recheckProgress, 1 ) );
-            break;
-
-        case TR_STATUS_CHECK:
-            top =
-                g_strdup_printf( _( "Verifying local data (%.1f%% tested)" ),
-                                 tr_truncd( 100 * st->recheckProgress, 1 ) );
-            break;
-
-        case TR_STATUS_DOWNLOAD:
-
-            if( eta < 0 )
-                top = g_strdup_printf( _( "Remaining time unknown" ) );
-            else
-            {
-                char timestr[128];
-                tr_strltime( timestr, eta, sizeof( timestr ) );
-                /* %s is # of minutes */
-                top = g_strdup_printf( _( "%1$s remaining" ), timestr );
-            }
-            break;
-
-        case TR_STATUS_SEED:
-            top = g_strdup_printf(
-                ngettext( "Seeding to %1$'d of %2$'d connected peer",
-                          "Seeding to %1$'d of %2$'d connected peers",
-                          tpeers ),
-                upeers, tpeers );
-            break;
-
-        case TR_STATUS_STOPPED:
-            top = g_strdup( _( "Stopped" ) );
-            break;
-
-        default:
-            top = g_strdup( "???" );
-            break;
-    }
-
-    return top;
 }
 
 void
@@ -282,19 +215,21 @@ tr_torrent_set_remove_flag( TrTorrent * gtor,
 }
 
 void
-tr_torrent_delete_files( TrTorrent * gtor )
-{
-    tr_torrentDeleteLocalData( tr_torrent_handle( gtor ), tr_file_trash_or_remove );
-}
-
-void
 tr_torrent_open_folder( TrTorrent * gtor )
 {
     const tr_torrent * tor =  tr_torrent_handle( gtor );
-    const tr_info * info = tr_torrent_info( gtor );
-    const gboolean single = info->fileCount == 1;
-    char * path = single ? g_build_filename( tr_torrentGetCurrentDir( tor ), NULL )
-                         : g_build_filename( tr_torrentGetCurrentDir( tor ), info->name, NULL );
-    gtr_open_file( path );
-    g_free( path );
+
+    if( tor != NULL )
+    {
+        const tr_info * info = tr_torrent_info( gtor );
+        const gboolean single = info->fileCount == 1;
+        const char * currentDir = tr_torrentGetCurrentDir( tor );
+        if( single )
+            gtr_open_file( currentDir );
+        else {
+            char * path = g_build_filename( currentDir, info->name, NULL );
+            gtr_open_file( path );
+            g_free( path );
+        }
+    }
 }

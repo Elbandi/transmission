@@ -34,15 +34,31 @@
 ****
 ***/
 
+char*
+tr_metainfoGetBasename( const tr_info * inf )
+{
+    char *ret, *pch, *name;
+
+    name = tr_strdup( inf->name );
+    for( pch=name; pch && *pch; ++pch )
+        if( *pch == '/' )
+            *pch = '_';
+   
+    ret = tr_strdup_printf( "%s.%16.16s", name, inf->hashString );
+
+    tr_free( name );
+    return ret;
+}
+
 static char*
 getTorrentFilename( const tr_session * session,
                     const tr_info *   inf )
 {
-    return tr_strdup_printf( "%s%c%s.%16.16s.torrent",
-                             tr_getTorrentDir( session ),
-                             TR_PATH_DELIMITER,
-                             inf->name,
-                             inf->hashString );
+    char * base = tr_metainfoGetBasename( inf );
+    char * filename = tr_strdup_printf( "%s" TR_PATH_DELIMITER_STR "%s.torrent",
+                                        tr_getTorrentDir( session ), base );
+    tr_free( base );
+    return filename;
 }
 
 static char*
@@ -386,7 +402,6 @@ static const char*
 tr_metainfoParseImpl( const tr_session  * session,
                       tr_info           * inf,
                       tr_bool           * hasInfoDict,
-                      int               * infoDictOffset,
                       int               * infoDictLength,
                       const tr_benc     * meta_in )
 {
@@ -444,18 +459,6 @@ tr_metainfoParseImpl( const tr_session  * session,
 
         if( infoDictLength != NULL )
             *infoDictLength = len;
-
-        if( infoDictOffset != NULL )
-        {
-            int mlen = 0;
-            char * mstr = tr_bencToStr( meta_in, TR_FMT_BENC, &mlen );
-            const char * offset = tr_memmem( mstr, mlen, bstr, len );
-            if( offset != NULL )
-                *infoDictOffset = offset - mstr;
-            tr_free( mstr );
-            if( offset == NULL )
-                return "info";
-        }
 
         tr_free( bstr );
     }
@@ -547,13 +550,11 @@ tr_metainfoParse( const tr_session * session,
                   const tr_benc    * meta_in,
                   tr_info          * inf,
                   tr_bool          * hasInfoDict,
-                  int              * infoDictOffset,
                   int              * infoDictLength )
 {
     const char * badTag = tr_metainfoParseImpl( session,
                                                 inf,
                                                 hasInfoDict,
-                                                infoDictOffset,
                                                 infoDictLength,
                                                 meta_in );
     const tr_bool success = badTag == NULL;

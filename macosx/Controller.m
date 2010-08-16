@@ -37,6 +37,7 @@
 #import "GroupsController.h"
 #import "AboutWindowController.h"
 #import "AddWindowController.h"
+#import "AddMagnetWindowController.h"
 #import "MessageWindowController.h"
 #import "ButtonToolbarItem.h"
 #import "GroupToolbarItem.h"
@@ -51,6 +52,8 @@
 #import "NSStringAdditions.h"
 #import "ExpandedPathToPathTransformer.h"
 #import "ExpandedPathToIconTransformer.h"
+
+#import "transmission.h"
 #import "bencode.h"
 #import "utils.h"
 
@@ -131,7 +134,7 @@ typedef enum
 #define TORRENT_TABLE_VIEW_DATA_TYPE    @"TorrentTableViewDataType"
 
 #define ROW_HEIGHT_REGULAR      62.0
-#define ROW_HEIGHT_SMALL        38.0
+#define ROW_HEIGHT_SMALL        22.0
 #define WINDOW_REGULAR_WIDTH    468.0
 
 #define SEARCH_FILTER_MIN_WIDTH 48.0
@@ -228,12 +231,11 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
         NSAlert * alert = [[NSAlert alloc] init];
         [alert addButtonWithTitle: NSLocalizedString(@"I Accept", "Legal alert -> button")];
         [alert addButtonWithTitle: NSLocalizedString(@"Quit", "Legal alert -> button")];
-        [alert setMessageText: NSLocalizedString(@"Hear ye, hear ye!", "Legal alert -> title")];
-        [alert setInformativeText: [NSString stringWithFormat: @"%@\n\n%@",
-            NSLocalizedString(@"Transmission is a file-sharing program. When you run a torrent, its data will"
-            " be made available to others by means of upload."
-            " And of course, any content you choose to share is your sole responsibility.", "Legal alert -> message"),
-            NSLocalizedString(@"You probably knew this already, so we won't tell you again.", "Legal alert -> message")]];
+        [alert setMessageText: NSLocalizedString(@"Welcome to Transmission", "Legal alert -> title")];
+        [alert setInformativeText: NSLocalizedString(@"Transmission is a file-sharing program."
+            " When you run a torrent, its data will be made available to others by means of upload."
+            " You and you alone are fully responsible for exercising proper judgement and abiding by your local laws.",
+            "Legal alert -> message")];
         [alert setAlertStyle: NSInformationalAlertStyle];
         
         if ([alert runModal] == NSAlertSecondButtonReturn)
@@ -281,10 +283,18 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
                                                                             [fDefaults objectForKey: @"SpeedLimitAutoOffDate"]]);
         tr_bencDictAddInt(&settings, TR_PREFS_KEY_ALT_SPEED_TIME_DAY, [fDefaults integerForKey: @"SpeedLimitAutoDay"]);
         
+        tr_bencDictAddBool(&settings, TR_PREFS_KEY_START, [fDefaults boolForKey: @"AutoStartDownload"]);
+        
         tr_bencDictAddInt(&settings, TR_PREFS_KEY_DSPEED, [fDefaults integerForKey: @"DownloadLimit"]);
         tr_bencDictAddBool(&settings, TR_PREFS_KEY_DSPEED_ENABLED, [fDefaults boolForKey: @"CheckDownload"]);
         tr_bencDictAddInt(&settings, TR_PREFS_KEY_USPEED, [fDefaults integerForKey: @"UploadLimit"]);
         tr_bencDictAddBool(&settings, TR_PREFS_KEY_USPEED_ENABLED, [fDefaults boolForKey: @"CheckUpload"]);
+        
+        //hidden prefs
+        if ([fDefaults objectForKey: @"BindAddressIPv4"])
+            tr_bencDictAddStr(&settings, TR_PREFS_KEY_BIND_ADDRESS_IPV4, [[fDefaults stringForKey: @"BindAddressIPv4"] UTF8String]);
+        if ([fDefaults objectForKey: @"BindAddressIPv6"])
+            tr_bencDictAddStr(&settings, TR_PREFS_KEY_BIND_ADDRESS_IPV6, [[fDefaults stringForKey: @"BindAddressIPv6"] UTF8String]);
         
         tr_bencDictAddBool(&settings, TR_PREFS_KEY_BLOCKLIST_ENABLED, [fDefaults boolForKey: @"Blocklist"]);
         tr_bencDictAddBool(&settings, TR_PREFS_KEY_DHT_ENABLED, [fDefaults boolForKey: @"DHTGlobal"]);
@@ -939,6 +949,26 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
     [self updateTorrentsInQueue];
 }
 
+- (void) askOpenConfirmed: (AddWindowController *) addController add: (BOOL) add
+{
+    Torrent * torrent = [addController torrent];
+    [addController release];
+    
+    if (add)
+    {
+        [torrent update];
+        [fTorrents addObject: torrent];
+        [torrent release];
+        
+        [self updateTorrentsInQueue];
+    }
+    else
+    {
+        [torrent closeRemoveTorrent];
+        [torrent release];
+    }
+}
+
 - (void) openMagnet: (NSString *) address
 {
     tr_torrent * duplicateTorrent;
@@ -950,32 +980,44 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
         return;
     }
     
+    //determine download location
+    NSString * location = nil;
+    if ([fDefaults boolForKey: @"DownloadLocationConstant"])
+        location = [[fDefaults stringForKey: @"DownloadFolder"] stringByExpandingTildeInPath];
+    
     Torrent * torrent;
-    if (!(torrent = [[Torrent alloc] initWithMagnetAddress: address location: nil lib: fLib]))
+    if (!(torrent = [[Torrent alloc] initWithMagnetAddress: address location: location lib: fLib]))
     {
         [self invalidOpenMagnetAlert: address];
         return;
     }
     
-    #warning show add window perhaps?
-    
     //change the location if the group calls for it (this has to wait until after the torrent is created)
     if ([[GroupsController groups] usesCustomDownloadLocationForIndex: [torrent groupValue]])
     {
-        NSString * location = [[GroupsController groups] customDownloadLocationForIndex: [torrent groupValue]];
+        location = [[GroupsController groups] customDownloadLocationForIndex: [torrent groupValue]];
         [torrent changeDownloadFolderBeforeUsing: location];
     }
     
-    [torrent setWaitToStart: [fDefaults boolForKey: @"AutoStartDownload"]];
-    
-    [torrent update];
-    [fTorrents addObject: torrent];
-    [torrent release];
+    if ([fDefaults boolForKey: @"MagnetOpenAsk"] || !location)
+    {
+        AddMagnetWindowController * addController = [[AddMagnetWindowController alloc] initWithTorrent: torrent destination: location
+                                                        controller: self];
+        [addController showWindow: self];
+    }
+    else
+    {
+        [torrent setWaitToStart: [fDefaults boolForKey: @"AutoStartDownload"]];
+        
+        [torrent update];
+        [fTorrents addObject: torrent];
+        [torrent release];
+    }
 
     [self updateTorrentsInQueue];
 }
 
-- (void) askOpenConfirmed: (AddWindowController *) addController add: (BOOL) add
+- (void) askOpenMagnetConfirmed: (AddMagnetWindowController *) addController add: (BOOL) add
 {
     Torrent * torrent = [addController torrent];
     [addController release];
@@ -1212,7 +1254,13 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
 
 - (void) resumeAllTorrents: (id) sender
 {
-    [self resumeTorrents: fTorrents];
+    NSMutableArray * torrents = [NSMutableArray arrayWithCapacity: [fTorrents count]];
+    
+    for (Torrent * torrent in fTorrents)
+        if (![torrent isFinishedSeeding])
+            [torrents addObject: torrent];
+    
+    [self resumeTorrents: torrents];
 }
 
 - (void) resumeTorrents: (NSArray *) torrents
@@ -1243,7 +1291,10 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
 {
     //iterate through instead of all at once to ensure no conflicts
     for (Torrent * torrent in torrents)
+    {
+        tr_inf( "restarting a torrent in resumeTorrentsNoWait" );
         [torrent startTransfer];
+    }
     
     [self updateUI];
     [self applyFilter: nil];
@@ -1782,6 +1833,7 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
             {
                 if (desiredDownloadActive > 0)
                 {
+                    tr_inf( "restarting download torrent in mac queue" );
                     [torrent startTransfer];
                     if ([torrent isActive])
                         --desiredDownloadActive;
@@ -1792,6 +1844,7 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
             {
                 if (desiredSeedActive > 0)
                 {
+                    tr_inf( "restarting seed torrent in mac queue" );
                     [torrent startTransfer];
                     if ([torrent isActive])
                         --desiredSeedActive;
@@ -3846,7 +3899,7 @@ static void sleepCallback(void * controller, io_service_t y, natural_t messageTy
     if (action == @selector(resumeAllTorrents:))
     {
         for (Torrent * torrent in fTorrents)
-            if (![torrent isActive] && ![torrent waitingToStart])
+            if (![torrent isActive] && ![torrent waitingToStart] && ![torrent isFinishedSeeding])
                 return YES;
         return NO;
     }

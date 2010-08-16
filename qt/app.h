@@ -30,6 +30,9 @@ class MyApp: public QApplication
         MyApp( int& argc, char ** argv );
         virtual ~MyApp( );
 
+    public:
+        void raise( );
+
     private:
         Prefs * myPrefs;
         Session * mySession;
@@ -43,8 +46,11 @@ class MyApp: public QApplication
 
     private slots:
         void consentGiven( );
+        void onSessionSourceChanged( );
         void refreshPref( int key );
         void refreshTorrents( );
+
+    public slots:
         void addTorrent( const QString& );
 
     private:

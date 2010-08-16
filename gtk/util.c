@@ -88,82 +88,62 @@ gtr_lockfile( const char * filename )
 ****
 ***/
 
+const char*
+gtr_get_unicode_string( int i )
+{
+    switch( i ) {
+        case GTR_UNICODE_UP:   return "\xE2\x86\x91";
+        case GTR_UNICODE_DOWN: return "\xE2\x86\x93";
+        case GTR_UNICODE_INF:  return "\xE2\x88\x9E";
+        default:               return "err";
+    }
+}
 
 char*
 tr_strlratio( char * buf, double ratio, size_t buflen )
 {
-    return tr_strratio( buf, buflen, ratio, "\xE2\x88\x9E" );
+    return tr_strratio( buf, buflen, ratio, gtr_get_unicode_string( GTR_UNICODE_INF ) );
 }
 
-#define KILOBYTE_FACTOR 1024.0
-#define MEGABYTE_FACTOR ( 1024.0 * 1024.0 )
-#define GIGABYTE_FACTOR ( 1024.0 * 1024.0 * 1024.0 )
+static double KiB = 1024.0;
+static double MiB = ( 1024.0 * 1024.0 );
+static double GiB = ( 1024.0 * 1024.0 * 1024.0 );
 
 char*
-tr_strlsize( char *  buf,
-             guint64 size,
-             size_t  buflen )
+tr_strlsize( char * buf, guint64 bytes, size_t buflen )
 {
-    if( !size )
+    if( !bytes )
         g_strlcpy( buf, _( "None" ), buflen );
-#if GLIB_CHECK_VERSION( 2, 16, 0 )
+    else if( bytes < KiB )
+        g_snprintf( buf, buflen, ngettext( "%'u byte", "%'u bytes", (guint)bytes ), (guint)bytes );
+    else if( bytes < MiB )
+        g_snprintf( buf, buflen, _( "%'.1f KiB" ), bytes / KiB );
+    else if( bytes < GiB )
+        g_snprintf( buf, buflen, _( "%'.1f MiB" ), bytes / MiB );
     else
-    {
-        char * tmp = g_format_size_for_display( size );
-        g_strlcpy( buf, tmp, buflen );
-        g_free( tmp );
-    }
-#else
-    else if( size < (guint64)KILOBYTE_FACTOR )
-        g_snprintf( buf, buflen,
-                    ngettext( "%'u byte", "%'u bytes",
-                              (guint)size ), (guint)size );
-    else
-    {
-        gdouble displayed_size;
-        if( size < (guint64)MEGABYTE_FACTOR )
-        {
-            displayed_size = (gdouble) size / KILOBYTE_FACTOR;
-            g_snprintf( buf, buflen, _( "%'.1f KB" ), displayed_size );
-        }
-        else if( size < (guint64)GIGABYTE_FACTOR )
-        {
-            displayed_size = (gdouble) size / MEGABYTE_FACTOR;
-            g_snprintf( buf, buflen, _( "%'.1f MB" ), displayed_size );
-        }
-        else
-        {
-            displayed_size = (gdouble) size / GIGABYTE_FACTOR;
-            g_snprintf( buf, buflen, _( "%'.1f GB" ), displayed_size );
-        }
-    }
-#endif
+        g_snprintf( buf, buflen, _( "%'.1f GiB" ), bytes / GiB );
     return buf;
 }
 
 char*
-tr_strlspeed( char * buf,
-              double kb_sec,
-              size_t buflen )
+tr_strlspeed( char * buf, double kb_sec, size_t buflen )
 {
     const double speed = kb_sec;
 
-    if( speed < 1000.0 )  /* 0.0 KB to 999.9 KB */
-        g_snprintf( buf, buflen, _( "%'.1f KB/s" ), speed );
-    else if( speed < 102400.0 ) /* 0.98 MB to 99.99 MB */
-        g_snprintf( buf, buflen, _( "%'.2f MB/s" ), ( speed / KILOBYTE_FACTOR ) );
-    else if( speed < 1024000.0 ) /* 100.0 MB to 999.9 MB */
-        g_snprintf( buf, buflen, _( "%'.1f MB/s" ), ( speed / MEGABYTE_FACTOR ) );
+    if( speed < 1000.0 )  /* 0.0 KiB to 999.9 KiB */
+        g_snprintf( buf, buflen, _( "%'.1f KiB/s" ), speed );
+    else if( speed < 102400.0 ) /* 0.98 MiB to 99.99 MiB */
+        g_snprintf( buf, buflen, _( "%'.2f MiB/s" ), ( speed / KiB ) );
+    else if( speed < 1024000.0 ) /* 100.0 MiB to 999.9 MiB */
+        g_snprintf( buf, buflen, _( "%'.1f MiB/s" ), ( speed / MiB ) );
     else /* insane speeds */
-        g_snprintf( buf, buflen, _( "%'.2f GB/s" ), ( speed / GIGABYTE_FACTOR ) );
+        g_snprintf( buf, buflen, _( "%'.2f GiB/s" ), ( speed / GiB ) );
 
     return buf;
 }
 
 char*
-tr_strltime( char * buf,
-             int    seconds,
-             size_t buflen )
+tr_strltime( char * buf, int seconds, size_t buflen )
 {
     int  days, hours, minutes;
     char d[128], h[128], m[128], s[128];
@@ -239,15 +219,6 @@ gtr_localtime( time_t time )
     return g_locale_to_utf8( buf, -1, NULL, NULL, NULL );
 }
 
-char *
-gtr_localtime2( char * buf, time_t time, size_t buflen )
-{
-    char * tmp = gtr_localtime( time );
-    g_strlcpy( buf, tmp, buflen );
-    g_free( tmp );
-    return buf;
-}
-
 int
 gtr_mkdir_with_parents( const char * path, int mode )
 {
@@ -321,6 +292,27 @@ decode_uri( const char * uri )
     return ret;
 }
 
+/* pattern-matching text; ie, legaltorrents.com */
+char*
+gtr_get_host_from_url( const char * url )
+{
+    char * h = NULL;
+    char * name;
+    const char * first_dot;
+    const char * last_dot;
+
+    tr_urlParse( url, -1, NULL, &h, NULL, NULL );
+    first_dot = strchr( h, '.' );
+    last_dot = strrchr( h, '.' );
+
+    if( ( first_dot ) && ( last_dot ) && ( first_dot != last_dot ) )
+        name = g_strdup( first_dot + 1 );
+    else
+        name = g_strdup( h );
+
+    tr_free( h );
+    return name;
+}
 
 gboolean
 gtr_is_supported_url( const char * str )
@@ -454,7 +446,7 @@ on_tree_view_button_released( GtkWidget *      view,
 }
 
 gpointer
-tr_object_ref_sink( gpointer object )
+gtr_object_ref_sink( gpointer object )
 {
 #if GLIB_CHECK_VERSION( 2, 10, 0 )
     g_object_ref_sink( object );
@@ -466,7 +458,7 @@ tr_object_ref_sink( gpointer object )
 }
 
 int
-tr_file_trash_or_remove( const char * filename )
+gtr_file_trash_or_remove( const char * filename )
 {
     if( filename && *filename )
     {
@@ -571,6 +563,7 @@ gtr_dbus_add_torrent( const char * filename )
         if( proxy )
             dbus_g_proxy_call( proxy, "AddMetainfo", &err,
                                G_TYPE_STRING, payload,
+                               G_TYPE_STRING, filename,
                                G_TYPE_INVALID,
                                G_TYPE_BOOLEAN, &handled,
                                G_TYPE_INVALID );
@@ -663,7 +656,7 @@ gtr_priority_combo_set_value( GtkWidget * w, tr_priority_t value )
         }
     }
 }
- 
+
 tr_priority_t
 gtr_priority_combo_get_value( GtkWidget * w )
 {
@@ -836,7 +829,7 @@ gtr_unrecognized_url_dialog( GtkWidget * parent, const char * url )
     if( gtr_is_magnet_link( url ) && ( strstr( url, xt ) == NULL ) )
     {
         g_string_append_printf( gstr, "\n \n" );
-        g_string_append_printf( gstr, _( "This magnet link appears to be intended for something other than BitTorrent.  BitTorrent magnet links have a section containing \"%s\"." ), xt ); 
+        g_string_append_printf( gstr, _( "This magnet link appears to be intended for something other than BitTorrent.  BitTorrent magnet links have a section containing \"%s\"." ), xt );
     }
 
     gtk_message_dialog_format_secondary_text( GTK_MESSAGE_DIALOG( w ), "%s", gstr->str );

@@ -44,7 +44,7 @@
     NSString * fDestination, * fTorrentFile;
     BOOL fLockDestination;
     
-    BOOL fDeleteTorrent, fDeleteEnable;
+    BOOL fDeleteTorrentInitial, fDeleteEnableInitial;
     NSInteger fGroupValue;
     
     NSTimer * fTimer;

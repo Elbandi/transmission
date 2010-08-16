@@ -82,8 +82,6 @@ enum
 
     METADATA_REQQ           = 64,
 
-    MAX_BLOCK_SIZE          = ( 1024 * 16 ),
-
     /* used in lowering the outMessages queue period */
     IMMEDIATE_PRIORITY_INTERVAL_SECS = 0,
     HIGH_PRIORITY_INTERVAL_SECS = 2,
@@ -464,7 +462,7 @@ protocolSendHaveNone( tr_peermsgs * msgs )
 ***  EVENTS
 **/
 
-static const tr_peer_event blankEvent = { 0, 0, 0, 0, 0.0f, 0, 0, 0, 0 };
+static const tr_peer_event blankEvent = { 0, 0, 0, 0, 0.0f, 0, 0, 0 };
 
 static void
 publish( tr_peermsgs * msgs, tr_peer_event * e )
@@ -481,15 +479,6 @@ fireError( tr_peermsgs * msgs, int err )
     tr_peer_event e = blankEvent;
     e.eventType = TR_PEER_ERROR;
     e.err = err;
-    publish( msgs, &e );
-}
-
-static void
-fireUploadOnly( tr_peermsgs * msgs, tr_bool uploadOnly )
-{
-    tr_peer_event e = blankEvent;
-    e.eventType = TR_PEER_UPLOAD_ONLY;
-    e.uploadOnly = uploadOnly;
     publish( msgs, &e );
 }
 
@@ -889,6 +878,7 @@ parseLtepHandshake( tr_peermsgs *     msgs,
     const uint8_t *addr;
     size_t addr_len;
     tr_pex pex;
+    int8_t seedProbability = -1;
 
     memset( &pex, 0, sizeof( tr_pex ) );
 
@@ -934,11 +924,8 @@ parseLtepHandshake( tr_peermsgs *     msgs,
         tr_torrentSetMetadataSizeHint( msgs->torrent, i );
 
     /* look for upload_only (BEP 21) */
-    if( tr_bencDictFindInt( &val, "upload_only", &i ) ) {
-        fireUploadOnly( msgs, i!=0 );
-        if( i )
-            pex.flags |= ADDED_F_SEED_FLAG;
-    }
+    if( tr_bencDictFindInt( &val, "upload_only", &i ) )
+        seedProbability = i==0 ? 0 : 100;
 
     /* get peer's listening port */
     if( tr_bencDictFindInt( &val, "p", &i ) ) {
@@ -953,7 +940,7 @@ parseLtepHandshake( tr_peermsgs *     msgs,
     {
         pex.addr.type = TR_AF_INET;
         memcpy( &pex.addr.addr.addr4, addr, 4 );
-        tr_peerMgrAddPex( msgs->torrent, TR_PEER_FROM_LTEP, &pex );
+        tr_peerMgrAddPex( msgs->torrent, TR_PEER_FROM_LTEP, &pex, seedProbability );
     }
 
     if( tr_peerIoIsIncoming( msgs->peer->io )
@@ -962,7 +949,7 @@ parseLtepHandshake( tr_peermsgs *     msgs,
     {
         pex.addr.type = TR_AF_INET6;
         memcpy( &pex.addr.addr.addr6, addr, 16 );
-        tr_peerMgrAddPex( msgs->torrent, TR_PEER_FROM_LTEP, &pex );
+        tr_peerMgrAddPex( msgs->torrent, TR_PEER_FROM_LTEP, &pex, seedProbability );
     }
 
     /* get peer's maximum request queue size */
@@ -1078,7 +1065,11 @@ parseUtPex( tr_peermsgs * msgs, int msglen, struct evbuffer * inbuf )
 
             n = MIN( n, MAX_PEX_PEER_COUNT );
             for( i=0; i<n; ++i )
-                tr_peerMgrAddPex( tor, TR_PEER_FROM_PEX, pex + i );
+            {
+                int seedProbability = -1;
+                if( i < added_f_len ) seedProbability = ( added_f[i] & ADDED_F_SEED_FLAG ) ? 100 : 0;
+                tr_peerMgrAddPex( tor, TR_PEER_FROM_PEX, pex+i, seedProbability );
+            }
 
             tr_free( pex );
         }
@@ -1095,7 +1086,11 @@ parseUtPex( tr_peermsgs * msgs, int msglen, struct evbuffer * inbuf )
 
             n = MIN( n, MAX_PEX_PEER_COUNT );
             for( i=0; i<n; ++i )
-                tr_peerMgrAddPex( tor, TR_PEER_FROM_PEX, pex + i );
+            {
+                int seedProbability = -1;
+                if( i < added_f_len ) seedProbability = ( added_f[i] & ADDED_F_SEED_FLAG ) ? 100 : 0;
+                tr_peerMgrAddPex( tor, TR_PEER_FROM_PEX, pex+i, seedProbability );
+            }
 
             tr_free( pex );
         }
@@ -1208,6 +1203,20 @@ updatePeerProgress( tr_peermsgs * msgs )
 }
 
 static void
+prefetchPieces( tr_peermsgs *msgs )
+{
+    int i;
+
+    /* Maintain 12 prefetched blocks per unchoked peer */
+    for( i=msgs->prefetchCount; i<msgs->peer->pendingReqsToClient && i<12; ++i )
+    {
+        const struct peer_request * req = msgs->peerAskedFor + i;
+        tr_ioPrefetch( msgs->torrent, req->index, req->offset, req->length );
+        ++msgs->prefetchCount;
+    }
+}
+
+static void
 peerMadeRequest( tr_peermsgs *               msgs,
                  const struct peer_request * req )
 {
@@ -1229,10 +1238,12 @@ peerMadeRequest( tr_peermsgs *               msgs,
     else
         allow = TRUE;
 
-    if( allow )
+    if( allow ) {
         msgs->peerAskedFor[msgs->peer->pendingReqsToClient++] = *req;
-    else if( fext )
+        prefetchPieces( msgs );
+    } else if( fext ) {
         protocolSendReject( msgs, req );
+    }
 }
 
 static tr_bool
@@ -1773,20 +1784,6 @@ updateBlockRequests( tr_peermsgs * msgs )
         }
 
         tr_free( blocks );
-    }
-}
-
-static void
-prefetchPieces( tr_peermsgs *msgs )
-{
-    int i;
-
-    /* Maintain 12 prefetched blocks per unchoked peer */
-    for( i=msgs->prefetchCount; i<msgs->peer->pendingReqsToClient && i<12; ++i )
-    {
-        const struct peer_request * req = msgs->peerAskedFor + i;
-        tr_ioPrefetch( msgs->torrent, req->index, req->offset, req->length );
-        ++msgs->prefetchCount;
     }
 }
 
@@ -2351,6 +2348,8 @@ tr_peerMsgsNew( struct tr_torrent * torrent,
     if( tr_peerIoSupportsLTEP( peer->io ) )
         sendLtepHandshake( m );
 
+    tellPeerWhatWeHave( m );
+
     if( tr_dhtEnabled( torrent->session ) && tr_peerIoSupportsDHT( peer->io ))
     {
         /* Only send PORT over IPv6 when the IPv6 DHT is running (BEP-32). */
@@ -2359,8 +2358,6 @@ tr_peerMsgsNew( struct tr_torrent * torrent,
             protocolSendPort( m, tr_dhtPort( torrent->session ) );
         }
     }
-
-    tellPeerWhatWeHave( m );
 
     tr_peerIoSetIOFuncs( m->peer->io, canRead, didWrite, gotError, m );
     updateDesiredRequestCount( m, tr_date( ) );

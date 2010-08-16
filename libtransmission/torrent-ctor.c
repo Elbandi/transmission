@@ -321,7 +321,7 @@ tr_ctorSetDownloadDir( tr_ctor *    ctor,
     args->downloadDir = NULL;
     args->isSet_downloadDir = 0;
 
-    if( directory )
+    if( directory && *directory )
     {
         args->isSet_downloadDir = 1;
         args->downloadDir = tr_strdup( directory );
@@ -430,7 +430,6 @@ isPriority( int i )
 void
 tr_ctorSetBandwidthPriority( tr_ctor * ctor, tr_priority_t priority )
 {
-fprintf( stderr, "in tr_ctorSetPriority with %d\n", (int)priority );
     if( isPriority( priority ) )
         ctor->bandwidthPriority = priority;
 }
@@ -452,8 +451,10 @@ tr_ctorNew( const tr_session * session )
 
     ctor->session = session;
     ctor->bandwidthPriority = TR_PRI_NORMAL;
-    tr_ctorSetPaused( ctor, TR_FALLBACK, FALSE );
-    if( session != NULL ) {
+    if( session != NULL )
+    {
+        tr_ctorSetDeleteSource( ctor, tr_sessionGetDeleteSource( session ) );
+        tr_ctorSetPaused( ctor, TR_FALLBACK, tr_sessionGetPaused( session ) );
         tr_ctorSetPeerLimit( ctor, TR_FALLBACK, session->peerLimitPerTorrent );
         tr_ctorSetDownloadDir( ctor, TR_FALLBACK, session->downloadDir );
     }

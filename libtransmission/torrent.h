@@ -43,10 +43,10 @@ void        tr_ctorInitTorrentWanted( const tr_ctor * ctor, tr_torrent * tor );
 **/
 
 /* just like tr_torrentSetFileDLs but doesn't trigger a fastresume save */
-void        tr_torrentInitFileDLs( tr_torrent *      tor,
-                                   tr_file_index_t * files,
-                                   tr_file_index_t   fileCount,
-                                   tr_bool           do_download );
+void        tr_torrentInitFileDLs( tr_torrent              * tor,
+                                   const tr_file_index_t   * files,
+                                   tr_file_index_t          fileCount,
+                                   tr_bool                  do_download );
 
 void        tr_torrentRecheckCompleteness( tr_torrent * );
 
@@ -101,9 +101,6 @@ void             tr_torrentSetFileChecked( tr_torrent       * tor,
 
 void             tr_torrentUncheck( tr_torrent * tor );
 
-int              tr_torrentPromoteTracker( tr_torrent   * tor,
-                                           int            trackerIndex );
-
 time_t*          tr_torrentGetMTimes( const tr_torrent  * tor,
                                       size_t            * setmeCount );
 
@@ -130,6 +127,8 @@ tr_verify_state;
 void             tr_torrentSetVerifyState( tr_torrent      * tor,
                                            tr_verify_state   state );
 
+tr_torrent_activity tr_torrentGetActivity( tr_torrent * tor );
+
 struct tr_incomplete_metadata;
 
 /** @brief Torrent object */
@@ -142,6 +141,7 @@ struct tr_torrent
 
     tr_stat_errtype          error;
     char                     errorString[128];
+    char                     errorTracker[128];
 
     uint8_t                  obfuscatedHash[SHA_DIGEST_LENGTH];
 
@@ -165,10 +165,13 @@ struct tr_torrent
     /* Where the files are when the torrent is incomplete */
     char * incompleteDir;
 
-    /* Length, in bytes, of the "info" dict in the .torrent file */
+    /* Length, in bytes, of the "info" dict in the .torrent file. */
     int infoDictLength;
 
-    /* Offset, in bytes, of the beginning of the "info" dict in the .torrent file */
+    /* Offset, in bytes, of the beginning of the "info" dict in the .torrent file.
+     *
+     * Used by the torrent-magnet code for serving metainfo to peers.
+     * This field is lazy-generated and might not be initialized yet. */
     int infoDictOffset;
 
     /* Where the files are now.
@@ -197,6 +200,8 @@ struct tr_torrent
     time_t                     dhtAnnounce6At;
     tr_bool                    dhtAnnounceInProgress;
     tr_bool                    dhtAnnounce6InProgress;
+    
+    time_t                     lpdAnnounceAt;
 
     uint64_t                   downloadedCur;
     uint64_t                   downloadedPrev;
@@ -227,9 +232,10 @@ struct tr_torrent
 
     tr_bool                    isRunning;
     tr_bool                    isDeleting;
-    tr_bool                    needsSeedRatioCheck;
     tr_bool                    startAfterVerify;
     tr_bool                    isDirty;
+
+    tr_bool                    infoDictOffsetIsCached;
 
     uint16_t                   maxConnectedPeers;
 
@@ -328,6 +334,13 @@ static inline tr_bool tr_torrentAllowsDHT( const tr_torrent * tor )
 {
     return ( tor != NULL )
         && ( tr_sessionAllowsDHT( tor->session ) )
+        && ( !tr_torrentIsPrivate( tor ) );
+}
+
+static inline tr_bool tr_torrentAllowsLPD( const tr_torrent * tor )
+{
+    return ( tor != NULL )
+        && ( tr_sessionAllowsLPD( tor->session ) )
         && ( !tr_torrentIsPrivate( tor ) );
 }
 

@@ -23,6 +23,7 @@
 
 #include "actions.h"
 #include "details.h"
+#include "favicon.h" /* gtr_get_favicon() */
 #include "file-list.h"
 #include "hig.h"
 #include "tr-prefs.h"
@@ -450,7 +451,7 @@ options_page_new( struct DetailsImpl * d )
     tag = g_signal_connect( tb, "toggled", G_CALLBACK( global_speed_toggled_cb ), d );
     d->honorLimitsCheckTag = tag;
 
-    tb = gtk_check_button_new_with_mnemonic( _( "Limit _download speed (KB/s):" ) );
+    tb = gtk_check_button_new_with_mnemonic( _( "Limit _download speed (KiB/s):" ) );
     gtk_toggle_button_set_active( GTK_TOGGLE_BUTTON( tb ), FALSE );
     d->downLimitedCheck = tb;
     tag = g_signal_connect( tb, "toggled", G_CALLBACK( down_speed_toggled_cb ), d );
@@ -462,7 +463,7 @@ options_page_new( struct DetailsImpl * d )
     hig_workarea_add_row_w( t, &row, tb, w, NULL );
     d->downLimitSpin = w;
 
-    tb = gtk_check_button_new_with_mnemonic( _( "Limit _upload speed (KB/s):" ) );
+    tb = gtk_check_button_new_with_mnemonic( _( "Limit _upload speed (KiB/s):" ) );
     d->upLimitedCheck = tb;
     tag = g_signal_connect( tb, "toggled", G_CALLBACK( up_speed_toggled_cb ), d );
     d->upLimitedCheckTag = tag;
@@ -531,15 +532,16 @@ options_page_new( struct DetailsImpl * d )
 *****
 ****/
 
-static const char * activityString( int activity )
+static const char *
+activityString( int activity, tr_bool finished )
 {
     switch( activity )
     {
-        case TR_STATUS_CHECK_WAIT: return _( "Waiting to verify local data" ); break;
-        case TR_STATUS_CHECK:      return _( "Verifying local data" ); break;
-        case TR_STATUS_DOWNLOAD:   return _( "Downloading" ); break;
-        case TR_STATUS_SEED:       return _( "Seeding" ); break;
-        case TR_STATUS_STOPPED:    return _( "Paused" ); break;
+        case TR_STATUS_CHECK_WAIT: return _( "Waiting to verify local data" );
+        case TR_STATUS_CHECK:      return _( "Verifying local data" );
+        case TR_STATUS_DOWNLOAD:   return _( "Downloading" );
+        case TR_STATUS_SEED:       return _( "Seeding" );
+        case TR_STATUS_STOPPED:    return finished ? _( "Finished" ) : _( "Paused" );
     }
 
     return "";
@@ -576,6 +578,16 @@ gtr_text_buffer_set_text( GtkTextBuffer * b, const char * str )
     g_free( old_str );
 }
 
+static char*
+get_short_date_string( time_t t )
+{
+    char buf[64];
+    struct tm tm;
+    tr_localtime_r( &t, &tm );
+    strftime( buf, sizeof( buf ), "%d %b %Y", &tm );
+    return g_locale_to_utf8( buf, -1, NULL, NULL, NULL );
+};
+
 static void
 refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
 {
@@ -583,6 +595,7 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
     const char * str;
     const char * none = _( "None" );
     const char * mixed = _( "Mixed" );
+    const char * stateString;
     char buf[512];
     double available = 0;
     double sizeWhenDone = 0;
@@ -615,12 +628,12 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
     if( n<=0 )
         str = none;
     else {
-        char datestr[64];
         const char * creator = infos[0]->creator ? infos[0]->creator : "";
         const time_t date = infos[0]->dateCreated;
+        char * datestr = get_short_date_string( date );
         gboolean mixed_creator = FALSE;
         gboolean mixed_date = FALSE;
-        gtr_localtime2( datestr, date, sizeof( datestr ) );
+
         for( i=1; i<n; ++i ) {
             mixed_creator |= strcmp( creator, infos[i]->creator ? infos[i]->creator : "" );
             mixed_date |= ( date != infos[i]->dateCreated );
@@ -636,6 +649,8 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
                 g_snprintf( buf, sizeof( buf ), _( "Created by %1$s on %2$s" ), creator, datestr );
             str = buf;
         }
+
+        g_free( datestr );
     }
     gtr_label_set_text( GTK_LABEL( di->origin_lb ), str );
 
@@ -671,33 +686,35 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
     gtr_label_set_text( GTK_LABEL( di->destination_lb ), str );
 
     /* state_lb */
-    if( n <= 0 )
+    if( n < 1 )
         str = none;
     else {
-        const int baseline = stats[0]->activity;
-        for( i=1; i<n; ++i )
-            if( baseline != (int)stats[i]->activity )
+        const tr_torrent_activity activity = stats[0]->activity;
+        tr_bool allFinished = stats[0]->finished;
+        for( i=1; i<n; ++i ) {
+            if( activity != stats[i]->activity )
                 break;
-        if( i==n )
-            str = activityString( baseline );
-        else
-            str = mixed;
+            if( !stats[i]->finished )
+                allFinished = FALSE;
+        }
+        str = i<n ? mixed : activityString( activity, allFinished );
     }
+    stateString = str;
     gtr_label_set_text( GTK_LABEL( di->state_lb ), str );
 
 
     /* date started */
-    if( n <= 0 )
+    if( n < 1 )
         str = none;
     else {
         const time_t baseline = stats[0]->startDate;
         for( i=1; i<n; ++i )
             if( baseline != stats[i]->startDate )
                 break;
-        if( i!=n )
+        if( i != n )
             str = mixed;
         else if( ( baseline<=0 ) || ( stats[0]->activity == TR_STATUS_STOPPED ) )
-            str = activityString( TR_STATUS_STOPPED );
+            str = stateString;
         else
             str = tr_strltime( buf, time(NULL)-baseline, sizeof( buf ) );
     }
@@ -988,10 +1005,10 @@ info_page_new( struct DetailsImpl * di )
         /* comment */
         b = di->comment_buffer = gtk_text_buffer_new( NULL );
         w = gtk_text_view_new_with_buffer( b );
-        gtk_widget_set_size_request( w, 350u, 50u );
         gtk_text_view_set_wrap_mode( GTK_TEXT_VIEW( w ), GTK_WRAP_WORD );
         gtk_text_view_set_editable( GTK_TEXT_VIEW( w ), FALSE );
         sw = gtk_scrolled_window_new( NULL, NULL );
+        gtk_widget_set_size_request( sw, 350, 36 );
         gtk_scrolled_window_set_policy( GTK_SCROLLED_WINDOW( sw ),
                                         GTK_POLICY_AUTOMATIC,
                                         GTK_POLICY_AUTOMATIC );
@@ -1576,7 +1593,7 @@ setPeerViewColumns( GtkTreeView * peer_view )
                 c = gtk_tree_view_column_new_with_attributes( t, r, "text", col, NULL );
                 sort_col = PEER_COL_BLOCKS_UPLOADED_COUNT_INT;
                 break;
-           
+
             case PEER_COL_REQS_CANCELLED_BY_CLIENT_COUNT_STRING:
                 r = gtk_cell_renderer_text_new( );
                 c = gtk_tree_view_column_new_with_attributes( t, r, "text", col, NULL );
@@ -1881,6 +1898,7 @@ enum
   TRACKER_COL_BACKUP,
   TRACKER_COL_TORRENT_NAME,
   TRACKER_COL_TRACKER_NAME,
+  TRACKER_COL_FAVICON,
   TRACKER_N_COLS
 };
 
@@ -1923,6 +1941,30 @@ populate_tracker_buffer( GtkTextBuffer * buffer, const tr_torrent * tor )
 #define TORRENT_PTR_KEY "torrent-pointer"
 
 static void
+favicon_ready_cb( gpointer pixbuf, gpointer vreference )
+{
+    GtkTreeIter iter;
+    GtkTreeRowReference * reference = vreference;
+
+    if( pixbuf != NULL )
+    {
+        GtkTreePath * path = gtk_tree_row_reference_get_path( reference );
+        GtkTreeModel * model = gtk_tree_row_reference_get_model( reference );
+
+        if( gtk_tree_model_get_iter( model, &iter, path ) )
+            gtk_list_store_set( GTK_LIST_STORE( model ), &iter,
+                                TRACKER_COL_FAVICON, pixbuf,
+                                -1 );
+
+        gtk_tree_path_free( path );
+
+        g_object_unref( pixbuf );
+    }
+
+    gtk_tree_row_reference_free( reference );
+}
+
+static void
 refreshTracker( struct DetailsImpl * di, tr_torrent ** torrents, int n )
 {
     int i;
@@ -1953,7 +1995,8 @@ refreshTracker( struct DetailsImpl * di, tr_torrent ** torrents, int n )
                                                     G_TYPE_STRING,
                                                     G_TYPE_BOOLEAN,
                                                     G_TYPE_STRING,
-                                                    G_TYPE_STRING );
+                                                    G_TYPE_STRING,
+                                                    GDK_TYPE_PIXBUF );
 
         filter = gtk_tree_model_filter_new( GTK_TREE_MODEL( store ), NULL );
         gtk_tree_model_filter_set_visible_func( GTK_TREE_MODEL_FILTER( filter ),
@@ -1975,6 +2018,8 @@ refreshTracker( struct DetailsImpl * di, tr_torrent ** torrents, int n )
     model = GTK_TREE_MODEL( store );
     if( n && !gtk_tree_model_get_iter_first( model, &iter ) )
     {
+        tr_session * session = tr_core_session( di->core );
+
         for( i=0; i<n; ++i )
         {
             int j;
@@ -1983,12 +2028,23 @@ refreshTracker( struct DetailsImpl * di, tr_torrent ** torrents, int n )
             const tr_info * inf = tr_torrentInfo( tor );
 
             for( j=0; j<statCount[i]; ++j )
+            {
+                GtkTreePath * path;
+                GtkTreeRowReference * reference;
+                const tr_tracker_stat * st = &stats[i][j];
+
                 gtk_list_store_insert_with_values( store, &iter, -1,
                     TRACKER_COL_TORRENT_ID, torrentId,
                     TRACKER_COL_TRACKER_INDEX, j,
                     TRACKER_COL_TORRENT_NAME, inf->name,
-                    TRACKER_COL_TRACKER_NAME, stats[i][j].host,
+                    TRACKER_COL_TRACKER_NAME, st->host,
                     -1 );
+
+                path = gtk_tree_model_get_path( model, &iter );
+                reference = gtk_tree_row_reference_new( model, path );
+                gtr_get_favicon_from_url( session, st->announce, favicon_ready_cb, reference );
+                gtk_tree_path_free( path );
+            }
         }
     }
 
@@ -2097,6 +2153,7 @@ onEditTrackersResponse( GtkDialog * dialog, int response, gpointer data )
         {
             di->trackers = NULL;
             di->tracker_buffer = NULL;
+            tr_core_torrent_changed( di->core, tr_torrentId( tor ) );
         }
 
         /* cleanup */
@@ -2165,9 +2222,10 @@ static GtkWidget*
 tracker_page_new( struct DetailsImpl * di )
 {
     gboolean b;
-    GtkWidget *vbox, *sw, *w, *v, *hbox;
     GtkCellRenderer *r;
     GtkTreeViewColumn *c;
+    GtkWidget *vbox, *sw, *w, *v, *hbox;
+    const int pad = ( GUI_PAD + GUI_PAD_BIG ) / 2;
 
     vbox = gtk_vbox_new( FALSE, GUI_PAD );
     gtk_container_set_border_width( GTK_CONTAINER( vbox ), GUI_PAD_BIG );
@@ -2178,13 +2236,20 @@ tracker_page_new( struct DetailsImpl * di )
     g_signal_connect( v, "button-release-event",
                       G_CALLBACK( on_tree_view_button_released ), NULL );
     gtk_tree_view_set_rules_hint( GTK_TREE_VIEW( v ), TRUE );
-    r = gtk_cell_renderer_text_new( );
-    g_object_set( r, "ellipsize", PANGO_ELLIPSIZE_END, NULL );
-    c = gtk_tree_view_column_new_with_attributes( _( "Trackers" ), r, "markup", TRACKER_COL_TEXT, NULL );
+
+    c = gtk_tree_view_column_new( );
+    gtk_tree_view_column_set_title( c, _( "Trackers" ) );
     gtk_tree_view_append_column( GTK_TREE_VIEW( v ), c );
-    g_object_set( G_OBJECT( r ), "ypad", (GUI_PAD+GUI_PAD_BIG)/2,
-                                 "xpad", (GUI_PAD+GUI_PAD_BIG)/2,
-                                 NULL );
+
+    r = gtk_cell_renderer_pixbuf_new( );
+    g_object_set( r, "width", 20 + (GUI_PAD_SMALL*2), "xpad", GUI_PAD_SMALL, "ypad", pad, "yalign", 0.0f, NULL );
+    gtk_tree_view_column_pack_start( c, r, FALSE );
+    gtk_tree_view_column_add_attribute( c, r, "pixbuf", TRACKER_COL_FAVICON );
+
+    r = gtk_cell_renderer_text_new( );
+    g_object_set( G_OBJECT( r ), "ellipsize", PANGO_ELLIPSIZE_END, "xpad", GUI_PAD_SMALL, "ypad", pad, NULL );
+    gtk_tree_view_column_pack_start( c, r, TRUE );
+    gtk_tree_view_column_add_attribute( c, r, "markup", TRACKER_COL_TEXT );
 
     sw = gtk_scrolled_window_new( NULL, NULL );
     gtk_scrolled_window_set_policy( GTK_SCROLLED_WINDOW( sw ),

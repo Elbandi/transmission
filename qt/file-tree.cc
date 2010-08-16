@@ -86,7 +86,7 @@ FileTreeItem :: data( int column ) const
     QVariant value;
 
     switch( column ) {
-        case COL_NAME: value.setValue( name() ); break;
+        case COL_NAME: value.setValue( fileSizeName( ) ); break;
         case COL_PROGRESS: value.setValue( progress( ) ); break;
         case COL_WANTED: value.setValue( isSubtreeWanted( ) ); break;
         case COL_PRIORITY: value.setValue( priorityString( ) ); break;
@@ -116,8 +116,18 @@ FileTreeItem :: progress( ) const
     return d;
 }
 
+QString
+FileTreeItem :: fileSizeName( ) const
+{
+    uint64_t have(0), total(0);
+    QString str;
+    getSubtreeSize( have, total );
+    str = QString( name() + " (%1)" ).arg( Utils::sizeToString( total ) );
+    return str;
+}
+
 bool
-FileTreeItem :: update( int index, bool wanted, int priority, uint64_t totalSize, uint64_t haveSize )
+FileTreeItem :: update( int index, bool wanted, int priority, uint64_t totalSize, uint64_t haveSize, bool torrentChanged )
 {
     bool changed = false;
 
@@ -126,12 +136,12 @@ FileTreeItem :: update( int index, bool wanted, int priority, uint64_t totalSize
         myIndex = index;
         changed = true;
     }
-    if( myIsWanted != wanted )
+    if( torrentChanged && myIsWanted != wanted )
     {
         myIsWanted = wanted;
         changed = true;
     }
-    if( myPriority != priority )
+    if( torrentChanged && myPriority != priority )
     {
         myPriority = priority;
         changed = true;
@@ -403,7 +413,8 @@ FileTreeModel :: addFile( int                   index,
                           int                   priority,
                           uint64_t              size,
                           uint64_t              have,
-                          QList<QModelIndex>  & rowsAdded )
+                          QList<QModelIndex>  & rowsAdded,
+                          bool                  torrentChanged )
 {
     FileTreeItem * i( rootItem );
 
@@ -423,7 +434,7 @@ FileTreeModel :: addFile( int                   index,
     }
 
     if( i != rootItem )
-        if( i->update( index, wanted, priority, size, have ) )
+        if( i->update( index, wanted, priority, size, have, torrentChanged ) )
             dataChanged( indexOf( i, 0 ), indexOf( i, NUM_COLUMNS-1 ) );
 }
 
@@ -525,7 +536,10 @@ FileTreeDelegate :: paint( QPainter                    * painter,
         if( index.model()->hasChildren( index ) )
             icon = style->standardIcon( QStyle::StandardPixmap( QStyle::SP_DirOpenIcon ) );
         else
-            icon = Utils :: guessMimeIcon( index.model()->data(index).toString( ) );
+        {
+            QString name = index.model()->data(index).toString();
+            icon = Utils :: guessMimeIcon( name.left( name.lastIndexOf( " (" ) ) );
+        }
         icon.paint( painter, iconArea, Qt::AlignCenter, QIcon::Normal, QIcon::On );
 
         // draw the name
@@ -637,9 +651,15 @@ FileTreeView :: eventFilter( QObject * o, QEvent * event )
 void
 FileTreeView :: update( const FileList& files )
 {
+    update( files, true );
+}
+
+void
+FileTreeView :: update( const FileList& files, bool torrentChanged )
+{
     foreach( const TrFile file, files ) {
         QList<QModelIndex> added;
-        myModel.addFile( file.index, file.filename, file.wanted, file.priority, file.size, file.have, added );
+        myModel.addFile( file.index, file.filename, file.wanted, file.priority, file.size, file.have, added, torrentChanged );
         foreach( QModelIndex i, added )
             expand( i );
     }
