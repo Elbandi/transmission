@@ -1,3 +1,13 @@
+transmission (2.04-0) unstable; urgency=low
+
+  * new upstream release
+  * debian/patches drop (see above: fixed upstream)
+    - dont_build_libevent.patch
+    - qt_client_use_system_libevent
+    - use_old_intltool.patch
+
+ -- Andras Elso <ea333@freemail.hu>  Tue, 17 Aug 2010 00:56:30 +0200
+
 transmission (1.92-0) unstable; urgency=low
 
   * new upstream release
