@@ -24,6 +24,7 @@
 #include "fdlimit.h"
 #include "log.h"
 #include "platform-quota.h" /* tr_device_info_get_free_space() */
+#include "peer-mgr.h"
 #include "rpcimpl.h"
 #include "session.h"
 #include "torrent.h"
@@ -1239,6 +1240,38 @@ removeTrackers (tr_torrent * tor, tr_variant * ids)
 }
 
 static const char*
+addPeer (tr_torrent * tor,
+         const char * str)
+{
+  const char * delim = strchr (str, ':');
+  const char * errmsg = NULL;
+  if (delim)
+    {
+      tr_pex pex;
+      char * host;
+      int port = atoi (delim + 1);
+	
+      if (port < 0 || port > USHRT_MAX)
+        errmsg = "peer port out of range";
+      else
+        {
+          host = tr_strndup (str, delim - str);
+          if (tr_address_from_string (&pex.addr, host))
+            {
+              pex.port = htons (port);
+              tr_peerMgrAddPex (tor, TR_PEER_FROM_PEX , &pex, -1);
+            }
+          else
+            {
+              errmsg = "invalid peer address";
+            }
+          tr_free (host);
+        }
+    }
+  return errmsg;
+}
+
+static const char*
 torrentSet (tr_session               * session,
             tr_variant                  * args_in,
             tr_variant                  * args_out UNUSED,
@@ -1257,6 +1290,7 @@ torrentSet (tr_session               * session,
     {
       int64_t tmp;
       double d;
+      const char * str;
       tr_variant * files;
       tr_variant * trackers;
       bool boolVal;
@@ -1267,6 +1301,9 @@ torrentSet (tr_session               * session,
       if (tr_variantDictFindInt (args_in, TR_KEY_bandwidthPriority, &tmp))
         if (tr_isPriority (tmp))
           tr_torrentSetPriority (tor, tmp);
+
+      if (!errmsg && tr_variantDictFindStr (args_in, TR_KEY_add_peer, &str, NULL))
+        errmsg = addPeer (tor, str);
 
       if (!errmsg && tr_variantDictFindList (args_in, TR_KEY_files_unwanted, &files))
         errmsg = setFileDLs (tor, false, files);

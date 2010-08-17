@@ -28,6 +28,7 @@ static const struct tr_key_struct my_static[] =
   { "activeTorrentCount", 18 },
   { "activity-date", 13 },
   { "activityDate", 12 },
+  { "add-peer", 8 },
   { "added", 5 },
   { "added-date", 10 },
   { "added.f", 7 },

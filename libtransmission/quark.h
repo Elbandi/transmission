@@ -26,6 +26,7 @@ enum
   TR_KEY_activeTorrentCount, /* rpc */
   TR_KEY_activity_date, /* resume file */
   TR_KEY_activityDate, /* rpc */
+  TR_KEY_add_peer,
   TR_KEY_added, /* pex */
   TR_KEY_added_date, /* rpc */
   TR_KEY_added_f, /* pex */
