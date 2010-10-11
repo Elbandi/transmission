@@ -64,20 +64,7 @@ quitresp( GtkWidget * widget,
     gtk_widget_destroy( widget );
 }
 
-static gboolean
-countActiveTorrents( GtkTreeModel *       model,
-                     GtkTreePath   * path UNUSED,
-                     GtkTreeIter *        iter,
-                     gpointer             activeTorrentCount )
-{
-    int activity = -1;
-    gtk_tree_model_get( model, iter, MC_ACTIVITY, &activity, -1 );
-    if( activity != TR_STATUS_STOPPED )
-        *(int*)activeTorrentCount += 1;
-    return FALSE; /* keep iterating */
-}
-
-void
+GtkWidget *
 askquit( TrCore *       core,
          GtkWindow *    parent,
          callbackfunc_t func,
@@ -87,25 +74,6 @@ askquit( TrCore *       core,
     GtkWidget *       w;
     GtkWidget *       wind;
     GtkWidget *       dontask;
-    GtkTreeModel *    model;
-    int               activeTorrentCount;
-
-    /* if the user doesn't want to be asked, don't ask */
-    if( !pref_flag_get( PREF_KEY_ASKQUIT ) )
-    {
-        func( cbdata );
-        return;
-    }
-
-    /* if there aren't any active torrents, don't ask */
-    model = tr_core_model( core );
-    activeTorrentCount = 0;
-    gtk_tree_model_foreach( model, countActiveTorrents, &activeTorrentCount );
-    if( !activeTorrentCount )
-    {
-        func( cbdata );
-        return;
-    }
 
     stuff          = g_new( struct quitdata, 1 );
     stuff->func    = func;
@@ -142,6 +110,8 @@ askquit( TrCore *       core,
     gtk_widget_grab_focus( w );
 
     gtk_widget_show_all( wind );
+
+    return wind;
 }
 
 /***
@@ -226,50 +196,50 @@ confirmRemove( GtkWindow * parent,
 
     if( !delete_files )
     {
-        g_string_printf( primary_text, ngettext( "Remove torrent?",
-                                                 "Remove %d torrents?",
-                                                 count ), count );
+        g_string_printf( primary_text, gtr_ngettext( "Remove torrent?",
+                                                     "Remove %d torrents?",
+                                                     count ), count );
     }
     else
     {
-        g_string_printf( primary_text, ngettext( "Delete this torrent's downloaded files?",
-                                                 "Delete these %d torrents' downloaded files?",
-                                                 count ), count );
+        g_string_printf( primary_text, gtr_ngettext( "Delete this torrent's downloaded files?",
+                                                     "Delete these %d torrents' downloaded files?",
+                                                     count ), count );
     }
 
     secondary_text = g_string_new( NULL );
 
     if( !counts.incomplete && !counts.connected )
     {
-        g_string_assign( secondary_text, ngettext(
+        g_string_assign( secondary_text, gtr_ngettext(
                 "Once removed, continuing the transfer will require the torrent file or magnet link.",
                 "Once removed, continuing the transfers will require the torrent files or magnet links.",
                 count ) );
     }
     else if( count == counts.incomplete )
     {
-        g_string_assign( secondary_text, ngettext( "This torrent has not finished downloading.",
-                                                   "These torrents have not finished downloading.",
-                                                   count ) );
+        g_string_assign( secondary_text, gtr_ngettext( "This torrent has not finished downloading.",
+                                                       "These torrents have not finished downloading.",
+                                                       count ) );
     }
     else if( count == counts.connected )
     {
-        g_string_assign( secondary_text, ngettext( "This torrent is connected to peers.",
-                                                   "These torrents are connected to peers.",
-                                                   count ) );
+        g_string_assign( secondary_text, gtr_ngettext( "This torrent is connected to peers.",
+                                                       "These torrents are connected to peers.",
+                                                       count ) );
     }
     else
     {
         if( counts.connected )
-            g_string_append( secondary_text, ngettext( "One of these torrents is connected to peers.",
-                                                       "Some of these torrents are connected to peers.",
+            g_string_append( secondary_text, gtr_ngettext( "One of these torrents is connected to peers.",
+                                                           "Some of these torrents are connected to peers.",
                                                        counts.connected ) );
         if( counts.connected && counts.incomplete )
             g_string_append( secondary_text, "\n" );
 
         if( counts.incomplete )
-            g_string_assign( secondary_text, ngettext( "One of these torrents has not finished downloading.",
-                                                       "Some of these torrents have not finished downloading.",
+            g_string_assign( secondary_text, gtr_ngettext( "One of these torrents has not finished downloading.",
+                                                           "Some of these torrents have not finished downloading.",
                                                        counts.incomplete ) );
     }
 

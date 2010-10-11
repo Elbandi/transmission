@@ -88,6 +88,8 @@ extern "C" {
 ****
 ***/
 
+const char * tr_strip_positional_args( const char * fmt );
+
 #if !defined( _ )
  #if defined( HAVE_LIBINTL_H ) && !defined( SYS_DARWIN )
   #include <libintl.h>
@@ -98,11 +100,12 @@ extern "C" {
 #endif
 
 /* #define DISABLE_GETTEXT */
-#if defined(TR_EMBEDDED) && !defined(DISABLE_GETTEXT)
- #define DISABLE_GETTEXT
+#ifndef DISABLE_GETTEXT
+ #if defined(WIN32) || defined(TR_EMBEDDED)
+   #define DISABLE_GETTEXT
+ #endif
 #endif
 #ifdef DISABLE_GETTEXT
- const char * tr_strip_positional_args( const char * fmt );
  #undef _
  #define _( a ) tr_strip_positional_args( a )
 #endif
@@ -111,19 +114,17 @@ extern "C" {
 *****
 ****/
 
-void tr_msgInit( void );
-
 #define TR_MAX_MSG_LOG 10000
 
-extern int messageLevel;
+extern tr_msg_level messageLevel;
 
-static inline tr_bool tr_msgLoggingIsActive( int level )
+static inline tr_bool tr_msgLoggingIsActive( tr_msg_level level )
 {
     return messageLevel >= level;
 }
 
 void tr_msg( const char * file, int line,
-             int level,
+             tr_msg_level level,
              const char * torrent,
              const char * fmt, ... ) TR_GNUC_PRINTF( 5, 6 );
 
@@ -262,19 +263,18 @@ void tr_timerAddMsec( struct event * timer, int milliseconds ) TR_GNUC_NONNULL(1
 
 
 /** @brief return the current date in milliseconds */
-uint64_t tr_date( void );
+uint64_t tr_time_msec( void );
 
 /** @brief sleep the specified number of milliseconds */
-void tr_wait_msec( uint64_t delay_milliseconds );
+void tr_wait_msec( long int delay_milliseconds );
 
 /**
  * @brief make a copy of 'str' whose non-utf8 content has been corrected or stripped
  * @return a newly-allocated string that must be freed with tr_free()
  * @param str the string to make a clean copy of
  * @param len the length of the string to copy.  If -1, the entire string is used.
- * @param err if an error occurs and err is non-NULL, it's set to TRUE.
  */
-char* tr_utf8clean( const char * str, int len, tr_bool * err ) TR_GNUC_MALLOC;
+char* tr_utf8clean( const char * str, int len ) TR_GNUC_MALLOC;
 
 
 /***
@@ -319,7 +319,7 @@ static inline void tr_free( void * p )
  * @param byteCount the number of bytes to copy
  * @return a newly-allocated copy of `src' that can be freed with tr_free()
  */
-static inline void* tr_memdup( const void * src, int byteCount )
+static inline void* tr_memdup( const void * src, size_t byteCount )
 {
     return memcpy( tr_malloc( byteCount ), src, byteCount );
 }
@@ -350,7 +350,7 @@ char* tr_strndup( const void * in, int len ) TR_GNUC_MALLOC;
  */
 static inline char* tr_strdup( const void * in )
 {
-    return tr_strndup( in, in ? strlen( (const char *) in ) : 0 );
+    return tr_strndup( in, in ? (int)strlen((const char *)in) : 0 );
 }
 
 /** @brief similar to bsearch() but returns the index of the lower bound */
@@ -436,6 +436,8 @@ void tr_set_compare( const void * a, size_t aCount,
                      tr_set_func in_both_cb,
                      void * userData );
 
+int compareInt( const void * va, const void * vb );
+
 void tr_sha1_to_hex( char * out, const uint8_t * sha1 ) TR_GNUC_NONNULL(1,2);
 
 void tr_hex_to_sha1( uint8_t * out, const char * hex ) TR_GNUC_NONNULL(1,2);
@@ -447,7 +449,7 @@ tr_bool tr_addressIsIP( const char * address );
 tr_bool tr_urlIsValidTracker( const char * url ) TR_GNUC_NONNULL(1);
 
 /** @brief return TRUE if the url is a [ http, https, ftp, ftps ] url that Transmission understands */
-tr_bool tr_urlIsValid( const char * url ) TR_GNUC_NONNULL(1);
+tr_bool tr_urlIsValid( const char * url, int url_len ) TR_GNUC_NONNULL(1);
 
 /** @brief parse a URL into its component parts
     @return zero on success or an error number if an error occurred */
@@ -461,7 +463,7 @@ int  tr_urlParse( const char * url,
 
 /** @brief return TR_RATIO_NA, TR_RATIO_INF, or a number in [0..1]
     @return TR_RATIO_NA, TR_RATIO_INF, or a number in [0..1] */
-double tr_getRatio( double numerator, double denominator );
+double tr_getRatio( uint64_t numerator, uint64_t denominator );
 
 /**
  * @brief Given a string like "1-4" or "1-4,6,9,14-51", this returns a
@@ -492,6 +494,9 @@ int* tr_parseNumberRange( const char * str,
  */
 double tr_truncd( double x, int decimal_places );
 
+/* return a percent formatted string of either x.xx, xx.x or xxx */
+char* tr_strpercent( char * buf, double x, size_t buflen );
+
 /**
  * @param buf the buffer to write the string to
  * @param buflef buf's size
@@ -499,6 +504,9 @@ double tr_truncd( double x, int decimal_places );
  * @param the string represntation of "infinity"
  */
 char* tr_strratio( char * buf, size_t buflen, double ratio, const char * infinity ) TR_GNUC_NONNULL(1,4);
+
+/* return a truncated double as a string */
+char* tr_strtruncd( char * buf, double x, int precision, size_t buflen );
 
 /** @brief Portability wrapper for localtime_r() that uses the system implementation if available */
 struct tm * tr_localtime_r( const time_t *_clock, struct tm *_result );
@@ -512,10 +520,10 @@ int tr_moveFile( const char * oldpath, const char * newpath,
                  tr_bool * renamed ) TR_GNUC_NONNULL(1,2);
 
 /** @brief convenience function to remove an item from an array */
-static inline void tr_removeElementFromArray( void   * array,
-                                              int      index_to_remove,
-                                              size_t   sizeof_element,
-                                              size_t   nmemb )
+static inline void tr_removeElementFromArray( void         * array,
+                                              unsigned int   index_to_remove,
+                                              size_t         sizeof_element,
+                                              size_t         nmemb )
 {
     char * a = (char*) array;
 
@@ -545,6 +553,42 @@ static inline time_t tr_time( void ) { return transmission_now; }
 
 /** @brief Private libtransmission function to update tr_time()'s counter */
 static inline void tr_timeUpdate( time_t now ) { transmission_now = now; }
+
+/** @brief Portability wrapper for realpath() that uses the system implementation if available */
+char* tr_realpath( const char *path, char * resolved_path );
+
+/***
+****
+***/
+
+/* example: tr_formatter_size_init( 1024, _("KiB"), _("MiB"), _("GiB"), _("TiB") ); */
+
+void tr_formatter_size_init( unsigned int kilo, const char * kb, const char * mb,
+                                                const char * gb, const char * tb );
+
+void tr_formatter_speed_init( unsigned int kilo, const char * kb, const char * mb,
+                                                 const char * gb, const char * tb );
+
+void tr_formatter_mem_init( unsigned int kilo, const char * kb, const char * mb,
+                                               const char * gb, const char * tb );
+
+extern unsigned int tr_speed_K;
+extern unsigned int tr_mem_K;
+extern unsigned int tr_size_K;
+
+/* format a speed from KBps into a user-readable string. */
+char* tr_formatter_speed_KBps( char * buf, double KBps, size_t buflen );
+
+/* format a memory size from bytes into a user-readable string. */
+char* tr_formatter_mem_B( char * buf, uint64_t bytes, size_t buflen );
+
+/* format a memory size from MB into a user-readable string. */
+static inline char* tr_formatter_mem_MB( char * buf, double MBps, size_t buflen ) { return tr_formatter_mem_B( buf, MBps * tr_mem_K * tr_mem_K, buflen ); }
+
+/* format a file size from bytes into a user-readable string. */
+char* tr_formatter_size_B( char * buf, uint64_t bytes, size_t buflen );
+
+void tr_formatter_get_units( struct tr_benc * dict );
 
 /***
 ****

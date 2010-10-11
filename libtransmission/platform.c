@@ -11,6 +11,8 @@
  */
 
 #ifdef WIN32
+ #include <w32api.h>
+ #define WINVER  WindowsXP
  #include <windows.h>
  #include <shlobj.h> /* for CSIDL_APPDATA, CSIDL_MYDOCUMENTS */
 #else
@@ -67,14 +69,13 @@ tr_getCurrentThread( void )
 #endif
 }
 
-static int
-tr_areThreadsEqual( tr_thread_id a,
-                    tr_thread_id b )
+static tr_bool
+tr_areThreadsEqual( tr_thread_id a, tr_thread_id b )
 {
 #ifdef WIN32
     return a == b;
 #else
-    return pthread_equal( a, b );
+    return pthread_equal( a, b ) != 0;
 #endif
 }
 
@@ -89,7 +90,7 @@ struct tr_thread
 #endif
 };
 
-int
+tr_bool
 tr_amInThread( const tr_thread * t )
 {
     return tr_areThreadsEqual( tr_getCurrentThread( ), t->thread );
@@ -133,8 +134,9 @@ tr_threadNew( void   ( *func )(void *),
         t->thread = (DWORD) id;
     }
 #else
-    pthread_create( &t->thread, NULL, ( void * ( * )(
-                                           void * ) )ThreadFunc, t );
+    pthread_create( &t->thread, NULL, (void*(*)(void*))ThreadFunc, t );
+    pthread_detach( t->thread );
+
 #endif
 
     return t;
@@ -436,7 +438,7 @@ tr_getDefaultConfigDir( const char * appname )
             s = tr_buildPath( getHomeDir( ), "Library", "Application Support",
                               appname, NULL );
 #elif defined( WIN32 )
-            char appdata[TR_MAX_PATH]; /* SHGetFolderPath() requires MAX_PATH */
+            char appdata[TR_PATH_MAX]; /* SHGetFolderPath() requires MAX_PATH */
             SHGetFolderPath( NULL, CSIDL_APPDATA, NULL, 0, appdata );
             s = tr_buildPath( appdata, appname, NULL );
 #elif defined( __HAIKU__ )

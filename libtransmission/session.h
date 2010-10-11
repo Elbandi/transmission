@@ -29,6 +29,7 @@
 
 #include "bencode.h"
 #include "bitfield.h"
+#include "utils.h"
 
 typedef enum { TR_NET_OK, TR_NET_ERROR, TR_NET_WAIT } tr_tristate_t;
 
@@ -40,12 +41,13 @@ struct tr_address;
 struct tr_announcer;
 struct tr_bandwidth;
 struct tr_bindsockets;
+struct tr_cache;
 struct tr_fdInfo;
 
 struct tr_turtle_info
 {
     /* TR_UP and TR_DOWN speed limits */
-    int speedLimit[2];
+    int speedLimit_Bps[2];
 
     /* is turtle mode on right now? */
     tr_bool isEnabled;
@@ -93,6 +95,7 @@ struct tr_session
     tr_bool                      useLazyBitfield;
     tr_bool                      isIncompleteFileNamingEnabled;
     tr_bool                      isRatioLimited;
+    tr_bool                      isIdleLimited;
     tr_bool                      isIncompleteDirEnabled;
     tr_bool                      pauseAddedTorrent;
     tr_bool                      deleteSourceTorrent;
@@ -101,7 +104,7 @@ struct tr_session
 
     int                          umask;
 
-    int                          speedLimit[2];
+    int                          speedLimit_Bps[2];
     tr_bool                      speedLimitEnabled[2];
 
     struct tr_turtle_info        turtle;
@@ -120,7 +123,17 @@ struct tr_session
 
     int                          uploadSlotsPerTorrent;
 
-    tr_port                      peerPort;
+    /* The open port on the local machine for incoming peer requests */
+    tr_port                      private_peer_port;
+
+    /**
+     * The open port on the public device for incoming peer requests.
+     * This is usually the same as private_peer_port but can differ
+     * if the public device is a router and it decides to use a different
+     * port than the one requested by Transmission.
+     */
+    tr_port                      public_peer_port;
+
     tr_port                      randomPortLow;
     tr_port                      randomPortHigh;
 
@@ -149,6 +162,8 @@ struct tr_session
     struct tr_peerMgr *          peerMgr;
     struct tr_shared *           shared;
 
+    struct tr_cache *            cache;
+
     struct tr_lock *             lock;
 
     struct tr_web *              web;
@@ -170,6 +185,8 @@ struct tr_session
     struct tr_bandwidth        * bandwidth;
 
     double                       desiredRatio;
+    
+    uint16_t                     idleLimitMinutes;
 
     struct tr_bindinfo         * public_ipv4;
     struct tr_bindinfo         * public_ipv6;
@@ -180,6 +197,12 @@ struct tr_session
 
     tr_bool bufferInUse;
 };
+
+static inline tr_port
+tr_sessionGetPublicPeerPort( const tr_session * session )
+{
+    return session->public_peer_port;
+}
 
 tr_bool      tr_sessionAllowsDHT( const tr_session * session );
 
@@ -244,5 +267,31 @@ static inline tr_bool tr_isPriority( tr_priority_t p )
         || ( p == TR_PRI_NORMAL )
         || ( p == TR_PRI_HIGH );
 }
+
+/***
+****
+***/
+
+static inline unsigned int toSpeedBytes ( unsigned int KBps ) { return KBps * tr_speed_K; }
+static inline double       toSpeedKBps  ( unsigned int Bps )  { return Bps / (double)tr_speed_K; }
+
+static inline uint64_t toMemBytes ( unsigned int MB ) { uint64_t B = tr_mem_K * tr_mem_K; B *= MB; return B; }
+static inline int      toMemMB    ( uint64_t B )      { return B / ( tr_mem_K * tr_mem_K ); }
+
+/**
+**/
+
+int  tr_sessionGetSpeedLimit_Bps( const tr_session *, tr_direction );
+int  tr_sessionGetAltSpeed_Bps  ( const tr_session *, tr_direction );
+int  tr_sessionGetRawSpeed_Bps  ( const tr_session *, tr_direction );
+int  tr_sessionGetPieceSpeed_Bps( const tr_session *, tr_direction );
+
+void tr_sessionSetSpeedLimit_Bps( tr_session *, tr_direction, int Bps );
+void tr_sessionSetAltSpeed_Bps  ( tr_session *, tr_direction, int Bps );
+
+tr_bool  tr_sessionGetActiveSpeedLimit_Bps( const tr_session  * session,
+                                            tr_direction        dir,
+                                            int               * setme );
+
 
 #endif

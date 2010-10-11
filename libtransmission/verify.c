@@ -60,7 +60,7 @@ verifyTorrent( tr_torrent * tor, tr_bool * stopFlag )
     tr_piece_index_t pieceIndex = 0;
     const time_t begin = tr_time( );
     time_t end;
-    const int64_t buflen = 1024 * 128; /* 128 KiB buffer */
+    const size_t buflen = 1024 * 128; /* 128 KiB buffer */
     uint8_t * buffer = tr_valloc( buflen );
 
     tr_torrentUncheck( tor );
@@ -69,9 +69,9 @@ verifyTorrent( tr_torrent * tor, tr_bool * stopFlag )
 
     while( !*stopFlag && ( pieceIndex < tor->info.pieceCount ) )
     {
-        int64_t leftInPiece;
-        int64_t leftInFile;
-        int64_t bytesThisPass;
+        uint32_t leftInPiece;
+        uint32_t bytesThisPass;
+        uint64_t leftInFile;
         const tr_file * file = &tor->info.files[fileIndex];
 
         /* if we're starting a new piece... */
@@ -101,7 +101,7 @@ verifyTorrent( tr_torrent * tor, tr_bool * stopFlag )
         /* read a bit */
         if( fd >= 0 ) {
             const ssize_t numRead = tr_pread( fd, buffer, bytesThisPass, filePos );
-            if( numRead == bytesThisPass )
+            if( numRead == (ssize_t)bytesThisPass )
                 SHA1_Update( &sha, buffer, numRead );
             if( numRead > 0 ) {
                 pieceBytesRead += numRead;
@@ -184,6 +184,7 @@ struct verify_node
 {
     tr_torrent *         torrent;
     tr_verify_done_cb    verify_done_cb;
+    uint64_t             current_size;
 };
 
 static void
@@ -252,26 +253,38 @@ verifyThreadFunc( void * unused UNUSED )
     tr_lockUnlock( getVerifyLock( ) );
 }
 
-static tr_bool
-torrentHasAnyLocalData( const tr_torrent * tor )
+static uint64_t
+getCurrentSize( tr_torrent * tor )
 {
     tr_file_index_t i;
-    tr_bool hasAny = FALSE;
+    uint64_t byte_count = 0;
     const tr_file_index_t n = tor->info.fileCount;
 
-    assert( tr_isTorrent( tor ) );
-
-    for( i=0; i<n && !hasAny; ++i )
+    for( i=0; i<n; ++i )
     {
         struct stat sb;
-        char * path = tr_torrentFindFile( tor, i );
-        if( ( path != NULL ) && !stat( path, &sb ) && ( sb.st_size > 0 ) )
-            hasAny = TRUE;
-        tr_free( path );
+        char * filename = tr_torrentFindFile( tor, i );
+
+        sb.st_size = 0;
+        if( filename && !stat( filename, &sb ) )
+            byte_count += sb.st_size;
+
+        tr_free( filename );
     }
 
-    return hasAny;
+    return byte_count;
 }
+
+static int 
+compareVerifyBySize( const void * va, const void * vb ) 
+{ 
+    const struct verify_node * a = va; 
+    const struct verify_node * b = vb; 
+
+    if( a->current_size < b->current_size ) return -1;
+    if( a->current_size > b->current_size ) return  1;
+    return 0;
+} 
 
 void
 tr_verifyAdd( tr_torrent *      tor,
@@ -284,65 +297,53 @@ tr_verifyAdd( tr_torrent *      tor,
         /* doesn't need to be checked... */
         fireCheckDone( tor, verify_done_cb );
     }
-    else if( !torrentHasAnyLocalData( tor ) )
-    {
-        /* we haven't downloaded anything for this torrent yet...
-         * no need to leave it waiting in the back of the queue.
-         * we can mark it as all-missing from here and fire
-         * the "done" callback */
-        const tr_bool hadAny = tr_cpHaveTotal( &tor->completion ) != 0;
-        tr_piece_index_t i;
-        for( i=0; i<tor->info.pieceCount; ++i ) {
-            tr_torrentSetHasPiece( tor, i, FALSE );
-            tr_torrentSetPieceChecked( tor, i, TRUE );
-        }
-        if( hadAny ) /* if we thought we had some, flag as dirty */
-            tr_torrentSetDirty( tor );
-        fireCheckDone( tor, verify_done_cb );
-    }
     else
     {
-        struct verify_node * node;
+        const uint64_t current_size = getCurrentSize( tor );
 
-        tr_torinf( tor, "%s", _( "Queued for verification" ) );
+        if( !current_size )
+        {
+            /* we haven't downloaded anything for this torrent yet...
+             * no need to leave it waiting in the back of the queue.
+             * we can mark it as all-missing from here and fire
+             * the "done" callback */
+            const tr_bool hadAny = tr_cpHaveTotal( &tor->completion ) != 0;
+            tr_piece_index_t i;
+            for( i=0; i<tor->info.pieceCount; ++i ) {
+                tr_torrentSetHasPiece( tor, i, FALSE );
+                tr_torrentSetPieceChecked( tor, i, TRUE );
+            }
+            if( hadAny ) /* if we thought we had some, flag as dirty */
+                tr_torrentSetDirty( tor );
+            fireCheckDone( tor, verify_done_cb );
+        }
+        else
+        {
+            struct verify_node * node;
 
-        node = tr_new( struct verify_node, 1 );
-        node->torrent = tor;
-        node->verify_done_cb = verify_done_cb;
+            tr_torinf( tor, "%s", _( "Queued for verification" ) );
 
-        tr_lockLock( getVerifyLock( ) );
-        tr_torrentSetVerifyState( tor, TR_VERIFY_WAIT );
-        tr_list_append( &verifyList, node );
-        if( verifyThread == NULL )
-            verifyThread = tr_threadNew( verifyThreadFunc, NULL );
-        tr_lockUnlock( getVerifyLock( ) );
+            node = tr_new( struct verify_node, 1 );
+            node->torrent = tor;
+            node->verify_done_cb = verify_done_cb;
+            node->current_size = current_size;
+
+            tr_lockLock( getVerifyLock( ) );
+            tr_torrentSetVerifyState( tor, TR_VERIFY_WAIT );
+            tr_list_insert_sorted( &verifyList, node, compareVerifyBySize );
+            if( verifyThread == NULL )
+                verifyThread = tr_threadNew( verifyThreadFunc, NULL );
+            tr_lockUnlock( getVerifyLock( ) );
+        }
     }
 }
 
 static int
-compareVerifyByTorrent( const void * va,
-                        const void * vb )
+compareVerifyByTorrent( const void * va, const void * vb )
 {
     const struct verify_node * a = va;
-    const tr_torrent *         b = vb;
-
+    const tr_torrent * b = vb;
     return a->torrent - b;
-}
-
-tr_bool
-tr_verifyInProgress( const tr_torrent * tor )
-{
-    tr_bool found = FALSE;
-    tr_lock * lock = getVerifyLock( );
-    tr_lockLock( lock );
-
-    assert( tr_isTorrent( tor ) );
-
-    found = ( tor == currentNode.torrent )
-         || ( tr_list_find( verifyList, tor, compareVerifyByTorrent ) != NULL );
-
-    tr_lockUnlock( lock );
-    return found;
 }
 
 void

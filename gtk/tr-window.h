@@ -26,14 +26,17 @@
 #define TR_WINDOW_H
 
 #include <gtk/gtk.h>
+#include <libtransmission/utils.h> /* tr_formatter_speed_KBps() */
 #include "tr-core.h"
 
 typedef GtkWindow TrWindow;
 
-GtkTreeSelection * tr_window_get_selection( TrWindow* wind );
+GtkTreeSelection * tr_window_get_selection( TrWindow * );
 
 GtkWidget        * tr_window_new( GtkUIManager * uim, TrCore * core );
 
-void               tr_window_update( TrWindow * wind );
+void               tr_window_update( TrWindow * );
+
+void               tr_window_set_busy( TrWindow *, gboolean isBusy );
 
 #endif

@@ -27,6 +27,7 @@
 .Op Fl V
 .Op Fl w Ar download-dir
 .Op Fl e Ar logfile
+.Op Fl log-error | log-info | log-debug
 .Ek
 .Sh DESCRIPTION
 .Nm
@@ -117,6 +118,12 @@ Show version number and exit
 Where to store downloaded data.
 .It Fl e Fl -logfile
 Where to store transmission's log messages.
+.It Fl -log-error
+Show error messages
+.It Fl -log-info
+Show error and info messages
+.It Fl -log-debug
+Show error, info, and debug messages
 .El
 .Sh ENVIRONMENT
 .Bl -tag -width Fl
@@ -141,8 +148,12 @@ See http://trac.transmissionbt.com/wiki/ConfigFiles for more information.
 and
 .An Mitchell Livingston .
 .Sh SEE ALSO
-.Xr transmissioncli 1 ,
-.Xr transmission 1 ,
-.Xr transmission-remote 1
+.Xr transmission-create 1 ,
+.Xr transmission-daemon 1 ,
+.Xr transmission-edit 1 ,
+.Xr transmission-gtk 1 ,
+.Xr transmission-qt 1 ,
+.Xr transmission-remote 1 ,
+.Xr transmission-show 1
 .Pp
 http://www.transmissionbt.com/

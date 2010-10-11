@@ -1,11 +1,11 @@
 /*
- * This file Copyright (C) 2009-2010 Mnemosyne LLC
+ * This file Copyright (C) Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2.  Works owned by the
- * Transmission project are granted a special exemption to clause 2(b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2
+ * as published by the Free Software Foundation.
+ *
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
  *
  * $Id$
  */
@@ -15,10 +15,10 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include "formatter.h"
 #include "hig.h"
 #include "session.h"
 #include "stats-dialog.h"
-#include "utils.h"
 
 enum
 {
@@ -85,15 +85,15 @@ StatsDialog :: updateStats( )
     const struct tr_session_stats& current( mySession.getStats( ) );
     const struct tr_session_stats& total( mySession.getCumulativeStats( ) );
 
-    myCurrentUp->setText( Utils :: sizeToString( current.uploadedBytes ) );
-    myCurrentDown->setText( Utils :: sizeToString( current.downloadedBytes ) );
-    myCurrentRatio->setText( Utils :: ratioToString( current.ratio ) );
-    myCurrentDuration->setText( Utils :: timeToString( current.secondsActive ) );
+    myCurrentUp->setText( Formatter::sizeToString( current.uploadedBytes ) );
+    myCurrentDown->setText( Formatter::sizeToString( current.downloadedBytes ) );
+    myCurrentRatio->setText( Formatter::ratioToString( current.ratio ) );
+    myCurrentDuration->setText( Formatter::timeToString( current.secondsActive ) );
 
-    myTotalUp->setText( Utils :: sizeToString( total.uploadedBytes ) );
-    myTotalDown->setText( Utils :: sizeToString( total.downloadedBytes ) );
-    myTotalRatio->setText( Utils :: ratioToString( total.ratio ) );
-    myTotalDuration->setText( Utils :: timeToString( total.secondsActive ) );
+    myTotalUp->setText( Formatter::sizeToString( total.uploadedBytes ) );
+    myTotalDown->setText( Formatter::sizeToString( total.downloadedBytes ) );
+    myTotalRatio->setText( Formatter::ratioToString( total.ratio ) );
+    myTotalDuration->setText( Formatter::timeToString( total.secondsActive ) );
 
     myStartCount->setText( tr( "Started %n time(s)", 0, total.sessionCount ) );
 }
