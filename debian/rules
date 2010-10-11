@@ -106,10 +106,12 @@ install: build
 	$(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
 
 #	# clean RPATH from transmission binary (costela - 2007-10-27)
-	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmission
+	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmission-create
+	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmission-edit
+	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmission-show
 	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmission-daemon
 	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmission-remote
-	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmissioncli
+	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmission-cli
 
 UPSTREAM_VERSION=$(shell dpkg-parsechangelog | perl -ne '{ print $$1."\n" if /Version: (.*)-.*/; }')
 
