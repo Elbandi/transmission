@@ -11,7 +11,6 @@
  */
 
 #include <assert.h>
-#include <math.h> /* ceil() */
 #include <stddef.h>
 #include <stdio.h> /* sscanf */
 #include <stdlib.h>
@@ -35,41 +34,36 @@ struct DetailsImpl
 {
     GtkWidget * dialog;
 
-    GtkWidget * peersPage;
-    GtkWidget * trackerPage;
-    GtkWidget * activityPage;
+    GtkWidget * honor_limits_check;
+    GtkWidget * up_limited_check;
+    GtkWidget * up_limit_sping;
+    GtkWidget * down_limited_check;
+    GtkWidget * down_limit_spin;
+    GtkWidget * bandwidth_combo;
 
-    GtkWidget * honorLimitsCheck;
-    GtkWidget * upLimitedCheck;
-    GtkWidget * upLimitSpin;
-    GtkWidget * downLimitedCheck;
-    GtkWidget * downLimitSpin;
-    GtkWidget * bandwidthCombo;
-    GtkWidget * seedGlobalRadio;
-    GtkWidget * seedForeverRadio;
-    GtkWidget * seedCustomRadio;
-    GtkWidget * seedCustomSpin;
-    GtkWidget * maxPeersSpin;
+    GtkWidget * ratio_combo;
+    GtkWidget * ratio_spin;
+    GtkWidget * idle_combo;
+    GtkWidget * idle_spin;
+    GtkWidget * max_peers_spin;
 
-    guint honorLimitsCheckTag;
-    guint upLimitedCheckTag;
-    guint downLimitedCheckTag;
-    guint downLimitSpinTag;
-    guint upLimitSpinTag;
-    guint bandwidthComboTag;
-    guint seedForeverRadioTag;
-    guint seedGlobalRadioTag;
-    guint seedCustomRadioTag;
-    guint seedCustomSpinTag;
-    guint maxPeersSpinTag;
+    guint honor_limits_check_tag;
+    guint up_limited_check_tag;
+    guint down_limited_check_tag;
+    guint down_limit_spin_tag;
+    guint up_limit_spin_tag;
+    guint bandwidth_combo_tag;
+    guint ratio_combo_tag;
+    guint ratio_spin_tag;
+    guint idle_combo_tag;
+    guint idle_spin_tag;
+    guint max_peers_spin_tag;
 
     GtkWidget * size_lb;
     GtkWidget * state_lb;
     GtkWidget * have_lb;
-    GtkWidget * availability_lb;
     GtkWidget * dl_lb;
     GtkWidget * ul_lb;
-    GtkWidget * ratio_lb;
     GtkWidget * error_lb;
     GtkWidget * date_started_lb;
     GtkWidget * eta_lb;
@@ -193,7 +187,7 @@ refreshOptions( struct DetailsImpl * di, tr_torrent ** torrents, int n )
     ****  Options Page
     ***/
 
-    /* honorLimitsCheck */
+    /* honor_limits_check */
     if( n ) {
         const tr_bool baseline = tr_torrentUsesSessionLimits( torrents[0] );
         int i;
@@ -201,11 +195,11 @@ refreshOptions( struct DetailsImpl * di, tr_torrent ** torrents, int n )
             if( baseline != tr_torrentUsesSessionLimits( torrents[i] ) )
                 break;
         if( i == n )
-            set_togglebutton_if_different( di->honorLimitsCheck,
-                                           di->honorLimitsCheckTag, baseline );
+            set_togglebutton_if_different( di->honor_limits_check,
+                                           di->honor_limits_check_tag, baseline );
     }
 
-    /* downLimitedCheck */
+    /* down_limited_check */
     if( n ) {
         const tr_bool baseline = tr_torrentUsesSpeedLimit( torrents[0], TR_DOWN );
         int i;
@@ -213,23 +207,23 @@ refreshOptions( struct DetailsImpl * di, tr_torrent ** torrents, int n )
             if( baseline != tr_torrentUsesSpeedLimit( torrents[i], TR_DOWN ) )
                 break;
         if( i == n )
-            set_togglebutton_if_different( di->downLimitedCheck,
-                                           di->downLimitedCheckTag, baseline );
+            set_togglebutton_if_different( di->down_limited_check,
+                                           di->down_limited_check_tag, baseline );
     }
 
-    /* downLimitSpin */
+    /* down_limit_spin */
     if( n ) {
-        const int baseline = tr_torrentGetSpeedLimit( torrents[0], TR_DOWN );
+        const int baseline = tr_torrentGetSpeedLimit_KBps( torrents[0], TR_DOWN );
         int i;
         for( i=1; i<n; ++i )
-            if( baseline != tr_torrentGetSpeedLimit( torrents[i], TR_DOWN ) )
+            if( baseline != ( tr_torrentGetSpeedLimit_KBps( torrents[i], TR_DOWN ) ) )
                 break;
         if( i == n )
-            set_int_spin_if_different( di->downLimitSpin,
-                                       di->downLimitSpinTag, baseline );
+            set_int_spin_if_different( di->down_limit_spin,
+                                       di->down_limit_spin_tag, baseline );
     }
 
-    /* upLimitedCheck */
+    /* up_limited_check */
     if( n ) {
         const tr_bool baseline = tr_torrentUsesSpeedLimit( torrents[0], TR_UP );
         int i;
@@ -237,23 +231,23 @@ refreshOptions( struct DetailsImpl * di, tr_torrent ** torrents, int n )
             if( baseline != tr_torrentUsesSpeedLimit( torrents[i], TR_UP ) )
                 break;
         if( i == n )
-            set_togglebutton_if_different( di->upLimitedCheck,
-                                           di->upLimitedCheckTag, baseline );
+            set_togglebutton_if_different( di->up_limited_check,
+                                           di->up_limited_check_tag, baseline );
     }
 
-    /* upLimitSpin */
+    /* up_limit_sping */
     if( n ) {
-        const int baseline = tr_torrentGetSpeedLimit( torrents[0], TR_UP );
+        const int baseline = tr_torrentGetSpeedLimit_KBps( torrents[0], TR_UP );
         int i;
         for( i=1; i<n; ++i )
-            if( baseline != tr_torrentGetSpeedLimit( torrents[i], TR_UP ) )
+            if( baseline != ( tr_torrentGetSpeedLimit_KBps( torrents[i], TR_UP ) ) )
                 break;
         if( i == n )
-            set_int_spin_if_different( di->upLimitSpin,
-                                       di->upLimitSpinTag, baseline );
+            set_int_spin_if_different( di->up_limit_sping,
+                                       di->up_limit_spin_tag, baseline );
     }
 
-    /* bandwidthCombo */
+    /* bandwidth_combo */
     if( n ) {
         const int baseline = tr_torrentGetPriority( torrents[0] );
         int i;
@@ -261,50 +255,64 @@ refreshOptions( struct DetailsImpl * di, tr_torrent ** torrents, int n )
             if( baseline != tr_torrentGetPriority( torrents[i] ) )
                 break;
         if( i == n ) {
-            g_signal_handler_block( di->bandwidthCombo, di->bandwidthComboTag );
-            gtr_priority_combo_set_value( di->bandwidthCombo, baseline );
-            g_signal_handler_unblock( di->bandwidthCombo, di->bandwidthComboTag );
+            GtkWidget * w = di->bandwidth_combo;
+            g_signal_handler_block( w, di->bandwidth_combo_tag );
+            gtr_priority_combo_set_value( GTK_COMBO_BOX( w ), baseline );
+            g_signal_handler_unblock( w, di->bandwidth_combo_tag );
         }
         else
-            unset_combo( di->bandwidthCombo, di->bandwidthComboTag );
+            unset_combo( di->bandwidth_combo, di->bandwidth_combo_tag );
     }
 
-    /* seedGlobalRadio */
-    /* seedForeverRadio */
-    /* seedCustomRadio */
+    /* ratio_combo */
+    /* ratio_spin */
     if( n ) {
-        guint t;
-        const int baseline = tr_torrentGetRatioMode( torrents[0] );
         int i;
+        const int baseline = tr_torrentGetRatioMode( torrents[0] );
         for( i=1; i<n; ++i )
             if( baseline != (int)tr_torrentGetRatioMode( torrents[i] ) )
                 break;
         if( i == n ) {
-            GtkWidget * w;
-            switch( baseline ) {
-                case TR_RATIOLIMIT_SINGLE: w = di->seedCustomRadio;
-                                           t = di->seedCustomRadioTag; break;
-                case TR_RATIOLIMIT_UNLIMITED: w = di->seedForeverRadio;
-                                              t = di->seedForeverRadioTag; break;
-                default /*TR_RATIOLIMIT_GLOBAL*/: w = di->seedGlobalRadio;
-                                                  t = di->seedGlobalRadioTag; break;
-            }
-            set_togglebutton_if_different( w, t, TRUE );
+            GtkWidget * w = di->ratio_combo;
+            g_signal_handler_block( w, di->ratio_combo_tag );
+            gtr_combo_box_set_active_enum( GTK_COMBO_BOX( w ), baseline );
+            gtr_widget_set_visible( di->ratio_spin, baseline == TR_RATIOLIMIT_SINGLE );
+            g_signal_handler_unblock( w, di->ratio_combo_tag );
         }
     }
-
-    /* seedCustomSpin */
     if( n ) {
         const double baseline = tr_torrentGetRatioLimit( torrents[0] );
-        set_double_spin_if_different( di->seedCustomSpin,
-                                      di->seedCustomSpinTag, baseline );
+        set_double_spin_if_different( di->ratio_spin,
+                                      di->ratio_spin_tag, baseline );
     }
 
-    /* maxPeersSpin */
+    /* idle_combo */
+    /* idle_spin */
+    if( n ) {
+        int i;
+        const int baseline = tr_torrentGetIdleMode( torrents[0] );
+        for( i=1; i<n; ++i )
+            if( baseline != (int)tr_torrentGetIdleMode( torrents[i] ) )
+                break;
+        if( i == n ) {
+            GtkWidget * w = di->idle_combo;
+            g_signal_handler_block( w, di->idle_combo_tag );
+            gtr_combo_box_set_active_enum( GTK_COMBO_BOX( w ), baseline );
+            gtr_widget_set_visible( di->idle_spin, baseline == TR_IDLELIMIT_SINGLE );
+            g_signal_handler_unblock( w, di->idle_combo_tag );
+        }
+    }
+    if( n ) {
+        const int baseline = tr_torrentGetIdleLimit( torrents[0] );
+        set_int_spin_if_different( di->idle_spin,
+                                   di->idle_spin_tag, baseline );
+    }
+
+    /* max_peers_spin */
     if( n ) {
         const int baseline = tr_torrentGetPeerLimit( torrents[0] );
-        set_int_spin_if_different( di->maxPeersSpin,
-                                   di->maxPeersSpinTag, baseline );
+        set_int_spin_if_different( di->max_peers_spin,
+                                   di->max_peers_spin_tag, baseline );
     }
 }
 
@@ -380,19 +388,6 @@ global_speed_toggled_cb( GtkToggleButton * tb, gpointer d )
     torrent_set_bool( d, "honorsSessionLimits", gtk_toggle_button_get_active( tb ) );
 }
 
-#define RATIO_KEY "ratio-mode"
-
-static void
-ratio_mode_changed_cb( GtkToggleButton * tb, struct DetailsImpl * d )
-{
-    if( gtk_toggle_button_get_active( tb ) )
-    {
-        GObject * o = G_OBJECT( tb );
-        const int mode = GPOINTER_TO_INT( g_object_get_data( o, RATIO_KEY ) );
-        torrent_set_int( d, "seedRatioMode", mode );
-    }
-}
-
 static void
 up_speed_spun_cb( GtkSpinButton * s, struct DetailsImpl * di )
 {
@@ -406,10 +401,15 @@ down_speed_spun_cb( GtkSpinButton * s, struct DetailsImpl * di )
 }
 
 static void
+idle_spun_cb( GtkSpinButton * s, struct DetailsImpl * di )
+{
+    torrent_set_int( di, "seedInactiveLimit", gtk_spin_button_get_value_as_int( s ) );
+}
+
+static void
 ratio_spun_cb( GtkSpinButton * s, struct DetailsImpl * di )
 {
     torrent_set_real( di, "seedRatioLimit", gtk_spin_button_get_value( s ) );
-    gtk_toggle_button_set_active( GTK_TOGGLE_BUTTON( di->seedCustomRadio ), TRUE );
 }
 
 static void
@@ -419,9 +419,9 @@ max_peers_spun_cb( GtkSpinButton * s, struct DetailsImpl * di )
 }
 
 static void
-onPriorityChanged( GtkComboBox * w, struct DetailsImpl * di )
+onPriorityChanged( GtkComboBox * combo_box, struct DetailsImpl * di )
 {
-    const tr_priority_t priority = gtr_priority_combo_get_value( GTK_WIDGET( w ) );
+    const tr_priority_t priority = gtr_priority_combo_get_value( combo_box );
     torrent_set_int( di, "bandwidthPriority", priority );
 }
 
@@ -429,17 +429,50 @@ static GtkWidget*
 new_priority_combo( struct DetailsImpl * di )
 {
     GtkWidget * w = gtr_priority_combo_new( );
-    di->bandwidthComboTag = g_signal_connect( w, "changed", G_CALLBACK( onPriorityChanged ), di );
+    di->bandwidth_combo_tag = g_signal_connect( w, "changed", G_CALLBACK( onPriorityChanged ), di );
     return w;
 }
 
+static void refresh( struct DetailsImpl * di );
+
+#define ARG_KEY "arg-key"
+
+static void
+onComboEnumChanged( GtkComboBox * combo_box, struct DetailsImpl * di )
+{
+    const char * key = g_object_get_data( G_OBJECT( combo_box ), ARG_KEY );
+    torrent_set_int( di, key, gtr_combo_box_get_active_enum( combo_box ) );
+    refresh( di );
+}
+
+static GtkWidget*
+ratio_combo_new( void )
+{
+    GtkWidget * w = gtr_combo_box_new_enum( _( "Use global settings" ),       TR_RATIOLIMIT_GLOBAL,
+                                            _( "Seed regardless of ratio" ),  TR_RATIOLIMIT_UNLIMITED,
+                                            _( "Stop seeding at ratio:" ),    TR_RATIOLIMIT_SINGLE,
+                                            NULL );
+    g_object_set_data_full( G_OBJECT( w ), ARG_KEY, g_strdup( "seedRatioMode" ), g_free );
+    return w;
+}
+
+static GtkWidget*
+idle_combo_new( void )
+{
+    GtkWidget * w = gtr_combo_box_new_enum ( _( "Use global settings" ),                 TR_IDLELIMIT_GLOBAL,
+                                             _( "Seed regardless of activity" ),         TR_IDLELIMIT_UNLIMITED,
+                                             _( "Stop seeding if idle for N minutes:" ), TR_IDLELIMIT_SINGLE,
+                                             NULL );
+    g_object_set_data_full( G_OBJECT( w ), ARG_KEY, g_strdup( "seedIdleMode" ), g_free );
+    return w;
+}
 
 static GtkWidget*
 options_page_new( struct DetailsImpl * d )
 {
     guint tag;
     int row;
-    const char *s;
+    char buf[128];
     GtkWidget *t, *w, *tb, *h;
 
     row = 0;
@@ -447,71 +480,60 @@ options_page_new( struct DetailsImpl * d )
     hig_workarea_add_section_title( t, &row, _( "Speed" ) );
 
     tb = hig_workarea_add_wide_checkbutton( t, &row, _( "Honor global _limits" ), 0 );
-    d->honorLimitsCheck = tb;
+    d->honor_limits_check = tb;
     tag = g_signal_connect( tb, "toggled", G_CALLBACK( global_speed_toggled_cb ), d );
-    d->honorLimitsCheckTag = tag;
+    d->honor_limits_check_tag = tag;
 
-    tb = gtk_check_button_new_with_mnemonic( _( "Limit _download speed (KiB/s):" ) );
+    g_snprintf( buf, sizeof( buf ), _( "Limit _download speed (%s):" ), _(speed_K_str) );
+    tb = gtk_check_button_new_with_mnemonic( buf );
     gtk_toggle_button_set_active( GTK_TOGGLE_BUTTON( tb ), FALSE );
-    d->downLimitedCheck = tb;
+    d->down_limited_check = tb;
     tag = g_signal_connect( tb, "toggled", G_CALLBACK( down_speed_toggled_cb ), d );
-    d->downLimitedCheckTag = tag;
+    d->down_limited_check_tag = tag;
 
-    w = gtk_spin_button_new_with_range( 1, INT_MAX, 5 );
+    w = gtk_spin_button_new_with_range( 0, INT_MAX, 5 );
     tag = g_signal_connect( w, "value-changed", G_CALLBACK( down_speed_spun_cb ), d );
-    d->downLimitSpinTag = tag;
+    d->down_limit_spin_tag = tag;
     hig_workarea_add_row_w( t, &row, tb, w, NULL );
-    d->downLimitSpin = w;
+    d->down_limit_spin = w;
 
-    tb = gtk_check_button_new_with_mnemonic( _( "Limit _upload speed (KiB/s):" ) );
-    d->upLimitedCheck = tb;
+    g_snprintf( buf, sizeof( buf ), _( "Limit _upload speed (%s):" ), _(speed_K_str) );
+    tb = gtk_check_button_new_with_mnemonic( buf );
+    d->up_limited_check = tb;
     tag = g_signal_connect( tb, "toggled", G_CALLBACK( up_speed_toggled_cb ), d );
-    d->upLimitedCheckTag = tag;
+    d->up_limited_check_tag = tag;
 
-    w = gtk_spin_button_new_with_range( 1, INT_MAX, 5 );
+    w = gtk_spin_button_new_with_range( 0, INT_MAX, 5 );
     tag = g_signal_connect( w, "value-changed", G_CALLBACK( up_speed_spun_cb ), d );
-    d->upLimitSpinTag = tag;
+    d->up_limit_spin_tag = tag;
     hig_workarea_add_row_w( t, &row, tb, w, NULL );
-    d->upLimitSpin = w;
+    d->up_limit_sping = w;
 
     w = new_priority_combo( d );
     hig_workarea_add_row( t, &row, _( "Torrent _priority:" ), w, NULL );
-    d->bandwidthCombo = w;
+    d->bandwidth_combo = w;
 
     hig_workarea_add_section_divider( t, &row );
-    hig_workarea_add_section_title( t, &row, _( "Seed-Until Ratio" ) );
-
-    s = _( "Use _global settings" );
-    w = gtk_radio_button_new_with_mnemonic( NULL, s );
-    hig_workarea_add_wide_control( t, &row, w );
-    g_object_set_data( G_OBJECT( w ), RATIO_KEY, GINT_TO_POINTER( TR_RATIOLIMIT_GLOBAL ) );
-    tag = g_signal_connect( w, "toggled", G_CALLBACK( ratio_mode_changed_cb ), d );
-    d->seedGlobalRadio = w;
-    d->seedGlobalRadioTag = tag;
-
-    s = _( "Seed _regardless of ratio" );
-    w = gtk_radio_button_new_with_mnemonic_from_widget( GTK_RADIO_BUTTON( w ), s );
-    hig_workarea_add_wide_control( t, &row, w );
-    g_object_set_data( G_OBJECT( w ), RATIO_KEY, GINT_TO_POINTER( TR_RATIOLIMIT_UNLIMITED ) );
-    tag = g_signal_connect( w, "toggled", G_CALLBACK( ratio_mode_changed_cb ), d );
-    d->seedForeverRadio = w;
-    d->seedForeverRadioTag = tag;
+    hig_workarea_add_section_title( t, &row, _( "Seeding Limits" ) );
 
     h = gtk_hbox_new( FALSE, GUI_PAD );
-    s = _( "_Seed torrent until its ratio reaches:" );
-    w = gtk_radio_button_new_with_mnemonic_from_widget( GTK_RADIO_BUTTON( w ), s );
-    d->seedCustomRadio = w;
-    g_object_set_data( G_OBJECT( w ), RATIO_KEY, GINT_TO_POINTER( TR_RATIOLIMIT_SINGLE ) );
-    tag = g_signal_connect( w, "toggled", G_CALLBACK( ratio_mode_changed_cb ), d );
-    d->seedCustomRadioTag = tag;
+    w = d->ratio_combo = ratio_combo_new( );
+    d->ratio_combo_tag = g_signal_connect( w, "changed", G_CALLBACK( onComboEnumChanged ), d );
+    gtk_box_pack_start( GTK_BOX( h ), w, TRUE, TRUE, 0 );
+    w = d->ratio_spin = gtk_spin_button_new_with_range( 0, 1000, .05 );
+    gtk_entry_set_width_chars( GTK_ENTRY( w ), 7 );
+    d->ratio_spin_tag = g_signal_connect( w, "value-changed", G_CALLBACK( ratio_spun_cb ), d );
     gtk_box_pack_start( GTK_BOX( h ), w, FALSE, FALSE, 0 );
-    w = gtk_spin_button_new_with_range( 0, INT_MAX, .05 );
-    gtk_spin_button_set_digits( GTK_SPIN_BUTTON( w ), 2 );
-    tag = g_signal_connect( w, "value-changed", G_CALLBACK( ratio_spun_cb ), d );
+    hig_workarea_add_row( t, &row, _( "_Ratio:" ), h, NULL );
+
+    h = gtk_hbox_new( FALSE, GUI_PAD );
+    w = d->idle_combo = idle_combo_new( );
+    d->idle_combo_tag = g_signal_connect( w, "changed", G_CALLBACK( onComboEnumChanged ), d );
+    gtk_box_pack_start( GTK_BOX( h ), w, TRUE, TRUE, 0 );
+    w = d->idle_spin = gtk_spin_button_new_with_range( 1, INT_MAX, 5 );
+    d->idle_spin_tag = g_signal_connect( w, "value-changed", G_CALLBACK( idle_spun_cb ), d );
     gtk_box_pack_start( GTK_BOX( h ), w, FALSE, FALSE, 0 );
-    hig_workarea_add_wide_control( t, &row, h );
-    d->seedCustomSpin = w;
-    d->seedCustomSpinTag = tag;
+    hig_workarea_add_row( t, &row, _( "_Idle:" ), h, NULL );
 
     hig_workarea_add_section_divider( t, &row );
     hig_workarea_add_section_title( t, &row, _( "Peer Connections" ) );
@@ -519,8 +541,8 @@ options_page_new( struct DetailsImpl * d )
     w = gtk_spin_button_new_with_range( 1, 3000, 5 );
     hig_workarea_add_row( t, &row, _( "_Maximum peers:" ), w, w );
     tag = g_signal_connect( w, "value-changed", G_CALLBACK( max_peers_spun_cb ), d );
-    d->maxPeersSpin = w;
-    d->maxPeersSpinTag = tag;
+    d->max_peers_spin = w;
+    d->max_peers_spin_tag = tag;
 
     hig_workarea_finish( t, &row );
     return t;
@@ -593,12 +615,11 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
 {
     int i;
     const char * str;
-    const char * none = _( "None" );
     const char * mixed = _( "Mixed" );
+    const char * no_torrent = _( "No Torrents Selected" );
     const char * stateString;
     char buf[512];
-    double available = 0;
-    double sizeWhenDone = 0;
+    uint64_t sizeWhenDone = 0;
     const tr_stat ** stats = g_new( const tr_stat*, n );
     const tr_info ** infos = g_new( const tr_info*, n );
     for( i=0; i<n; ++i ) {
@@ -608,7 +629,7 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
 
     /* privacy_lb */
     if( n<=0 )
-        str = none;
+        str = no_torrent;
     else {
         const tr_bool baseline = infos[0]->isPrivate;
         for( i=1; i<n; ++i )
@@ -626,7 +647,7 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
 
     /* origin_lb */
     if( n<=0 )
-        str = none;
+        str = no_torrent;
     else {
         const char * creator = infos[0]->creator ? infos[0]->creator : "";
         const time_t date = infos[0]->dateCreated;
@@ -672,7 +693,7 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
 
     /* destination_lb */
     if( n<=0 )
-        str = none;
+        str = no_torrent;
     else {
         const char * baseline = tr_torrentGetDownloadDir( torrents[0] );
         for( i=1; i<n; ++i )
@@ -686,8 +707,8 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
     gtr_label_set_text( GTK_LABEL( di->destination_lb ), str );
 
     /* state_lb */
-    if( n < 1 )
-        str = none;
+    if( n<=0 )
+        str = no_torrent;
     else {
         const tr_torrent_activity activity = stats[0]->activity;
         tr_bool allFinished = stats[0]->finished;
@@ -704,8 +725,8 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
 
 
     /* date started */
-    if( n < 1 )
-        str = none;
+    if( n<=0 )
+        str = no_torrent;
     else {
         const time_t baseline = stats[0]->startDate;
         for( i=1; i<n; ++i )
@@ -722,8 +743,8 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
 
 
     /* eta */
-    if( n <= 0 )
-        str = none;
+    if( n<=0 )
+        str = no_torrent;
     else {
         const int baseline = stats[0]->eta;
         for( i=1; i<n; ++i )
@@ -755,19 +776,19 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
         }
         tr_strlsize( sizebuf, size, sizeof( sizebuf ) );
         if( !size )
-            str = none;
+            str = "";
         else if( pieceSize >= 0 ) {
             char piecebuf[128];
-            tr_strlsize( piecebuf, (uint64_t)pieceSize, sizeof( piecebuf ) );
+            tr_formatter_mem_B( piecebuf, pieceSize, sizeof( piecebuf ) );
             g_snprintf( buf, sizeof( buf ),
-                        ngettext( "%1$s (%2$'d piece @ %3$s)",
-                                  "%1$s (%2$'d pieces @ %3$s)", pieces ),
+                        gtr_ngettext( "%1$s (%2$'d piece @ %3$s)",
+                                      "%1$s (%2$'d pieces @ %3$s)", pieces ),
                         sizebuf, pieces, piecebuf );
             str = buf;
         } else {
             g_snprintf( buf, sizeof( buf ),
-                        ngettext( "%1$s (%2$'d piece)",
-                                  "%1$s (%2$'d pieces)", pieces ),
+                        gtr_ngettext( "%1$s (%2$'d piece)",
+                                      "%1$s (%2$'d pieces)", pieces ),
                         sizebuf, pieces );
             str = buf;
         }
@@ -777,51 +798,45 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
 
     /* have_lb */
     if( n <= 0 )
-        str = none;
+        str = no_torrent;
     else {
-        double leftUntilDone = 0;
-        double haveUnchecked = 0;
-        double haveValid = 0;
-        double verifiedPieces = 0;
+        uint64_t leftUntilDone = 0;
+        uint64_t haveUnchecked = 0;
+        uint64_t haveValid = 0;
+        uint32_t verifiedPieces = 0;
+        uint64_t available = 0;
         for( i=0; i<n; ++i ) {
             const tr_stat * st = stats[i];
-            const double v = st->haveValid;
+            const tr_info * inf = infos[i];
             haveUnchecked += st->haveUnchecked;
-            haveValid += v;
-            verifiedPieces += v / tr_torrentInfo(torrents[i])->pieceSize;
+            haveValid += st->haveValid;
+            verifiedPieces += inf->pieceSize ? st->haveValid / inf->pieceSize : 0;
             sizeWhenDone += st->sizeWhenDone;
             leftUntilDone += st->leftUntilDone;
             available += st->sizeWhenDone - st->leftUntilDone + st->desiredAvailable;
         }
-        if( !haveValid && !haveUnchecked )
-            str = none;
-        else {
-            char unver[64], total[64];
-            const double ratio = 100.0 * ( leftUntilDone ? ( haveValid + haveUnchecked ) / sizeWhenDone : 1 );
+        {
+            char buf2[32], unver[64], total[64], avail[32];
+            const double d = ( 100.0 * available ) / sizeWhenDone;
+            const double ratio = 100.0 * ( leftUntilDone ? ( haveValid + haveUnchecked ) / (double)sizeWhenDone : 1 );
+            tr_strlpercent( avail, d, sizeof( avail ) );
+            tr_strlpercent( buf2, ratio, sizeof( buf2 ) );
             tr_strlsize( total, haveUnchecked + haveValid, sizeof( total ) );
             tr_strlsize( unver, haveUnchecked,             sizeof( unver ) );
-            if( haveUnchecked )
-                g_snprintf( buf, sizeof( buf ), _( "%1$s (%2$.1f%%); %3$s Unverified" ), total, tr_truncd( ratio, 1 ), unver );
+            if( !haveUnchecked && !leftUntilDone )
+                g_snprintf( buf, sizeof( buf ), _( "%1$s (%2$s%%)" ), total, buf2 );
+            else if( !haveUnchecked )
+                g_snprintf( buf, sizeof( buf ), _( "%1$s (%2$s%% of %3$s%% Available)" ), total, buf2, avail );
             else
-                g_snprintf( buf, sizeof( buf ), _( "%1$s (%2$.1f%%)" ), total, tr_truncd( ratio, 1 ) );
+                g_snprintf( buf, sizeof( buf ), _( "%1$s (%2$s%% of %3$s%% Available) + %4$s Unverified" ), total, buf2, avail, unver );
             str = buf;
         }
     }
     gtr_label_set_text( GTK_LABEL( di->have_lb ), str );
 
-    /* availability_lb */
-    if( !sizeWhenDone  )
-        str = none;
-    else {
-        const double d = ( 100.0 * available ) / sizeWhenDone;
-        g_snprintf( buf, sizeof( buf ), _( "%1$.1f%%" ),  d );
-        str = buf;
-    }
-    gtr_label_set_text( GTK_LABEL( di->availability_lb ), str );
-
     /* dl_lb */
     if( n <= 0 )
-        str = none;
+        str = no_torrent;
     else {
         char dbuf[64], fbuf[64];
         uint64_t d=0, f=0;
@@ -842,32 +857,26 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
 
     /* ul_lb */
     if( n <= 0 )
-        str = none;
-    else {
-        uint64_t sum = 0;
-        for( i=0; i<n; ++i ) sum += stats[i]->uploadedEver;
-        str = tr_strlsize( buf, sum, sizeof( buf ) );
-    }
-    gtr_label_set_text( GTK_LABEL( di->ul_lb ), str );
-
-
-    /* ratio */
-    if( n <= 0 )
-        str = none;
+        str = no_torrent;
     else {
         uint64_t up = 0;
         uint64_t down = 0;
+        char upstr[64];
+        char ratiostr[64];
         for( i=0; i<n; ++i ) {
             up += stats[i]->uploadedEver;
             down += stats[i]->downloadedEver;
         }
-        str = tr_strlratio( buf, tr_getRatio( up, down ), sizeof( buf ) );
+        tr_strlsize( upstr, up, sizeof( upstr ) );
+        tr_strlratio( ratiostr, tr_getRatio( up, down ), sizeof( ratiostr ) );
+        g_snprintf( buf, sizeof( buf ), _( "%s (Ratio: %s)" ), upstr, ratiostr );
+        str = buf;
     }
-    gtr_label_set_text( GTK_LABEL( di->ratio_lb ), str );
+    gtr_label_set_text( GTK_LABEL( di->ul_lb ), str );
 
     /* hash_lb */
-    if( n<=0 )
-        str = none;
+    if( n <= 0 )
+        str = no_torrent;
     else if ( n==1 )
         str = infos[0]->hashString;
     else
@@ -876,7 +885,7 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
 
     /* error */
     if( n <= 0 )
-        str = none;
+        str = no_torrent;
     else {
         const char * baseline = stats[0]->errorString;
         for( i=1; i<n; ++i )
@@ -888,20 +897,20 @@ refreshInfo( struct DetailsImpl * di, tr_torrent ** torrents, int n )
             str = mixed;
     }
     if( !str || !*str )
-        str = none;
+        str = _( "No errors" );
     gtr_label_set_text( GTK_LABEL( di->error_lb ), str );
 
 
     /* activity date */
     if( n <= 0 )
-        str = none;
+        str = no_torrent;
     else {
         time_t latest = 0;
         for( i=0; i<n; ++i )
             if( latest < stats[i]->activityDate )
                 latest = stats[i]->activityDate;
         if( latest <= 0 )
-            str = none;
+            str = _( "Never" );
         else {
             const int period = time( NULL ) - latest;
             if( period < 5 )
@@ -938,10 +947,6 @@ info_page_new( struct DetailsImpl * di )
         l = di->have_lb = gtk_label_new( NULL );
         hig_workarea_add_row( t, &row, _( "Have:" ), l, NULL );
 
-        /* availability */
-        l = di->availability_lb = gtk_label_new( NULL );
-        hig_workarea_add_row( t, &row, _( "Availability:" ), l, NULL );
-
         /* downloaded */
         l = di->dl_lb = gtk_label_new( NULL );
         hig_workarea_add_row( t, &row, _( "Downloaded:" ), l, NULL );
@@ -949,10 +954,6 @@ info_page_new( struct DetailsImpl * di )
         /* uploaded */
         l = di->ul_lb = gtk_label_new( NULL );
         hig_workarea_add_row( t, &row, _( "Uploaded:" ), l, NULL );
-
-        /* ratio */
-        l = di->ratio_lb = gtk_label_new( NULL );
-        hig_workarea_add_row( t, &row, _( "Ratio:" ), l, NULL );
 
         /* state */
         l = di->state_lb = gtk_label_new( NULL );
@@ -1132,9 +1133,9 @@ peer_store_new( void )
                                G_TYPE_BOOLEAN,  /* was-updated */
                                G_TYPE_STRING,   /* address */
                                G_TYPE_STRING,   /* collated address */
-                               G_TYPE_FLOAT,    /* download speed float */
+                               G_TYPE_DOUBLE,   /* download speed int */
                                G_TYPE_STRING,   /* download speed string */
-                               G_TYPE_FLOAT,    /* upload speed float */
+                               G_TYPE_DOUBLE,   /* upload speed int */
                                G_TYPE_STRING,   /* upload speed string  */
                                G_TYPE_STRING,   /* client */
                                G_TYPE_INT,      /* progress [0..100] */
@@ -1161,16 +1162,12 @@ initPeerRow( GtkListStore        * store,
              const tr_peer_stat  * peer )
 {
     int q[4];
-    char up_speed[128];
-    char down_speed[128];
     char collated_name[128];
     const char * client = peer->client;
 
     if( !client || !strcmp( client, "Unknown Client" ) )
         client = "";
 
-    tr_strlspeed( up_speed, peer->rateToPeer, sizeof( up_speed ) );
-    tr_strlspeed( down_speed, peer->rateToClient, sizeof( down_speed ) );
     if( sscanf( peer->addr, "%d.%d.%d.%d", q, q+1, q+2, q+3 ) != 4 )
         g_strlcpy( collated_name, peer->addr, sizeof( collated_name ) );
     else
@@ -1191,54 +1188,38 @@ refreshPeerRow( GtkListStore        * store,
                 GtkTreeIter         * iter,
                 const tr_peer_stat  * peer )
 {
-    char up_speed[64];
-    char down_speed[64];
-    char up_count[64];
-    char down_count[64];
-    char blocks_to_peer[64];
-    char blocks_to_client[64];
-    char cancelled_by_peer[64];
-    char cancelled_by_client[64];
+    char up_speed[64] = { '\0' };
+    char down_speed[64] = { '\0' };
+    char up_count[64] = { '\0' };
+    char down_count[64] = { '\0' };
+    char blocks_to_peer[64] = { '\0' };
+    char blocks_to_client[64] = { '\0' };
+    char cancelled_by_peer[64] = { '\0' };
+    char cancelled_by_client[64] = { '\0' };
 
-    if( peer->rateToPeer > 0.01 )
-        tr_strlspeed( up_speed, peer->rateToPeer, sizeof( up_speed ) );
-    else
-        *up_speed = '\0';
+    if( peer->rateToPeer_KBps > 0.01 )
+        tr_formatter_speed_KBps( up_speed, peer->rateToPeer_KBps, sizeof( up_speed ) );
 
-    if( peer->rateToClient > 0.01 )
-        tr_strlspeed( down_speed, peer->rateToClient, sizeof( down_speed ) );
-    else
-        *down_speed = '\0';
+    if( peer->rateToClient_KBps > 0 )
+        tr_formatter_speed_KBps( down_speed, peer->rateToClient_KBps, sizeof( down_speed ) );
 
     if( peer->pendingReqsToPeer > 0 )
         g_snprintf( down_count, sizeof( down_count ), "%d", peer->pendingReqsToPeer );
-    else
-        *down_count = '\0';
 
     if( peer->pendingReqsToClient > 0 )
         g_snprintf( up_count, sizeof( down_count ), "%d", peer->pendingReqsToClient );
-    else
-        *up_count = '\0';
 
     if( peer->blocksToPeer > 0 )
         g_snprintf( blocks_to_peer, sizeof( blocks_to_peer ), "%"PRIu32, peer->blocksToPeer );
-    else
-        *blocks_to_peer = '\0';
 
     if( peer->blocksToClient > 0 )
         g_snprintf( blocks_to_client, sizeof( blocks_to_client ), "%"PRIu32, peer->blocksToClient );
-    else
-        *blocks_to_client = '\0';
 
     if( peer->cancelsToPeer > 0 )
         g_snprintf( cancelled_by_client, sizeof( cancelled_by_client ), "%"PRIu32, peer->cancelsToPeer );
-    else
-        *cancelled_by_client = '\0';
 
     if( peer->cancelsToClient > 0 )
         g_snprintf( cancelled_by_peer, sizeof( cancelled_by_peer ), "%"PRIu32, peer->cancelsToClient );
-    else
-        *cancelled_by_peer = '\0';
 
     gtk_list_store_set( store, iter,
                         PEER_COL_PROGRESS, (int)( 100.0 * peer->progress ),
@@ -1246,9 +1227,9 @@ refreshPeerRow( GtkListStore        * store,
                         PEER_COL_UPLOAD_REQUEST_COUNT_STRING, up_count,
                         PEER_COL_DOWNLOAD_REQUEST_COUNT_INT, peer->pendingReqsToPeer,
                         PEER_COL_DOWNLOAD_REQUEST_COUNT_STRING, down_count,
-                        PEER_COL_DOWNLOAD_RATE_DOUBLE, peer->rateToClient,
+                        PEER_COL_DOWNLOAD_RATE_DOUBLE, peer->rateToClient_KBps,
                         PEER_COL_DOWNLOAD_RATE_STRING, down_speed,
-                        PEER_COL_UPLOAD_RATE_DOUBLE, peer->rateToPeer,
+                        PEER_COL_UPLOAD_RATE_DOUBLE, peer->rateToPeer_KBps,
                         PEER_COL_UPLOAD_RATE_STRING, up_speed,
                         PEER_COL_STATUS, peer->flagStr,
                         PEER_COL_WAS_UPDATED, TRUE,
@@ -1394,7 +1375,7 @@ refreshWebseedList( struct DetailsImpl * di, tr_torrent ** torrents, int n )
         int j;
         const tr_torrent * tor = torrents[i];
         const tr_info * inf = tr_torrentInfo( tor );
-        float * speeds = tr_torrentWebSpeeds( tor );
+        double * speeds_KBps = tr_torrentWebSpeeds_KBps( tor );
         for( j=0; j<inf->webseedCount; ++j ) {
             char buf[128];
             char key[256];
@@ -1405,17 +1386,17 @@ refreshWebseedList( struct DetailsImpl * di, tr_torrent ** torrents, int n )
             ref = g_hash_table_lookup( hash, key );
             p = gtk_tree_row_reference_get_path( ref );
             gtk_tree_model_get_iter( model, &iter, p );
-            if( speeds[j] > 0.01 )
-                tr_strlspeed( buf, speeds[j], sizeof( buf ) );
+            if( speeds_KBps[j] > 0 )
+                tr_formatter_speed_KBps( buf, speeds_KBps[j], sizeof( buf ) );
             else
                 *buf = '\0';
-            gtk_list_store_set( store, &iter, WEBSEED_COL_DOWNLOAD_RATE_DOUBLE, (double)speeds[j],
+            gtk_list_store_set( store, &iter, WEBSEED_COL_DOWNLOAD_RATE_DOUBLE, speeds_KBps[j],
                                               WEBSEED_COL_DOWNLOAD_RATE_STRING, buf,
                                               WEBSEED_COL_WAS_UPDATED, TRUE,
                                               -1 );
             gtk_tree_path_free( p );
         }
-        tr_free( speeds );
+        tr_free( speeds_KBps );
     }
 
     /* step 4: remove webseeds that have disappeared */
@@ -1607,11 +1588,13 @@ setPeerViewColumns( GtkTreeView * peer_view )
 
             case PEER_COL_DOWNLOAD_RATE_STRING:
                 r = gtk_cell_renderer_text_new( );
+                g_object_set( G_OBJECT( r ), "xalign", 1.0f, NULL );
                 c = gtk_tree_view_column_new_with_attributes( t, r, "text", col, NULL );
                 sort_col = PEER_COL_DOWNLOAD_RATE_DOUBLE;
                 break;
             case PEER_COL_UPLOAD_RATE_STRING:
                 r = gtk_cell_renderer_text_new( );
+                g_object_set( G_OBJECT( r ), "xalign", 1.0f, NULL );
                 c = gtk_tree_view_column_new_with_attributes( t, r, "text", col, NULL );
                 sort_col = PEER_COL_UPLOAD_RATE_DOUBLE;
                 break;
@@ -1812,7 +1795,7 @@ buildTrackerSummary( const char * key, const tr_tracker_stat * st, gboolean show
 
     if( !st->isBackup )
     {
-        if( st->hasAnnounced )
+        if( st->hasAnnounced && st->announceState != TR_TRACKER_INACTIVE )
         {
             g_string_append_c( gstr, '\n' );
             tr_strltime_rounded( timebuf, now - st->lastAnnounceTime, sizeof( timebuf ) );
@@ -1831,10 +1814,8 @@ buildTrackerSummary( const char * key, const tr_tracker_stat * st, gboolean show
         switch( st->announceState )
         {
             case TR_TRACKER_INACTIVE:
-                if( !st->hasAnnounced ) {
-                    g_string_append_c( gstr, '\n' );
-                    g_string_append( gstr, _( "No updates scheduled" ) );
-                }
+                g_string_append_c( gstr, '\n' );
+                g_string_append( gstr, _( "No updates scheduled" ) );
                 break;
             case TR_TRACKER_WAITING:
                 tr_strltime_rounded( timebuf, st->nextAnnounceTime - now, sizeof( timebuf ) );
@@ -2006,6 +1987,9 @@ refreshTracker( struct DetailsImpl * di, tr_torrent ** torrents, int n )
         di->trackers_filtered = filter;
 
         gtk_tree_view_set_model( GTK_TREE_VIEW( di->tracker_view ), filter );
+
+        g_object_unref( filter );
+        g_object_unref( store );
     }
 
     if( ( di->tracker_buffer == NULL ) && ( n == 1 ) )
@@ -2082,8 +2066,6 @@ refreshTracker( struct DetailsImpl * di, tr_torrent ** torrents, int n )
     g_free( statCount );
 }
 
-static void refresh( struct DetailsImpl * di );
-
 static void
 onScrapeToggled( GtkToggleButton * button, struct DetailsImpl * di )
 {
@@ -2153,7 +2135,6 @@ onEditTrackersResponse( GtkDialog * dialog, int response, gpointer data )
         {
             di->trackers = NULL;
             di->tracker_buffer = NULL;
-            tr_core_torrent_changed( di->core, tr_torrentId( tor ) );
         }
 
         /* cleanup */
@@ -2231,6 +2212,7 @@ tracker_page_new( struct DetailsImpl * di )
     gtk_container_set_border_width( GTK_CONTAINER( vbox ), GUI_PAD_BIG );
 
     v = di->tracker_view = gtk_tree_view_new( );
+    gtk_tree_view_set_headers_visible( GTK_TREE_VIEW( v ), FALSE );
     g_signal_connect( v, "button-press-event",
                       G_CALLBACK( on_tree_view_button_pressed ), NULL );
     g_signal_connect( v, "button-release-event",

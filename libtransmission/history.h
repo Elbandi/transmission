@@ -7,7 +7,7 @@
  * This exemption does not extend to derived works not owned by
  * the Transmission project.
  *
- * $Id:$
+ * $Id$
  */
 
 #ifndef __TRANSMISSION__
@@ -32,23 +32,23 @@ typedef struct tr_recentHistory tr_recentHistory;
  * @param precision how precise the history should be, in fractions of a second.
  *        For a precision of 1/20th of a second, use a precision of 20.
  */
-tr_recentHistory * tr_historyNew( int seconds, int precision );
+tr_recentHistory * tr_historyNew( unsigned int seconds, unsigned int precision );
 
 /** @brief destroy an existing tr_recentHistory object. */
 void tr_historyFree( tr_recentHistory * );
 
 /**
  * @brief add a counter to the recent history object.
- * @param when the current time in msec, such as from tr_date()
+ * @param when the current time in msec, such as from tr_time_msec()
  * @param n how many items to add to the history's counter
  */
-void tr_historyAdd( tr_recentHistory *, uint64_t when, double n );
+void tr_historyAdd( tr_recentHistory *, uint64_t when, unsigned int n );
 
 /**
  * @brief count how many events have occurred in the last N seconds.
- * @param when the current time in msec, such as from tr_date()
+ * @param when the current time in msec, such as from tr_time_msec()
  * @param seconds how many seconds to count back through.
  */
-double tr_historyGet( const tr_recentHistory *, uint64_t when, int seconds );
+unsigned int tr_historyGet( const tr_recentHistory *, uint64_t when, unsigned int seconds );
 
 #endif

@@ -31,7 +31,7 @@
 #include "version.h"
 #include "web.h"
 
-#define RPC_VERSION     9
+#define RPC_VERSION     10
 #define RPC_VERSION_MIN 1
 
 #define RECENTLY_ACTIVE_SECONDS 60
@@ -221,9 +221,10 @@ torrentStop( tr_session               * session,
     for( i = 0; i < torrentCount; ++i )
     {
         tr_torrent * tor = torrents[i];
+
         if( tor->isRunning )
         {
-            tr_torrentStop( tor );
+            tor->isStopping = TRUE;
             notify( session, TR_RPC_TORRENT_STOPPED, tor );
         }
     }
@@ -385,7 +386,7 @@ addTrackerStats( const tr_tracker_stat * st, int n, tr_benc * list )
     for( i=0; i<n; ++i )
     {
         const tr_tracker_stat * s = &st[i];
-        tr_benc * d = tr_bencListAddDict( list, 25 );
+        tr_benc * d = tr_bencListAddDict( list, 26 );
         tr_bencDictAddStr ( d, "announce", s->announce );
         tr_bencDictAddInt ( d, "announceState", s->announceState );
         tr_bencDictAddInt ( d, "downloadCount", s->downloadCount );
@@ -408,6 +409,7 @@ addTrackerStats( const tr_tracker_stat * st, int n, tr_benc * list )
         tr_bencDictAddInt ( d, "leecherCount", s->leecherCount );
         tr_bencDictAddInt ( d, "nextAnnounceTime", s->nextAnnounceTime );
         tr_bencDictAddInt ( d, "nextScrapeTime", s->nextScrapeTime );
+        tr_bencDictAddStr ( d, "scrape", s->scrape );
         tr_bencDictAddInt ( d, "scrapeState", s->scrapeState );
         tr_bencDictAddInt ( d, "seederCount", s->seederCount );
         tr_bencDictAddInt ( d, "tier", s->tier );
@@ -441,8 +443,8 @@ addPeers( const tr_torrent * tor,
         tr_bencDictAddBool( d, "peerIsInterested", peer->peerIsInterested );
         tr_bencDictAddInt ( d, "port", peer->port );
         tr_bencDictAddReal( d, "progress", peer->progress );
-        tr_bencDictAddInt ( d, "rateToClient", (int)( peer->rateToClient * 1024.0 ) );
-        tr_bencDictAddInt ( d, "rateToPeer", (int)( peer->rateToPeer * 1024.0 ) );
+        tr_bencDictAddInt ( d, "rateToClient", toSpeedBytes( peer->rateToClient_KBps ) );
+        tr_bencDictAddInt ( d, "rateToPeer", toSpeedBytes( peer->rateToPeer_KBps ) );
     }
 
     tr_torrentPeersFree( peers, peerCount );
@@ -483,7 +485,7 @@ addField( const tr_torrent * tor, tr_benc * d, const char * key )
     else if( tr_streq( key, keylen, "downloadedEver" ) )
         tr_bencDictAddInt( d, key, st->downloadedEver );
     else if( tr_streq( key, keylen, "downloadLimit" ) )
-        tr_bencDictAddInt( d, key, tr_torrentGetSpeedLimit( tor, TR_DOWN ) );
+        tr_bencDictAddInt( d, key, tr_torrentGetSpeedLimit_KBps( tor, TR_DOWN ) );
     else if( tr_streq( key, keylen, "downloadLimited" ) )
         tr_bencDictAddBool( d, key, tr_torrentUsesSpeedLimit( tor, TR_DOWN ) );
     else if( tr_streq( key, keylen, "error" ) )
@@ -568,11 +570,15 @@ addField( const tr_torrent * tor, tr_benc * d, const char * key )
             tr_bencListAddInt( p, inf->files[i].priority );
     }
     else if( tr_streq( key, keylen, "rateDownload" ) )
-        tr_bencDictAddInt( d, key, (int)( st->pieceDownloadSpeed * 1024 ) );
+        tr_bencDictAddInt( d, key, toSpeedBytes( st->pieceDownloadSpeed_KBps ) );
     else if( tr_streq( key, keylen, "rateUpload" ) )
-        tr_bencDictAddInt( d, key, (int)( st->pieceUploadSpeed * 1024 ) );
+        tr_bencDictAddInt( d, key, toSpeedBytes( st->pieceUploadSpeed_KBps ) );
     else if( tr_streq( key, keylen, "recheckProgress" ) )
         tr_bencDictAddReal( d, key, st->recheckProgress );
+    else if( tr_streq( key, keylen, "seedIdleLimit" ) )
+        tr_bencDictAddInt( d, key, tr_torrentGetIdleLimit( tor ) );
+    else if( tr_streq( key, keylen, "seedIdleMode" ) )
+        tr_bencDictAddInt( d, key, tr_torrentGetIdleMode( tor ) );
     else if( tr_streq( key, keylen, "seedRatioLimit" ) )
         tr_bencDictAddReal( d, key, tr_torrentGetRatioLimit( tor ) );
     else if( tr_streq( key, keylen, "seedRatioMode" ) )
@@ -598,7 +604,7 @@ addField( const tr_torrent * tor, tr_benc * d, const char * key )
     else if( tr_streq( key, keylen, "uploadedEver" ) )
         tr_bencDictAddInt( d, key, st->uploadedEver );
     else if( tr_streq( key, keylen, "uploadLimit" ) )
-        tr_bencDictAddInt( d, key, tr_torrentGetSpeedLimit( tor, TR_UP ) );
+        tr_bencDictAddInt( d, key, tr_torrentGetSpeedLimit_KBps( tor, TR_UP ) );
     else if( tr_streq( key, keylen, "uploadLimited" ) )
         tr_bencDictAddBool( d, key, tr_torrentUsesSpeedLimit( tor, TR_UP ) );
     else if( tr_streq( key, keylen, "uploadRatio" ) )
@@ -751,6 +757,195 @@ setFileDLs( tr_torrent * tor,
     return errmsg;
 }
 
+static tr_bool
+findAnnounceUrl( const tr_tracker_info * t, int n, const char * url, int * pos )
+{
+    int i;
+    tr_bool found = FALSE;
+
+    for( i=0; i<n; ++i )
+    {
+        if( !strcmp( t[i].announce, url ) )
+        {
+            found = TRUE;
+            if( pos ) *pos = i;
+            break;
+        }
+    }
+
+    return found;
+}
+
+static int
+copyTrackers( tr_tracker_info * tgt, const tr_tracker_info * src, int n )
+{
+    int i;
+    int maxTier = -1;
+   
+    for( i=0; i<n; ++i ) 
+    {
+        tgt[i].tier = src[i].tier;
+        tgt[i].announce = tr_strdup( src[i].announce );
+        maxTier = MAX( maxTier, src[i].tier );
+    }
+
+    return maxTier;
+}
+
+static void
+freeTrackers( tr_tracker_info * trackers, int n )
+{
+    int i;
+
+    for( i=0; i<n; ++i )
+        tr_free( trackers[i].announce );
+
+    tr_free( trackers );
+}
+
+static const char*
+addTrackerUrls( tr_torrent * tor, tr_benc * urls )
+{
+    int i;
+    int n;
+    int tier;
+    tr_benc * val;
+    tr_tracker_info * trackers;
+    tr_bool changed = FALSE;
+    const tr_info * inf = tr_torrentInfo( tor );
+    const char * errmsg = NULL;
+
+    /* make a working copy of the existing announce list */
+    n = inf->trackerCount;
+    trackers = tr_new0( tr_tracker_info, n + tr_bencListSize( urls ) );
+    tier = copyTrackers( trackers, inf->trackers, n );
+
+    /* and add the new ones */
+    i = 0;
+    while(( val = tr_bencListChild( urls, i++ ) ))
+    {
+        const char * announce = NULL;
+
+        if(    tr_bencGetStr( val, &announce )
+            && tr_urlIsValid( announce, -1 )
+            && !findAnnounceUrl( trackers, n, announce, NULL ) )
+        {
+            trackers[n].tier = ++tier; /* add a new tier */
+            trackers[n].announce = tr_strdup( announce );
+            ++n;
+            changed = TRUE;
+        }
+    }
+
+    if( !changed )
+        errmsg = "invalid argument";
+    else if( !tr_torrentSetAnnounceList( tor, trackers, n ) )
+        errmsg = "error setting announce list";
+
+    freeTrackers( trackers, n );
+    return errmsg;
+}
+
+static const char*
+replaceTrackers( tr_torrent * tor, tr_benc * urls )
+{
+    int i;
+    tr_benc * pair[2];
+    tr_tracker_info * trackers;
+    tr_bool changed = FALSE;
+    const tr_info * inf = tr_torrentInfo( tor );
+    const int n = inf->trackerCount;
+    const char * errmsg = NULL;
+
+    /* make a working copy of the existing announce list */
+    trackers = tr_new0( tr_tracker_info, n );
+    copyTrackers( trackers, inf->trackers, n );
+
+    /* make the substitutions... */
+    i = 0;
+    while(((pair[0] = tr_bencListChild(urls,i))) &&
+          ((pair[1] = tr_bencListChild(urls,i+1))))
+    {
+        int64_t pos;
+        const char * newval;
+
+        if(    tr_bencGetInt( pair[0], &pos )
+            && tr_bencGetStr( pair[1], &newval )
+            && tr_urlIsValid( newval, -1 )
+            && pos < n
+            && pos >= 0 )
+        {
+            tr_free( trackers[pos].announce );
+            trackers[pos].announce = tr_strdup( newval );
+            changed = TRUE;
+        }
+
+        i += 2;
+    }
+
+    if( !changed )
+        errmsg = "invalid argument";
+    else if( !tr_torrentSetAnnounceList( tor, trackers, n ) )
+        errmsg = "error setting announce list";
+
+    freeTrackers( trackers, n );
+    return errmsg;
+}
+
+static const char*
+removeTrackers( tr_torrent * tor, tr_benc * ids )
+{
+    int i;
+    int n;
+    int t = 0;
+    int dup = -1;
+    int * tids;
+    tr_benc * val;
+    tr_tracker_info * trackers;
+    tr_bool changed = FALSE;
+    const tr_info * inf = tr_torrentInfo( tor );
+    const char * errmsg = NULL;
+
+    /* make a working copy of the existing announce list */
+    n = inf->trackerCount;
+    tids = tr_new0( int, n );
+    trackers = tr_new0( tr_tracker_info, n );
+    copyTrackers( trackers, inf->trackers, n );
+
+    /* remove the ones specified in the urls list */
+    i = 0;
+    while(( val = tr_bencListChild( ids, i++ )))
+    {
+        int64_t pos;
+
+        if(    tr_bencGetInt( val, &pos )
+            && pos < n
+            && pos >= 0 )
+            tids[t++] = pos;
+    }
+
+    /* sort trackerIds and remove from largest to smallest so there is no need to recacluate array indicies */
+    qsort( tids, t, sizeof(int), compareInt );
+    while( t-- )
+    {
+        /* check for duplicates */
+        if( tids[t] == dup )
+            continue;
+        tr_removeElementFromArray( trackers, tids[t], sizeof( tr_tracker_info ), n-- );
+        dup = tids[t];
+        changed = TRUE;
+    }
+
+    if( !changed )
+        errmsg = "invalid argument";
+    else if( !tr_torrentSetAnnounceList( tor, trackers, n ) )
+        errmsg = "error setting announce list";
+
+    freeTrackers( trackers, n );
+    tr_free( tids );
+    return errmsg;
+}
+
 static const char*
 torrentSet( tr_session               * session,
             tr_benc                  * args_in,
@@ -768,6 +963,7 @@ torrentSet( tr_session               * session,
         int64_t      tmp;
         double       d;
         tr_benc *    files;
+        tr_benc *    trackers;
         tr_bool      boolVal;
         tr_torrent * tor = torrents[i];
 
@@ -787,19 +983,29 @@ torrentSet( tr_session               * session,
         if( !errmsg && tr_bencDictFindList( args_in, "priority-normal", &files ) )
             errmsg = setFilePriorities( tor, TR_PRI_NORMAL, files );
         if( tr_bencDictFindInt( args_in, "downloadLimit", &tmp ) )
-            tr_torrentSetSpeedLimit( tor, TR_DOWN, tmp );
+            tr_torrentSetSpeedLimit_KBps( tor, TR_DOWN, tmp );
         if( tr_bencDictFindBool( args_in, "downloadLimited", &boolVal ) )
             tr_torrentUseSpeedLimit( tor, TR_DOWN, boolVal );
         if( tr_bencDictFindBool( args_in, "honorsSessionLimits", &boolVal ) )
             tr_torrentUseSessionLimits( tor, boolVal );
         if( tr_bencDictFindInt( args_in, "uploadLimit", &tmp ) )
-            tr_torrentSetSpeedLimit( tor, TR_UP, tmp );
+            tr_torrentSetSpeedLimit_KBps( tor, TR_UP, tmp );
         if( tr_bencDictFindBool( args_in, "uploadLimited", &boolVal ) )
             tr_torrentUseSpeedLimit( tor, TR_UP, boolVal );
+        if( tr_bencDictFindInt( args_in, "seedIdleLimit", &tmp ) )
+            tr_torrentSetIdleLimit( tor, tmp );
+        if( tr_bencDictFindInt( args_in, "seedIdleMode", &tmp ) )
+            tr_torrentSetIdleMode( tor, tmp );
         if( tr_bencDictFindReal( args_in, "seedRatioLimit", &d ) )
             tr_torrentSetRatioLimit( tor, d );
         if( tr_bencDictFindInt( args_in, "seedRatioMode", &tmp ) )
             tr_torrentSetRatioMode( tor, tmp );
+        if( !errmsg && tr_bencDictFindList( args_in, "trackerAdd", &trackers ) )
+            errmsg = addTrackerUrls( tor, trackers );
+        if( !errmsg && tr_bencDictFindList( args_in, "trackerRemove", &trackers ) )
+            errmsg = removeTrackers( tor, trackers );
+        if( !errmsg && tr_bencDictFindList( args_in, "trackerReplace", &trackers ) )
+            errmsg = replaceTrackers( tor, trackers );
         notify( session, TR_RPC_TORRENT_CHANGED, tor );
     }
 
@@ -859,7 +1065,7 @@ portTested( tr_session       * session UNUSED,
 
     if( response_code != 200 )
     {
-        tr_snprintf( result, sizeof( result ), "http error %ld: %s",
+        tr_snprintf( result, sizeof( result ), "portTested: http error %ld: %s",
                      response_code, tr_webGetResponseStr( response_code ) );
     }
     else /* success */
@@ -901,14 +1107,14 @@ gotNewBlocklist( tr_session       * session,
 
     if( response_code != 200 )
     {
-        tr_snprintf( result, sizeof( result ), "http error %ld: %s",
+        tr_snprintf( result, sizeof( result ), "gotNewBlocklist: http error %ld: %s",
                      response_code, tr_webGetResponseStr( response_code ) );
     }
     else /* successfully fetched the blocklist... */
     {
         const char * configDir = tr_sessionGetConfigDir( session );
         char * filename = tr_buildPath( configDir, "blocklist.tmp", NULL );
-        FILE * fp = fopen( filename, "w+" );
+        FILE * fp = fopen( filename, "wb+" );
 
         if( fp == NULL )
         {
@@ -1022,7 +1228,7 @@ gotMetadataFromURL( tr_session       * session UNUSED,
     else
     {
         char result[1024];
-        tr_snprintf( result, sizeof( result ), "http error %ld: %s",
+        tr_snprintf( result, sizeof( result ), "gotMetadataFromURL: http error %ld: %s",
                      response_code, tr_webGetResponseStr( response_code ) );
         tr_idle_function_done( data->data, result );
     }
@@ -1184,10 +1390,12 @@ sessionSet( tr_session               * session,
 
     assert( idle_data == NULL );
 
-    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_ALT_SPEED_UP, &i ) )
-        tr_sessionSetAltSpeed( session, TR_UP, i );
-    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_ALT_SPEED_DOWN, &i ) )
-        tr_sessionSetAltSpeed( session, TR_DOWN, i );
+    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_MAX_CACHE_SIZE_MB, &i ) )
+        tr_sessionSetCacheLimit_MB( session, i );
+    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_ALT_SPEED_UP_KBps, &i ) )
+        tr_sessionSetAltSpeed_KBps( session, TR_UP, i );
+    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_ALT_SPEED_DOWN_KBps, &i ) )
+        tr_sessionSetAltSpeed_KBps( session, TR_DOWN, i );
     if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_ALT_SPEED_ENABLED, &boolVal ) )
         tr_sessionUseAltSpeed( session, boolVal );
     if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_ALT_SPEED_TIME_BEGIN, &i ) )
@@ -1228,6 +1436,10 @@ sessionSet( tr_session               * session,
         tr_sessionSetRatioLimit( session, d );
     if( tr_bencDictFindBool( args_in, "seedRatioLimited", &boolVal ) )
         tr_sessionSetRatioLimited( session, boolVal );
+    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_IDLE_LIMIT, &i ) )
+        tr_sessionSetIdleLimit( session, i );
+    if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_IDLE_LIMIT_ENABLED, &boolVal ) )
+        tr_sessionSetIdleLimited( session, boolVal );
     if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_START, &boolVal ) )
         tr_sessionSetPaused( session, !boolVal );
     if( tr_bencDictFindStr( args_in, TR_PREFS_KEY_SCRIPT_TORRENT_DONE_FILENAME, &str ) )
@@ -1236,12 +1448,12 @@ sessionSet( tr_session               * session,
         tr_sessionSetTorrentDoneScriptEnabled( session, boolVal );
     if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_TRASH_ORIGINAL, &boolVal ) )
         tr_sessionSetDeleteSource( session, boolVal );
-    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_DSPEED, &i ) )
-        tr_sessionSetSpeedLimit( session, TR_DOWN, i );
+    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_DSPEED_KBps, &i ) )
+        tr_sessionSetSpeedLimit_KBps( session, TR_DOWN, i );
     if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_DSPEED_ENABLED, &boolVal ) )
         tr_sessionLimitSpeed( session, TR_DOWN, boolVal );
-    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_USPEED, &i ) )
-        tr_sessionSetSpeedLimit( session, TR_UP, i );
+    if( tr_bencDictFindInt( args_in, TR_PREFS_KEY_USPEED_KBps, &i ) )
+        tr_sessionSetSpeedLimit_KBps( session, TR_UP, i );
     if( tr_bencDictFindBool( args_in, TR_PREFS_KEY_USPEED_ENABLED, &boolVal ) )
         tr_sessionLimitSpeed( session, TR_UP, boolVal );
     if( tr_bencDictFindStr( args_in, TR_PREFS_KEY_ENCRYPTION, &str ) ) {
@@ -1282,11 +1494,11 @@ sessionStats( tr_session               * session,
     tr_sessionGetStats( session, &currentStats );
     tr_sessionGetCumulativeStats( session, &cumulativeStats );
 
-    tr_bencDictAddInt( args_out, "activeTorrentCount", running );
-    tr_bencDictAddInt( args_out, "downloadSpeed", (int)( tr_sessionGetPieceSpeed( session, TR_DOWN ) * 1024 ) );
-    tr_bencDictAddInt( args_out, "pausedTorrentCount", total - running );
-    tr_bencDictAddInt( args_out, "torrentCount", total );
-    tr_bencDictAddInt( args_out, "uploadSpeed", (int)( tr_sessionGetPieceSpeed( session, TR_UP ) * 1024 ) );
+    tr_bencDictAddInt ( args_out, "activeTorrentCount", running );
+    tr_bencDictAddReal( args_out, "downloadSpeed", tr_sessionGetPieceSpeed_Bps( session, TR_DOWN ) );
+    tr_bencDictAddInt ( args_out, "pausedTorrentCount", total - running );
+    tr_bencDictAddInt ( args_out, "torrentCount", total );
+    tr_bencDictAddReal( args_out, "uploadSpeed", tr_sessionGetPieceSpeed_Bps( session, TR_UP ) );
 
     d = tr_bencDictAddDict( args_out, "cumulative-stats", 5 );
     tr_bencDictAddInt( d, "downloadedBytes", cumulativeStats.downloadedBytes );
@@ -1312,17 +1524,18 @@ sessionGet( tr_session               * s,
             struct tr_rpc_idle_data  * idle_data UNUSED )
 {
     const char * str;
-    tr_benc *    d = args_out;
+    tr_benc * d = args_out;
 
     assert( idle_data == NULL );
-    tr_bencDictAddInt ( d, TR_PREFS_KEY_ALT_SPEED_UP, tr_sessionGetAltSpeed(s,TR_UP) );
-    tr_bencDictAddInt ( d, TR_PREFS_KEY_ALT_SPEED_DOWN, tr_sessionGetAltSpeed(s,TR_DOWN) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_ALT_SPEED_UP_KBps, tr_sessionGetAltSpeed_KBps(s,TR_UP) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_ALT_SPEED_DOWN_KBps, tr_sessionGetAltSpeed_KBps(s,TR_DOWN) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_ALT_SPEED_ENABLED, tr_sessionUsesAltSpeed(s) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_ALT_SPEED_TIME_BEGIN, tr_sessionGetAltSpeedBegin(s) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_ALT_SPEED_TIME_END,tr_sessionGetAltSpeedEnd(s) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_ALT_SPEED_TIME_DAY,tr_sessionGetAltSpeedDay(s) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_ALT_SPEED_TIME_ENABLED, tr_sessionUsesAltSpeedTime(s) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_BLOCKLIST_ENABLED, tr_blocklistIsEnabled( s ) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_MAX_CACHE_SIZE_MB, tr_sessionGetCacheLimit_MB( s ) );
     tr_bencDictAddInt ( d, "blocklist-size", tr_blocklistGetRuleCount( s ) );
     tr_bencDictAddStr ( d, "config-dir", tr_sessionGetConfigDir( s ) );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_DOWNLOAD_DIR, tr_sessionGetDownloadDir( s ) );
@@ -1334,21 +1547,24 @@ sessionGet( tr_session               * s,
     tr_bencDictAddBool( d, TR_PREFS_KEY_DHT_ENABLED, tr_sessionIsDHTEnabled( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_LPD_ENABLED, tr_sessionIsLPDEnabled( s ) );
     tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_PORT, tr_sessionGetPeerPort( s ) );
-    tr_bencDictAddInt ( d, TR_PREFS_KEY_PEER_PORT_RANDOM_ON_START, tr_sessionGetPeerPortRandomOnStart( s ) );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_PEER_PORT_RANDOM_ON_START, tr_sessionGetPeerPortRandomOnStart( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_PORT_FORWARDING, tr_sessionIsPortForwardingEnabled( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_RENAME_PARTIAL_FILES, tr_sessionIsIncompleteFileNamingEnabled( s ) );
     tr_bencDictAddInt ( d, "rpc-version", RPC_VERSION );
     tr_bencDictAddInt ( d, "rpc-version-minimum", RPC_VERSION_MIN );
     tr_bencDictAddReal( d, "seedRatioLimit", tr_sessionGetRatioLimit( s ) );
     tr_bencDictAddBool( d, "seedRatioLimited", tr_sessionIsRatioLimited( s ) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_IDLE_LIMIT, tr_sessionGetIdleLimit( s ) );
+    tr_bencDictAddBool( d, TR_PREFS_KEY_IDLE_LIMIT_ENABLED, tr_sessionIsIdleLimited( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_START, !tr_sessionGetPaused( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_TRASH_ORIGINAL, tr_sessionGetDeleteSource( s ) );
-    tr_bencDictAddInt ( d, TR_PREFS_KEY_USPEED, tr_sessionGetSpeedLimit( s, TR_UP ) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_USPEED_KBps, tr_sessionGetSpeedLimit_KBps( s, TR_UP ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_USPEED_ENABLED, tr_sessionIsSpeedLimited( s, TR_UP ) );
-    tr_bencDictAddInt ( d, TR_PREFS_KEY_DSPEED, tr_sessionGetSpeedLimit( s, TR_DOWN ) );
+    tr_bencDictAddInt ( d, TR_PREFS_KEY_DSPEED_KBps, tr_sessionGetSpeedLimit_KBps( s, TR_DOWN ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_DSPEED_ENABLED, tr_sessionIsSpeedLimited( s, TR_DOWN ) );
     tr_bencDictAddStr ( d, TR_PREFS_KEY_SCRIPT_TORRENT_DONE_FILENAME, tr_sessionGetTorrentDoneScript( s ) );
     tr_bencDictAddBool( d, TR_PREFS_KEY_SCRIPT_TORRENT_DONE_ENABLED, tr_sessionIsTorrentDoneScriptEnabled( s ) );
+    tr_formatter_get_units( tr_bencDictAddDict( d, "units", 0 ) );
     tr_bencDictAddStr ( d, "version", LONG_VERSION_STRING );
     switch( tr_sessionGetEncryption( s ) ) {
         case TR_CLEAR_PREFERRED: str = "tolerated"; break;

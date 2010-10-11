@@ -17,6 +17,26 @@
 #include <glib.h>
 #include <gtk/gtk.h>
 
+#include <libtransmission/transmission.h>
+
+extern const int mem_K;
+extern const char * mem_K_str;
+extern const char * mem_M_str;
+extern const char * mem_G_str;
+extern const char * mem_T_str;
+
+extern const int disk_K;
+extern const char * disk_K_str;
+extern const char * disk_M_str;
+extern const char * disk_G_str;
+extern const char * disk_T_str;
+
+extern const int speed_K;
+extern const char * speed_K_str;
+extern const char * speed_M_str;
+extern const char * speed_G_str;
+extern const char * speed_T_str;
+
 /* portability wrapper around g_warn_if_fail() for older versions of glib */
 #ifdef g_warn_if_fail
  #define gtr_warn_if_fail(expr) g_warn_if_fail(expr)
@@ -39,12 +59,11 @@ enum
 };
 const char * gtr_get_unicode_string( int );
 
+/* return a percent formatted string of either x.xx, xx.x or xxx */
+char* tr_strlpercent( char * buf, double x, size_t buflen );
 
 /* return a human-readable string for the size given in bytes. */
 char* tr_strlsize( char * buf, guint64  size, size_t buflen );
-
-/* return a human-readable string for the transfer rate given in bytes. */
-char* tr_strlspeed( char * buf, double KiBps, size_t buflen );
 
 /* return a human-readable string for the given ratio. */
 char* tr_strlratio( char * buf, double ratio, size_t buflen );
@@ -54,6 +73,10 @@ char* tr_strltime( char * buf, int secs, size_t buflen );
 
 /* similar to asctime, but is utf8-clean */
 char* gtr_localtime( time_t time );
+
+
+int gtr_compare_double( const double a, const double b, int decimal_places );
+
 
 /***
 ****
@@ -67,19 +90,6 @@ gboolean gtr_is_supported_url( const char * str );
 gboolean gtr_is_magnet_link( const char * str );
 
 gboolean gtr_is_hex_hashcode( const char * str );
-
-
-/* create a copy of a GSList of strings, this dups the actual strings too */
-GSList * dupstrlist( GSList * list );
-
-/* joins a GSList of strings into one string using an optional separator */
-char * joinstrlist( GSList *list, char *  sep );
-
-/* free a GSList of strings */
-void freestrlist( GSList *list );
-
-/* decodes a string that has been urlencoded */
-char * decode_uri( const char * uri );
 
 /***
 ****
@@ -99,13 +109,15 @@ gtr_lockfile_state_t gtr_lockfile( const char * filename );
 ****
 ***/
 
+void        gtr_open_uri( const char * uri );
+
 void        gtr_open_file( const char * path );
 
 gboolean    gtr_dbus_add_torrent( const char * filename );
 
 gboolean    gtr_dbus_present_window( void );
 
-char*       gtr_get_help_url( void );
+const char* gtr_get_help_uri( void );
 
 /***
 ****
@@ -126,27 +138,32 @@ void gtr_toolbar_set_orientation( GtkToolbar * tb, GtkOrientation orientation );
 /* backwards-compatible wrapper around gtk_widget_set_tooltip_text() */
 void gtr_widget_set_tooltip_text( GtkWidget * w, const char * tip );
 
+/* backwards-compatible wrapper around gtk_widget_get_realized() */
+gboolean gtr_widget_get_realized( GtkWidget * w );
+
+/* backwards-compatible wrapper around gtk_widget_set_visible() */
+void gtr_widget_set_visible( GtkWidget *, gboolean );
+
 /* backwards-compatible wrapper around g_object_ref_sink() */
 gpointer gtr_object_ref_sink( gpointer object );
 
-/***
-****
-***/
+/* backwards-compatible wrapper around g_strcmp0() */
+int gtr_strcmp0( const char * str1, const char * str2 );
 
-/* create a button with the specified mnemonic and stock icon */
-GtkWidget * gtr_button_new_from_stock( const char * stock,
-                                       const char * mnemonic );
-
+/* backwards-compatible wrapper around g_dngettext() */
+const gchar* gtr_ngettext( const gchar*, const gchar*, gulong );
 
 /***
 ****
 ***/
-
-void gtr_priority_combo_set_value( GtkWidget * w, tr_priority_t );
-
-tr_priority_t gtr_priority_combo_get_value( GtkWidget * w );
 
 GtkWidget * gtr_priority_combo_new( void );
+#define gtr_priority_combo_get_value(w)     gtr_combo_box_get_active_enum(w)
+#define gtr_priority_combo_set_value(w,val) gtr_combo_box_set_active_enum(w,val)
+
+GtkWidget * gtr_combo_box_new_enum        ( const char * text_1, ... );
+int         gtr_combo_box_get_active_enum ( GtkComboBox * );
+void        gtr_combo_box_set_active_enum ( GtkComboBox *, int value );
 
 /***
 ****
@@ -154,6 +171,7 @@ GtkWidget * gtr_priority_combo_new( void );
 
 void gtr_unrecognized_url_dialog( GtkWidget * parent, const char * url );
 
+void gtr_http_failure_dialog( GtkWidget * parent, const char * url, long response_code );
 
 void addTorrentErrorDialog( GtkWidget  * window_or_child,
                             int          err,

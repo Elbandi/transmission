@@ -21,6 +21,7 @@ and
 .Op Fl b
 .Op Fl c Ar path | Fl C
 .Op Fl d Ar number | Fl D
+.Op Fl e Ar size
 .Op Fl er | ep | et
 .Op Fl f
 .Op Fl g Ar files
@@ -124,6 +125,8 @@ If current torrent(s) are selected this operates on them.  Otherwise, it changes
 .It Fl D Fl -no-downlimit
 Disable download speed limits.
 If current torrent(s) are selected this operates on them.  Otherwise, it changes the global setting.
+.It Fl e Fl -cache Ar size
+Set the session's maximum memory cache size in MiB.  This cache is used to reduce disk IO.
 .It Fl er Fl -encryption-required
 Encrypt all peer connections.
 .It Fl ep Fl -encryption-preferred
@@ -217,6 +220,10 @@ Let the current torrent(s) seed until a specific
 Let the current torrent(s) seed regardless of ratio
 .It Fl srd Fl -seedratio-default
 Let the current torrent(s) use the global seedratio settings
+.It Fl ta Fl -tracker-add Ar tracker
+Add a tracker to a torrent
+.It Fl ta Fl -tracker-remove Ar trackerId
+Remove a tracker from a torrent
 .It Fl s Fl -start
 Start the current torrent(s)
 .It Fl S Fl -stop
@@ -346,8 +353,12 @@ $ transmission-remote \-tall \-pnall
 and
 .An Mitchell Livingston .
 .Sh SEE ALSO
-.Xr transmissioncli 1 ,
+.Xr transmission-create 1 ,
 .Xr transmission-daemon 1 ,
-.Xr transmission 1
+.Xr transmission-edit 1 ,
+.Xr transmission-gtk 1 ,
+.Xr transmission-qt 1 ,
+.Xr transmission-remote 1 ,
+.Xr transmission-show 1
 .Pp
 http://www.transmissionbt.com/

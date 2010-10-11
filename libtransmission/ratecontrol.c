@@ -30,13 +30,13 @@
 #include "utils.h"
 
 /* return the xfer rate over the last `interval' seconds in KiB/sec */
-static float
+static int
 rateForInterval( const tr_ratecontrol * r,
                  int                    interval_msec,
                  uint64_t               now )
 {
     uint64_t       bytes = 0;
-    const uint64_t cutoff = (now?now:tr_date()) - interval_msec;
+    const uint64_t cutoff = (now?now:tr_time_msec()) - interval_msec;
     int            i = r->newest;
 
     for( ; ; )
@@ -50,17 +50,17 @@ rateForInterval( const tr_ratecontrol * r,
         if( i == r->newest ) break; /* we've come all the way around */
     }
 
-    return ( bytes / 1024.0 ) * ( 1000.0 / interval_msec );
+    return bytes * ( 1000.0 / interval_msec );
 }
 
 /***
 ****
 ***/
 
-float
-tr_rcRate( const tr_ratecontrol * r, uint64_t now )
+int
+tr_rcRate_Bps( const tr_ratecontrol * r, uint64_t now )
 {
-    float ret = 0.0f;
+    int ret = 0;
 
     if( r )
         ret = rateForInterval( r, TR_RC_HISTORY_MSEC, now );
@@ -76,7 +76,7 @@ void
 tr_rcTransferred( tr_ratecontrol * r,
                   size_t           size )
 {
-    const uint64_t now = tr_date ( );
+    const uint64_t now = tr_time_msec ( );
 
     if( r->transfers[r->newest].date + TR_RC_GRANULARITY_MSEC >= now )
         r->transfers[r->newest].size += size;

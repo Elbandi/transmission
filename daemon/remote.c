@@ -1,11 +1,11 @@
 /*
  * This file Copyright (C) 2008-2010 Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2.  Works owned by the
- * Transmission project are granted a special exemption to clause 2(b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2
+ * as published by the Free Software Foundation.
+ *
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
  *
  * $Id$
  */
@@ -42,6 +42,27 @@
 #define DEFAULT_PORT atoi(TR_DEFAULT_RPC_PORT_STR)
 
 #define ARGUMENTS "arguments"
+
+#define MEM_K 1024
+#define MEM_B_STR   "B"
+#define MEM_K_STR "KiB"
+#define MEM_M_STR "MiB"
+#define MEM_G_STR "GiB"
+#define MEM_T_STR "TiB"
+
+#define DISK_K 1024
+#define DISK_B_STR   "B"
+#define DISK_K_STR "KiB"
+#define DISK_M_STR "MiB"
+#define DISK_G_STR "GiB"
+#define DISK_T_STR "TiB"
+
+#define SPEED_K 1024
+#define SPEED_B_STR   "B/s"
+#define SPEED_K_STR "KiB/s"
+#define SPEED_M_STR "MiB/s"
+#define SPEED_G_STR "GiB/s"
+#define SPEED_T_STR "TiB/s"
 
 /***
 ****
@@ -109,9 +130,11 @@ tr_strltime( char * buf, int seconds, size_t buflen )
     return buf;
 }
 
-static const double KiB = 1024.0;
-static const double MiB = 1024.0 * 1024.0;
-static const double GiB = 1024.0 * 1024.0 * 1024.0;
+static char*
+strlpercent( char * buf, double x, size_t buflen )
+{
+    return tr_strpercent( buf, x, buflen );
+}
 
 static char*
 strlratio2( char * buf, double ratio, size_t buflen )
@@ -120,13 +143,13 @@ strlratio2( char * buf, double ratio, size_t buflen )
 }
 
 static char*
-strlratio( char * buf, double numerator, double denominator, size_t buflen )
+strlratio( char * buf, int64_t numerator, int64_t denominator, size_t buflen )
 {
     double ratio;
 
-    if( denominator )
-        ratio = numerator / denominator;
-    else if( numerator )
+    if( denominator != 0 )
+        ratio = numerator / (double)denominator;
+    else if( numerator != 0 )
         ratio = TR_RATIO_INF;
     else
         ratio = TR_RATIO_NA;
@@ -135,43 +158,48 @@ strlratio( char * buf, double numerator, double denominator, size_t buflen )
 }
 
 static char*
-strlsize( char *  buf, int64_t size, size_t  buflen )
+strlmem( char * buf, int64_t bytes, size_t buflen )
 {
-    if( !size )
+    if( !bytes )
         tr_strlcpy( buf, "None", buflen );
-    else if( size < (int64_t)KiB )
-        tr_snprintf( buf, buflen, "%'" PRId64 " bytes", (int64_t)size );
     else
-    {
-        double displayed_size;
-        if( size < (int64_t)MiB )
-        {
-            displayed_size = (double) size / KiB;
-            tr_snprintf( buf, buflen, "%'.1f KiB", displayed_size );
-        }
-        else if( size < (int64_t)GiB )
-        {
-            displayed_size = (double) size / MiB;
-            tr_snprintf( buf, buflen, "%'.1f MiB", displayed_size );
-        }
-        else
-        {
-            displayed_size = (double) size / GiB;
-            tr_snprintf( buf, buflen, "%'.1f GiB", displayed_size );
-        }
-    }
+        tr_formatter_mem_B( buf, bytes, buflen );
+
     return buf;
 }
 
-enum { TAG_SESSION, TAG_STATS, TAG_LIST, TAG_DETAILS, TAG_FILES, TAG_PEERS, TAG_PORTTEST, TAG_TORRENT_ADD };
+static char*
+strlsize( char * buf, int64_t bytes, size_t buflen )
+{
+    if( !bytes )
+        tr_strlcpy( buf, "None", buflen );
+    else
+        tr_formatter_size_B( buf, bytes, buflen );
+
+    return buf;
+}
+
+enum
+{
+    TAG_SESSION,
+    TAG_STATS,
+    TAG_DETAILS,
+    TAG_FILES,
+    TAG_LIST,
+    TAG_PEERS,
+    TAG_PIECES,
+    TAG_PORTTEST,
+    TAG_TORRENT_ADD,
+    TAG_TRACKERS
+};
 
 static const char*
 getUsage( void )
 {
     return
-        "Transmission " LONG_VERSION_STRING
-        "  http://www.transmissionbt.com/\n"
+        MY_NAME" "LONG_VERSION_STRING"\n"
         "A fast and easy BitTorrent client\n"
+        "http://www.transmissionbt.com/\n"
         "\n"
         "Usage: " MY_NAME
         " [host] [options]\n"
@@ -194,8 +222,8 @@ static tr_option opts[] =
     { 'a', "add",                    "Add torrent files by filename or URL", "a",  0, NULL },
     { 970, "alt-speed",              "Use the alternate Limits", "as",  0, NULL },
     { 971, "no-alt-speed",           "Don't use the alternate Limits", "AS",  0, NULL },
-    { 972, "alt-speed-downlimit",    "max alternate download speed (in KiB/s)", "asd",  1, "<speed>" },
-    { 973, "alt-speed-uplimit",      "max alternate upload speed (in KiB/s)", "asu",  1, "<speed>" },
+    { 972, "alt-speed-downlimit",    "max alternate download speed (in "SPEED_K_STR")", "asd",  1, "<speed>" },
+    { 973, "alt-speed-uplimit",      "max alternate upload speed (in "SPEED_K_STR")", "asu",  1, "<speed>" },
     { 974, "alt-speed-scheduler",    "Use the scheduled on/off times", "asc",  0, NULL },
     { 975, "no-alt-speed-scheduler", "Don't use the scheduled on/off times", "ASC",  0, NULL },
     { 976, "alt-speed-time-begin",   "Time to start using the alt speed limits (in hhmm)", NULL,  1, "<time>" },
@@ -205,15 +233,20 @@ static tr_option opts[] =
     { 'c', "incomplete-dir",         "Where to store new torrents until they're complete", "c", 1, "<dir>" },
     { 'C', "no-incomplete-dir",      "Don't store incomplete torrents in a different location", "C", 0, NULL },
     { 'b', "debug",                  "Print debugging information", "b",  0, NULL },
-    { 'd', "downlimit",              "Set the max download speed in KiB/s for the current torrent(s) or globally", "d", 1, "<speed>" },
+    { 'd', "downlimit",              "Set the max download speed in "SPEED_K_STR" for the current torrent(s) or globally", "d", 1, "<speed>" },
     { 'D', "no-downlimit",           "Disable max download speed for the current torrent(s) or globally", "D", 0, NULL },
+    { 'e', "cache",                  "Set the maximum size of the session's memory cache (in " MEM_M_STR ")", "e", 1, "<size>" },
     { 910, "encryption-required",    "Encrypt all peer connections", "er", 0, NULL },
     { 911, "encryption-preferred",   "Prefer encrypted peer connections", "ep", 0, NULL },
     { 912, "encryption-tolerated",   "Prefer unencrypted peer connections", "et", 0, NULL },
-    { 'f', "files",                  "List the current torrent(s)' files", "f",  0, NULL },
+    { 940, "files",                  "List the current torrent(s)' files", "f",  0, NULL },
     { 'g', "get",                    "Mark files for download", "g",  1, "<files>" },
     { 'G', "no-get",                 "Mark files for not downloading", "G",  1, "<files>" },
     { 'i', "info",                   "Show the current torrent(s)' details", "i",  0, NULL },
+    { 940, "info-files",             "List the current torrent(s)' files", "if",  0, NULL },
+    { 941, "info-peers",             "List the current torrent(s)' peers", "ip",  0, NULL },
+    { 942, "info-pieces",            "List the current torrent(s)' pieces", "ic",  0, NULL },
+    { 943, "info-trackers",          "List the current torrent(s)' trackers", "it",  0, NULL },
     { 920, "session-info",           "Show the session's details", "si", 0, NULL },
     { 921, "session-stats",          "Show the session's statistics", "st", 0, NULL },
     { 'l', "list",                   "List all torrents", "l",  0, NULL },
@@ -221,29 +254,31 @@ static tr_option opts[] =
     { 961, "find",                   "Tell Transmission where to find a torrent's data", NULL, 1, "<path>" },
     { 'm', "portmap",                "Enable portmapping via NAT-PMP or UPnP", "m",  0, NULL },
     { 'M', "no-portmap",             "Disable portmapping", "M",  0, NULL },
-    { 'n', "auth",                   "Set authentication info", "n",  1, "<user:pass>" },
-    { 'N', "netrc",                  "Set authentication info from a .netrc file", "N",  1, "<filename>" },
+    { 'n', "auth",                   "Set username and password", "n",  1, "<user:pw>" },
+    { 'N', "netrc",                  "Set authentication info from a .netrc file", "N",  1, "<file>" },
     { 'o', "dht",                    "Enable distributed hash tables (DHT)", "o", 0, NULL },
     { 'O', "no-dht",                 "Disable distributed hash tables (DHT)", "O", 0, NULL },
     { 'p', "port",                   "Port for incoming peers (Default: " TR_DEFAULT_PEER_PORT_STR ")", "p", 1, "<port>" },
     { 962, "port-test",              "Port testing", "pt", 0, NULL },
     { 'P', "random-port",            "Random port for incomping peers", "P", 0, NULL },
-    { 900, "priority-high",          "Try to download the specified file(s) first", "ph", 1, "<files>" },
-    { 901, "priority-normal",        "Try to download the specified file(s) normally", "pn", 1, "<files>" },
-    { 902, "priority-low",           "Try to download the specified file(s) last", "pl", 1, "<files>" },
+    { 900, "priority-high",          "Try to download these file(s) first", "ph", 1, "<files>" },
+    { 901, "priority-normal",        "Try to download these file(s) normally", "pn", 1, "<files>" },
+    { 902, "priority-low",           "Try to download these file(s) last", "pl", 1, "<files>" },
     { 700, "bandwidth-high",         "Give this torrent first chance at available bandwidth", "Bh", 0, NULL },
-    { 701, "bandwidth-normal",       "Give this torrent the bandwidth left over by high priority torrents", "Bn", 0, NULL },
-    { 702, "bandwidth-low",          "Give this torrent the bandwidth left over by high and normal priority torrents", "Bl", 0, NULL },
+    { 701, "bandwidth-normal",       "Give this torrent bandwidth left over by high priority torrents", "Bn", 0, NULL },
+    { 702, "bandwidth-low",          "Give this torrent bandwidth left over by high and normal priority torrents", "Bl", 0, NULL },
     { 'r', "remove",                 "Remove the current torrent(s)", "r",  0, NULL },
     { 930, "peers",                  "Set the maximum number of peers for the current torrent(s) or globally", "pr", 1, "<max>" },
     { 'R', "remove-and-delete",      "Remove the current torrent(s) and delete local data", NULL, 0, NULL },
-    { 800, "torrent-done-script",    "Specify a script to run when a torrent finishes", NULL, 1, "<filename>" },
-    { 801, "no-torrent-done-script", "Don't run a script when torrnets finish", NULL, 0, NULL },
+    { 800, "torrent-done-script",    "Specify a script to run when a torrent finishes", NULL, 1, "<file>" },
+    { 801, "no-torrent-done-script", "Don't run a script when torrents finish", NULL, 0, NULL },
     { 950, "seedratio",              "Let the current torrent(s) seed until a specific ratio", "sr", 1, "ratio" },
     { 951, "seedratio-default",      "Let the current torrent(s) use the global seedratio settings", "srd", 0, NULL },
     { 952, "no-seedratio",           "Let the current torrent(s) seed regardless of ratio", "SR", 0, NULL },
     { 953, "global-seedratio",       "All torrents, unless overridden by a per-torrent setting, should seed until a specific ratio", "gsr", 1, "ratio" },
     { 954, "no-global-seedratio",    "All torrents, unless overridden by a per-torrent setting, should seed regardless of ratio", "GSR", 0, NULL },
+    { 710, "tracker-add",            "Add a tracker to a torrent", "ta", 1, "<tracker>" },
+    { 712, "tracker-remove",         "Remove a tracker from a torrent", "tr", 1, "<trackerId>" },
     { 's', "start",                  "Start the current torrent(s)", "s",  0, NULL },
     { 'S', "stop",                   "Stop the current torrent(s)", "S",  0, NULL },
     { 't', "torrent",                "Set the current torrent(s)", "t",  1, "<torrent>" },
@@ -253,7 +288,7 @@ static tr_option opts[] =
     { 993, "no-trash-torrent",       "Do not delete torrents after adding", NULL, 0, NULL },
     { 984, "honor-session",          "Make the current torrent(s) honor the session limits", "hl",  0, NULL },
     { 985, "no-honor-session",       "Make the current torrent(s) not honor the session limits", "HL",  0, NULL },
-    { 'u', "uplimit",                "Set the max upload speed in KiB/s for the current torrent(s) or globally", "u", 1, "<speed>" },
+    { 'u', "uplimit",                "Set the max upload speed in "SPEED_K_STR" for the current torrent(s) or globally", "u", 1, "<speed>" },
     { 'U', "no-uplimit",             "Disable max upload speed for the current torrent(s) or globally", "U", 0, NULL },
     { 'v', "verify",                 "Verify the current torrent(s)", "v",  0, NULL },
     { 'V', "version",                "Show version number and exit", "V", 0, NULL },
@@ -262,7 +297,7 @@ static tr_option opts[] =
     { 'X', "no-pex",                 "Disable peer exchange (PEX)", "X",  0, NULL },
     { 'y', "lpd",                    "Enable local peer discovery (LPD)", "y",  0, NULL },
     { 'Y', "no-lpd",                 "Disable local peer discovery (LPD)", "Y",  0, NULL },
-    { 940, "peer-info",              "List the current torrent(s)' peers", "pi",  0, NULL },
+    { 941, "peer-info",              "List the current torrent(s)' peers", "pi",  0, NULL },
     {   0, NULL,                     NULL, NULL, 0, NULL }
 };
 
@@ -322,6 +357,7 @@ getOptMode( int val )
 
         case 'c': /* incomplete-dir */
         case 'C': /* no-incomplete-dir */
+        case 'e': /* cache */
         case 'm': /* portmap */
         case 'M': /* "no-portmap */
         case 'o': /* dht */
@@ -354,6 +390,7 @@ getOptMode( int val )
         case 993: /* no-trash-torrent */
             return MODE_SESSION_SET;
 
+        case 712: /* tracker-remove */
         case 950: /* seedratio */
         case 951: /* seedratio-default */
         case 952: /* no-seedratio */
@@ -369,6 +406,7 @@ getOptMode( int val )
         case 700: /* torrent priority-high */
         case 701: /* torrent priority-normal */
         case 702: /* torrent priority-low */
+        case 710: /* tracker-add */
         case 900: /* file priority-high */
         case 901: /* file priority-normal */
         case 902: /* file priority-low */
@@ -377,10 +415,12 @@ getOptMode( int val )
         case 961: /* find */
             return MODE_TORRENT_SET_LOCATION | MODE_TORRENT_ADD;
 
-        case 'f': /* files */
         case 'i': /* info */
         case 'l': /* list all torrents */
-        case 940: /* peer-info */
+        case 940: /* info-files */
+        case 941: /* info-peer */
+        case 942: /* info-pieces */
+        case 943: /* info-tracker */
             return MODE_TORRENT_GET;
 
         case 'd': /* download speed limit */
@@ -586,6 +626,7 @@ static const char * files_keys[] = {
 static const char * details_keys[] = {
     "activityDate",
     "addedDate",
+    "bandwidthPriority",
     "comment",
     "corruptEver",
     "creator",
@@ -623,11 +664,9 @@ static const char * details_keys[] = {
     "startDate",
     "status",
     "totalSize",
-    "trackerStats",
     "uploadedEver",
     "uploadLimit",
     "uploadLimited",
-    "pieces",
     "webseeds",
     "webseedsSendingToUs"
 };
@@ -748,6 +787,9 @@ getStatusString( tr_benc * t, char * buf, size_t buflen )
     return buf;
 }
 
+static const char *bandwidthPriorityNames[] =
+    { "Low", "Normal", "High", "Invalid" };
+
 static void
 printDetails( tr_benc * top )
 {
@@ -762,8 +804,6 @@ printDetails( tr_benc * top )
         {
             tr_benc *    t = tr_bencListChild( torrents, ti );
             tr_benc *    l;
-            const uint8_t * raw;
-            size_t       rawlen;
             const char * str;
             char         buf[512];
             char         buf2[512];
@@ -790,16 +830,16 @@ printDetails( tr_benc * top )
             if( tr_bencDictFindInt( t, "sizeWhenDone", &i )
               && tr_bencDictFindInt( t, "leftUntilDone", &j ) )
             {
-                strlratio( buf, 100.0 * ( i - j ), i, sizeof( buf ) );
+                strlpercent( buf, 100.0 * ( i - j ) / i, sizeof( buf ) );
                 printf( "  Percent Done: %s%%\n", buf );
             }
 
             if( tr_bencDictFindInt( t, "eta", &i ) )
                 printf( "  ETA: %s\n", tr_strltime( buf, i, sizeof( buf ) ) );
             if( tr_bencDictFindInt( t, "rateDownload", &i ) )
-                printf( "  Download Speed: %.1f KiB/s\n", i / 1024.0 );
+                printf( "  Download Speed: %s\n", tr_formatter_speed_KBps( buf, i/(double)tr_speed_K, sizeof( buf ) ) );
             if( tr_bencDictFindInt( t, "rateUpload", &i ) )
-                printf( "  Upload Speed: %.1f KiB/s\n", i / 1024.0 );
+                printf( "  Upload Speed: %s\n", tr_formatter_speed_KBps( buf, i/(double)tr_speed_K, sizeof( buf ) ) );
             if( tr_bencDictFindInt( t, "haveUnchecked", &i )
               && tr_bencDictFindInt( t, "haveValid", &j ) )
             {
@@ -816,7 +856,8 @@ printDetails( tr_benc * top )
                     && tr_bencDictFindInt( t, "leftUntilDone", &k) )
                 {
                     j += i - k;
-                    printf( "  Availability: %.1f%%\n", ( 100 * j ) / (double) i );
+                    strlpercent( buf, 100.0 * j / i, sizeof( buf ) );
+                    printf( "  Availability: %s%%\n", buf );
                 }
                 if( tr_bencDictFindInt( t, "totalSize", &j ) )
                 {
@@ -915,138 +956,6 @@ printDetails( tr_benc * top )
             }
             printf( "\n" );
 
-            printf( "TRACKERS\n" );
-
-            if( tr_bencDictFindList( t, "trackerStats", &l ) )
-            {
-                tr_benc * t;
-                for( i=0; (( t = tr_bencListChild( l, i ))); ++i )
-                {
-                    int64_t downloadCount;
-                    tr_bool hasAnnounced;
-                    tr_bool hasScraped;
-                    const char * host;
-                    tr_bool isBackup;
-                    int64_t lastAnnouncePeerCount;
-                    const char * lastAnnounceResult;
-                    int64_t lastAnnounceStartTime;
-                    tr_bool lastAnnounceSucceeded;
-                    int64_t lastAnnounceTime;
-                    tr_bool lastAnnounceTimedOut;
-                    const char * lastScrapeResult;
-                    tr_bool lastScrapeSucceeded;
-                    int64_t lastScrapeStartTime;
-                    int64_t lastScrapeTime;
-                    tr_bool lastScrapeTimedOut;
-                    int64_t leecherCount;
-                    int64_t nextAnnounceTime;
-                    int64_t nextScrapeTime;
-                    int64_t seederCount;
-                    int64_t tier;
-                    int64_t announceState;
-                    int64_t scrapeState;
-
-                    if( tr_bencDictFindInt ( t, "downloadCount", &downloadCount ) &&
-                        tr_bencDictFindBool( t, "hasAnnounced", &hasAnnounced ) &&
-                        tr_bencDictFindBool( t, "hasScraped", &hasScraped ) &&
-                        tr_bencDictFindStr ( t, "host", &host ) &&
-                        tr_bencDictFindBool( t, "isBackup", &isBackup ) &&
-                        tr_bencDictFindInt ( t, "announceState", &announceState ) &&
-                        tr_bencDictFindInt ( t, "scrapeState", &scrapeState ) &&
-                        tr_bencDictFindInt ( t, "lastAnnouncePeerCount", &lastAnnouncePeerCount ) &&
-                        tr_bencDictFindStr ( t, "lastAnnounceResult", &lastAnnounceResult ) &&
-                        tr_bencDictFindInt ( t, "lastAnnounceStartTime", &lastAnnounceStartTime ) &&
-                        tr_bencDictFindBool( t, "lastAnnounceSucceeded", &lastAnnounceSucceeded ) &&
-                        tr_bencDictFindInt ( t, "lastAnnounceTime", &lastAnnounceTime ) &&
-                        tr_bencDictFindBool( t, "lastAnnounceTimedOut", &lastAnnounceTimedOut ) &&
-                        tr_bencDictFindStr ( t, "lastScrapeResult", &lastScrapeResult ) &&
-                        tr_bencDictFindInt ( t, "lastScrapeStartTime", &lastScrapeStartTime ) &&
-                        tr_bencDictFindBool( t, "lastScrapeSucceeded", &lastScrapeSucceeded ) &&
-                        tr_bencDictFindInt ( t, "lastScrapeTime", &lastScrapeTime ) &&
-                        tr_bencDictFindBool( t, "lastScrapeTimedOut", &lastScrapeTimedOut ) &&
-                        tr_bencDictFindInt ( t, "leecherCount", &leecherCount ) &&
-                        tr_bencDictFindInt ( t, "nextAnnounceTime", &nextAnnounceTime ) &&
-                        tr_bencDictFindInt ( t, "nextScrapeTime", &nextScrapeTime ) &&
-                        tr_bencDictFindInt ( t, "seederCount", &seederCount ) &&
-                        tr_bencDictFindInt ( t, "tier", &tier ) )
-                    {
-                        const time_t now = time( NULL );
-
-                        printf( "\n" );
-                        printf( "  Tracker #%d: %s\n", (int)(i+1), host );
-                        if( isBackup )
-                          printf( "  Backup on tier #%d\n", (int)tier );
-                        else
-                          printf( "  Active in tier #%d\n", (int)tier );
-
-                        if( !isBackup )
-                        {
-                            if( hasAnnounced )
-                            {
-                                tr_strltime( buf, now - lastAnnounceTime, sizeof( buf ) );
-                                if( lastAnnounceSucceeded )
-                                    printf( "  Got a list of %'d peers %s ago\n",
-                                            (int)lastAnnouncePeerCount, buf );
-                                else if( lastAnnounceTimedOut )
-                                    printf( "  Peer list request timed out; will retry\n" );
-                                else
-                                    printf( "  Got an error \"%s\" %s ago\n",
-                                            lastAnnounceResult, buf );
-                            }
-
-                            switch( announceState )
-                            {
-                                case TR_TRACKER_INACTIVE:
-                                    printf( "  No updates scheduled\n" );
-                                    break;
-                                case TR_TRACKER_WAITING:
-                                    tr_strltime( buf, nextAnnounceTime - now, sizeof( buf ) );
-                                    printf( "  Asking for more peers in %s\n", buf );
-                                    break;
-                                case TR_TRACKER_QUEUED:
-                                    printf( "  Queued to ask for more peers\n" );
-                                    break;
-                                case TR_TRACKER_ACTIVE:
-                                    tr_strltime( buf, now - lastAnnounceStartTime, sizeof( buf ) );
-                                    printf( "  Asking for more peers now... %s\n", buf );
-                                    break;
-                            }
-
-                            if( hasScraped )
-                            {
-                                tr_strltime( buf, now - lastScrapeTime, sizeof( buf ) );
-                                if( lastScrapeSucceeded )
-                                    printf( "  Tracker had %'d seeders and %'d leechers %s ago\n",
-                                            (int)seederCount, (int)leecherCount, buf );
-                                else if( lastScrapeTimedOut )
-                                    printf( "  Tracker scrape timed out; will retry\n" );
-                                else
-                                    printf( "  Got a scrape error \"%s\" %s ago\n",
-                                            lastScrapeResult, buf );
-                            }
-
-                            switch( scrapeState )
-                            {
-                                case TR_TRACKER_INACTIVE:
-                                    break;
-                                case TR_TRACKER_WAITING:
-                                    tr_strltime( buf, nextScrapeTime - now, sizeof( buf ) );
-                                    printf( "  Asking for peer counts in %s\n", buf );
-                                    break;
-                                case TR_TRACKER_QUEUED:
-                                    printf( "  Queued to ask for peer counts\n" );
-                                    break;
-                                case TR_TRACKER_ACTIVE:
-                                    tr_strltime( buf, now - lastScrapeStartTime, sizeof( buf ) );
-                                    printf( "  Asking for peer counts now... %s\n", buf );
-                                    break;
-                            }
-                        }
-                    }
-                }
-                printf( "\n" );
-            }
-
             printf( "ORIGINS\n" );
             if( tr_bencDictFindInt( t, "dateCreated", &i ) && i )
             {
@@ -1062,16 +971,16 @@ printDetails( tr_benc * top )
             if( tr_bencDictFindInt( t, "pieceCount", &i ) )
                 printf( "  Piece Count: %" PRId64 "\n", i );
             if( tr_bencDictFindInt( t, "pieceSize", &i ) )
-                printf( "  Piece Size: %" PRId64 "\n", i );
+                printf( "  Piece Size: %s\n", strlmem( buf, i, sizeof( buf ) ) );
             printf( "\n" );
 
-            printf( "LIMITS\n" );
+            printf( "LIMITS & BANDWIDTH\n" );
             if( tr_bencDictFindBool( t, "downloadLimited", &boolVal )
                 && tr_bencDictFindInt( t, "downloadLimit", &i ) )
             {
                 printf( "  Download Limit: " );
                 if( boolVal )
-                    printf( "%" PRId64 " KiB/s\n", i );
+                    printf( "%s\n", tr_formatter_speed_KBps( buf, i, sizeof( buf ) ) );
                 else
                     printf( "Unlimited\n" );
             }
@@ -1080,7 +989,7 @@ printDetails( tr_benc * top )
             {
                 printf( "  Upload Limit: " );
                 if( boolVal )
-                    printf( "%" PRId64 " KiB/s\n", i );
+                    printf( "%s\n", tr_formatter_speed_KBps( buf, i, sizeof( buf ) ) );
                 else
                     printf( "Unlimited\n" );
             }
@@ -1088,23 +997,10 @@ printDetails( tr_benc * top )
                 printf( "  Honors Session Limits: %s\n", ( boolVal ? "Yes" : "No" ) );
             if( tr_bencDictFindInt ( t, "peer-limit", &i ) )
                 printf( "  Peer limit: %" PRId64 "\n", i );
-            printf( "\n" );
-
-            printf( "PIECES\n" );
-            if( tr_bencDictFindRaw( t, "pieces", &raw, &rawlen ) && tr_bencDictFindInt( t, "pieceCount", &j ) ) {
-                int len;
-                char * str = tr_base64_decode( raw, rawlen, &len );
-                printf( "  " );
-                for( i=k=0; k<len; ++k ) {
-                    int e;
-                    for( e=0; i<j && e<8; ++e, ++i )
-                        printf( "%c", str[k] & (1<<(7-e)) ? '1' : '0' );
-                    printf( " " );
-                    if( !(i%64) )
-                        printf( "\n  " );
-                }
-                tr_free( str );
-            }
+            if (tr_bencDictFindInt (t, "bandwidthPriority", &i))
+                printf ("  Bandwidth Priority: %s\n",
+                        bandwidthPriorityNames[(i + 1) & 3]);
+   
             printf( "\n" );
         }
     }
@@ -1201,8 +1097,8 @@ printPeersImpl( tr_benc * peers )
         {
             printf( "%-20s  %-12s  %-5.1f %6.1f  %6.1f  %s\n",
                     address, flagstr, (progress*100.0),
-                    rateToClient / 1024.0,
-                    rateToPeer / 1024.0,
+                    rateToClient / (double)tr_speed_K,
+                    rateToPeer / (double)tr_speed_K,
                     client );
         }
     }
@@ -1223,6 +1119,49 @@ printPeers( tr_benc * top )
             tr_benc * torrent = tr_bencListChild( torrents, i );
             if( tr_bencDictFindList( torrent, "peers", &peers ) ) {
                 printPeersImpl( peers );
+                if( i+1<n )
+                    printf( "\n" );
+            }
+        }
+    }
+}
+
+static void
+printPiecesImpl( const uint8_t * raw, size_t rawlen, int64_t j )
+{
+    int i, k, len;
+    char * str = tr_base64_decode( raw, rawlen, &len );
+    printf( "  " );
+    for( i=k=0; k<len; ++k ) {
+        int e;
+        for( e=0; i<j && e<8; ++e, ++i )
+            printf( "%c", str[k] & (1<<(7-e)) ? '1' : '0' );
+        printf( " " );
+        if( !(i%64) )
+            printf( "\n  " );
+    }
+    printf( "\n" );
+    tr_free( str );
+}
+
+static void
+printPieces( tr_benc * top )
+{
+    tr_benc *args, *torrents;
+
+    if( tr_bencDictFindDict( top, "arguments", &args )
+      && tr_bencDictFindList( args, "torrents", &torrents ) )
+    {
+        int i, n;
+        for( i=0, n=tr_bencListSize( torrents ); i<n; ++i )
+        {
+            int64_t j;
+            const uint8_t * raw;
+            size_t       rawlen;
+            tr_benc * torrent = tr_bencListChild( torrents, i );
+            if( tr_bencDictFindRaw( torrent, "pieces", &raw, &rawlen ) &&
+                tr_bencDictFindInt( torrent, "pieceCount", &j ) ) {
+                printPiecesImpl( raw, rawlen, j );
                 if( i+1<n )
                     printf( "\n" );
             }
@@ -1252,7 +1191,8 @@ printTorrentList( tr_benc * top )
       && ( tr_bencDictFindList( args, "torrents", &list ) ) )
     {
         int i, n;
-        int64_t total_up = 0, total_down = 0, total_size = 0;
+        int64_t total_size=0;
+        double total_up=0, total_down=0;
         char haveStr[32];
 
         printf( "%-4s   %-4s  %9s  %-8s  %6s  %6s  %-5s  %-11s  %s\n",
@@ -1304,8 +1244,8 @@ printTorrentList( tr_benc * top )
                     doneStr,
                     haveStr,
                     etaStr,
-                    up / 1024.0,
-                    down / 1024.0,
+                    up/(double)tr_speed_K,
+                    down/(double)tr_speed_K,
                     strlratio2( ratioStr, ratio, sizeof( ratioStr ) ),
                     getStatusString( d, statusStr, sizeof( statusStr ) ),
                     name );
@@ -1318,8 +1258,165 @@ printTorrentList( tr_benc * top )
 
         printf( "Sum:         %9s            %6.1f  %6.1f\n",
                 strlsize( haveStr, total_size, sizeof( haveStr ) ),
-                total_up / 1024.0,
-                total_down / 1024.0 );
+                total_up/(double)tr_speed_K,
+                total_down/(double)tr_speed_K );
+    }
+}
+
+static void
+printTrackersImpl( tr_benc * trackerStats )
+{
+    int i;
+    char         buf[512];
+    tr_benc * t;
+
+    for( i=0; (( t = tr_bencListChild( trackerStats, i ))); ++i )
+    {
+        int64_t downloadCount;
+        tr_bool hasAnnounced;
+        tr_bool hasScraped;
+        const char * host;
+        int64_t id;
+        tr_bool isBackup;
+        int64_t lastAnnouncePeerCount;
+        const char * lastAnnounceResult;
+        int64_t lastAnnounceStartTime;
+        tr_bool lastAnnounceSucceeded;
+        int64_t lastAnnounceTime;
+        tr_bool lastAnnounceTimedOut;
+        const char * lastScrapeResult;
+        tr_bool lastScrapeSucceeded;
+        int64_t lastScrapeStartTime;
+        int64_t lastScrapeTime;
+        tr_bool lastScrapeTimedOut;
+        int64_t leecherCount;
+        int64_t nextAnnounceTime;
+        int64_t nextScrapeTime;
+        int64_t seederCount;
+        int64_t tier;
+        int64_t announceState;
+        int64_t scrapeState;
+
+        if( tr_bencDictFindInt ( t, "downloadCount", &downloadCount ) &&
+            tr_bencDictFindBool( t, "hasAnnounced", &hasAnnounced ) &&
+            tr_bencDictFindBool( t, "hasScraped", &hasScraped ) &&
+            tr_bencDictFindStr ( t, "host", &host ) &&
+            tr_bencDictFindInt ( t, "id", &id ) &&
+            tr_bencDictFindBool( t, "isBackup", &isBackup ) &&
+            tr_bencDictFindInt ( t, "announceState", &announceState ) &&
+            tr_bencDictFindInt ( t, "scrapeState", &scrapeState ) &&
+            tr_bencDictFindInt ( t, "lastAnnouncePeerCount", &lastAnnouncePeerCount ) &&
+            tr_bencDictFindStr ( t, "lastAnnounceResult", &lastAnnounceResult ) &&
+            tr_bencDictFindInt ( t, "lastAnnounceStartTime", &lastAnnounceStartTime ) &&
+            tr_bencDictFindBool( t, "lastAnnounceSucceeded", &lastAnnounceSucceeded ) &&
+            tr_bencDictFindInt ( t, "lastAnnounceTime", &lastAnnounceTime ) &&
+            tr_bencDictFindBool( t, "lastAnnounceTimedOut", &lastAnnounceTimedOut ) &&
+            tr_bencDictFindStr ( t, "lastScrapeResult", &lastScrapeResult ) &&
+            tr_bencDictFindInt ( t, "lastScrapeStartTime", &lastScrapeStartTime ) &&
+            tr_bencDictFindBool( t, "lastScrapeSucceeded", &lastScrapeSucceeded ) &&
+            tr_bencDictFindInt ( t, "lastScrapeTime", &lastScrapeTime ) &&
+            tr_bencDictFindBool( t, "lastScrapeTimedOut", &lastScrapeTimedOut ) &&
+            tr_bencDictFindInt ( t, "leecherCount", &leecherCount ) &&
+            tr_bencDictFindInt ( t, "nextAnnounceTime", &nextAnnounceTime ) &&
+            tr_bencDictFindInt ( t, "nextScrapeTime", &nextScrapeTime ) &&
+            tr_bencDictFindInt ( t, "seederCount", &seederCount ) &&
+            tr_bencDictFindInt ( t, "tier", &tier ) )
+        {
+            const time_t now = time( NULL );
+
+            printf( "\n" );
+            printf( "  Tracker %d: %s\n", (int)(id), host );
+            if( isBackup )
+                printf( "  Backup on tier %d\n", (int)tier );
+            else
+                printf( "  Active in tier %d\n", (int)tier );
+
+            if( !isBackup )
+            {
+                if( hasAnnounced && announceState != TR_TRACKER_INACTIVE )
+                {
+                    tr_strltime( buf, now - lastAnnounceTime, sizeof( buf ) );
+                    if( lastAnnounceSucceeded )
+                        printf( "  Got a list of %'d peers %s ago\n",
+                                (int)lastAnnouncePeerCount, buf );
+                    else if( lastAnnounceTimedOut )
+                        printf( "  Peer list request timed out; will retry\n" );
+                    else
+                        printf( "  Got an error \"%s\" %s ago\n",
+                                lastAnnounceResult, buf );
+                }
+
+                switch( announceState )
+                {
+                    case TR_TRACKER_INACTIVE:
+                        printf( "  No updates scheduled\n" );
+                        break;
+                    case TR_TRACKER_WAITING:
+                        tr_strltime( buf, nextAnnounceTime - now, sizeof( buf ) );
+                        printf( "  Asking for more peers in %s\n", buf );
+                        break;
+                    case TR_TRACKER_QUEUED:
+                        printf( "  Queued to ask for more peers\n" );
+                        break;
+                    case TR_TRACKER_ACTIVE:
+                        tr_strltime( buf, now - lastAnnounceStartTime, sizeof( buf ) );
+                        printf( "  Asking for more peers now... %s\n", buf );
+                        break;
+                }
+
+                if( hasScraped )
+                {
+                    tr_strltime( buf, now - lastScrapeTime, sizeof( buf ) );
+                    if( lastScrapeSucceeded )
+                        printf( "  Tracker had %'d seeders and %'d leechers %s ago\n",
+                                (int)seederCount, (int)leecherCount, buf );
+                    else if( lastScrapeTimedOut )
+                        printf( "  Tracker scrape timed out; will retry\n" );
+                    else
+                        printf( "  Got a scrape error \"%s\" %s ago\n",
+                                lastScrapeResult, buf );
+                }
+
+                switch( scrapeState )
+                {
+                    case TR_TRACKER_INACTIVE:
+                        break;
+                    case TR_TRACKER_WAITING:
+                        tr_strltime( buf, nextScrapeTime - now, sizeof( buf ) );
+                        printf( "  Asking for peer counts in %s\n", buf );
+                        break;
+                    case TR_TRACKER_QUEUED:
+                        printf( "  Queued to ask for peer counts\n" );
+                        break;
+                    case TR_TRACKER_ACTIVE:
+                        tr_strltime( buf, now - lastScrapeStartTime, sizeof( buf ) );
+                        printf( "  Asking for peer counts now... %s\n", buf );
+                        break;
+                }
+            }
+        }
+    }
+}
+
+static void
+printTrackers( tr_benc * top )
+{
+    tr_benc *args, *torrents;
+
+    if( tr_bencDictFindDict( top, "arguments", &args )
+      && tr_bencDictFindList( args, "torrents", &torrents ) )
+    {
+        int i, n;
+        for( i=0, n=tr_bencListSize( torrents ); i<n; ++i )
+        {
+            tr_benc * trackerStats;
+            tr_benc * torrent = tr_bencListChild( torrents, i );
+            if( tr_bencDictFindList( torrent, "trackerStats", &trackerStats ) ) {
+                printTrackersImpl( trackerStats );
+                if( i+1<n )
+                    printf( "\n" );
+            }
+        }
     }
 }
 
@@ -1329,9 +1426,10 @@ printSession( tr_benc * top )
     tr_benc *args;
     if( ( tr_bencDictFindDict( top, "arguments", &args ) ) )
     {
+        int64_t i;
+        char buf[64];
+        tr_bool boolVal;
         const char * str;
-        int64_t      i;
-        tr_bool      boolVal;
 
         printf( "VERSION\n" );
         if( tr_bencDictFindStr( args,  "version", &str ) )
@@ -1359,6 +1457,8 @@ printSession( tr_benc * top )
             printf( "  Peer exchange allowed: %s\n", ( boolVal ? "Yes" : "No" ) );
         if( tr_bencDictFindStr( args,  TR_PREFS_KEY_ENCRYPTION, &str ) )
             printf( "  Encryption: %s\n", str );
+        if( tr_bencDictFindInt( args, TR_PREFS_KEY_MAX_CACHE_SIZE_MB, &i ) )
+            printf( "  Maximum memory cache size: %s\n", tr_formatter_mem_MB( buf, i, sizeof( buf ) ) );
         printf( "\n" );
 
         {
@@ -1366,22 +1466,24 @@ printSession( tr_benc * top )
             int64_t altDown, altUp, altBegin, altEnd, altDay, upLimit, downLimit, peerLimit;
             double seedRatioLimit;
 
-            if( tr_bencDictFindInt ( args, TR_PREFS_KEY_ALT_SPEED_DOWN, &altDown ) &&
+            if( tr_bencDictFindInt ( args, TR_PREFS_KEY_ALT_SPEED_DOWN_KBps, &altDown ) &&
                 tr_bencDictFindBool( args, TR_PREFS_KEY_ALT_SPEED_ENABLED, &altEnabled ) &&
                 tr_bencDictFindInt ( args, TR_PREFS_KEY_ALT_SPEED_TIME_BEGIN, &altBegin ) &&
                 tr_bencDictFindBool( args, TR_PREFS_KEY_ALT_SPEED_TIME_ENABLED, &altTimeEnabled ) &&
                 tr_bencDictFindInt ( args, TR_PREFS_KEY_ALT_SPEED_TIME_END, &altEnd ) &&
                 tr_bencDictFindInt ( args, TR_PREFS_KEY_ALT_SPEED_TIME_DAY, &altDay ) &&
-                tr_bencDictFindInt ( args, TR_PREFS_KEY_ALT_SPEED_UP, &altUp ) &&
+                tr_bencDictFindInt ( args, TR_PREFS_KEY_ALT_SPEED_UP_KBps, &altUp ) &&
                 tr_bencDictFindInt ( args, TR_PREFS_KEY_PEER_LIMIT_GLOBAL, &peerLimit ) &&
-                tr_bencDictFindInt ( args, TR_PREFS_KEY_DSPEED, &downLimit ) &&
+                tr_bencDictFindInt ( args, TR_PREFS_KEY_DSPEED_KBps, &downLimit ) &&
                 tr_bencDictFindBool( args, TR_PREFS_KEY_DSPEED_ENABLED, &downEnabled ) &&
-                tr_bencDictFindInt ( args, TR_PREFS_KEY_USPEED, &upLimit ) &&
+                tr_bencDictFindInt ( args, TR_PREFS_KEY_USPEED_KBps, &upLimit ) &&
                 tr_bencDictFindBool( args, TR_PREFS_KEY_USPEED_ENABLED, &upEnabled ) &&
                 tr_bencDictFindReal( args, "seedRatioLimit", &seedRatioLimit ) &&
                 tr_bencDictFindBool( args, "seedRatioLimited", &seedRatioLimited) )
             {
                 char buf[128];
+                char buf2[128];
+                char buf3[128];
 
                 printf( "LIMITS\n" );
                 printf( "  Peer limit: %" PRId64 "\n", peerLimit );
@@ -1393,26 +1495,30 @@ printSession( tr_benc * top )
                 printf( "  Default seed ratio limit: %s\n", buf );
 
                 if( altEnabled )
-                    tr_snprintf( buf, sizeof( buf ), "%"PRId64" KiB/s", altUp );
+                    tr_formatter_speed_KBps( buf, altUp, sizeof( buf ) );
                 else if( upEnabled )
-                    tr_snprintf( buf, sizeof( buf ), "%"PRId64" KiB/s", upLimit );
+                    tr_formatter_speed_KBps( buf, upLimit, sizeof( buf ) );
                 else
                     tr_strlcpy( buf, "Unlimited", sizeof( buf ) );
-                printf( "  Upload speed limit: %s  (%s limit: %"PRId64" KiB/s; %s turtle limit: %"PRId64" KiB/s)\n",
+                printf( "  Upload speed limit: %s  (%s limit: %s; %s turtle limit: %s)\n",
                         buf,
-                        (upEnabled?"Enabled":"Disabled"), upLimit,
-                        (altEnabled?"Enabled":"Disabled"), altUp );
+                        upEnabled ? "Enabled" : "Disabled",
+                        tr_formatter_speed_KBps( buf2, upLimit, sizeof( buf2 ) ),
+                        altEnabled ? "Enabled" : "Disabled",
+                        tr_formatter_speed_KBps( buf3, altUp, sizeof( buf3 ) ) );
 
                 if( altEnabled )
-                    tr_snprintf( buf, sizeof( buf ), "%"PRId64" KiB/s", altDown );
+                    tr_formatter_speed_KBps( buf, altDown, sizeof( buf ) );
                 else if( downEnabled )
-                    tr_snprintf( buf, sizeof( buf ), "%"PRId64" KiB/s", downLimit );
+                    tr_formatter_speed_KBps( buf, downLimit, sizeof( buf ) );
                 else
                     tr_strlcpy( buf, "Unlimited", sizeof( buf ) );
-                printf( "  Download speed limit: %s  (%s limit: %"PRId64" KiB/s; %s turtle limit: %"PRId64" KiB/s)\n",
+                printf( "  Download speed limit: %s  (%s limit: %s; %s turtle limit: %s)\n",
                         buf,
-                        (downEnabled?"Enabled":"Disabled"), downLimit,
-                        (altEnabled?"Enabled":"Disabled"), altDown );
+                        downEnabled ? "Enabled" : "Disabled",
+                        tr_formatter_speed_KBps( buf2, downLimit, sizeof( buf2 ) ),
+                        altEnabled ? "Enabled" : "Disabled",
+                        tr_formatter_speed_KBps( buf2, altDown, sizeof( buf2 ) ) );
 
                 if( altTimeEnabled ) {
                     printf( "  Turtle schedule: %02d:%02d - %02d:%02d  ",
@@ -1508,17 +1614,20 @@ processResponse( const char * host, int port, const void * response, size_t len 
             case TAG_STATS:
                 printSessionStats( &top ); break;
 
-            case TAG_FILES:
-                printFileList( &top ); break;
-
             case TAG_DETAILS:
                 printDetails( &top ); break;
+
+            case TAG_FILES:
+                printFileList( &top ); break;
 
             case TAG_LIST:
                 printTorrentList( &top ); break;
 
             case TAG_PEERS:
                 printPeers( &top ); break;
+
+            case TAG_PIECES:
+                printPieces( &top ); break;
 
             case TAG_PORTTEST:
                 printPortTest( &top ); break;
@@ -1530,8 +1639,11 @@ processResponse( const char * host, int port, const void * response, size_t len 
                         && tr_bencDictFindDict( b, "torrent-added", &b )
                         && tr_bencDictFindInt( b, "id", &i ) )
                     tr_snprintf( id, sizeof(id), "%"PRId64, i );
-                break;
+                /* fall-through to default: to give success or failure msg */
             }
+
+            case TAG_TRACKERS:
+                printTrackers( &top ); break;
 
             default:
                 if( !tr_bencDictFindStr( &top, "result", &str ) )
@@ -1690,6 +1802,7 @@ processArgs( const char * host, int port, int argc, const char ** argv )
             switch( c )
             {
                 case 'a': /* add torrent */
+                    if( sset != 0 ) status |= flush( host, port, &sset );
                     if( tadd != 0 ) status |= flush( host, port, &tadd );
                     if( tset != 0 ) { addIdArg( tr_bencDictFind( tset, ARGUMENTS ), id ); status |= flush( host, port, &tset ); }
                     tadd = tr_new0( tr_benc, 1 );
@@ -1718,7 +1831,7 @@ processArgs( const char * host, int port, int argc, const char ** argv )
                     break;
 
                 case 'V': /* show version number */
-                    fprintf( stderr, "Transmission %s\n", LONG_VERSION_STRING );
+                    fprintf( stderr, "%s %s\n", MY_NAME, LONG_VERSION_STRING );
                     exit( 0 );
                     break;
 
@@ -1759,11 +1872,6 @@ processArgs( const char * host, int port, int argc, const char ** argv )
             
             switch( c )
             {
-                case 'f': tr_bencDictAddInt( top, "tag", TAG_FILES );
-                          n = TR_N_ELEMENTS( files_keys );
-                          for( i=0; i<n; ++i ) tr_bencListAddStr( fields, files_keys[i] );
-                          addIdArg( args, id );
-                          break;
                 case 'i': tr_bencDictAddInt( top, "tag", TAG_DETAILS );
                           n = TR_N_ELEMENTS( details_keys );
                           for( i=0; i<n; ++i ) tr_bencListAddStr( fields, details_keys[i] );
@@ -1773,8 +1881,22 @@ processArgs( const char * host, int port, int argc, const char ** argv )
                           n = TR_N_ELEMENTS( list_keys );
                           for( i=0; i<n; ++i ) tr_bencListAddStr( fields, list_keys[i] );
                           break;
-                case 940: tr_bencDictAddInt( top, "tag", TAG_PEERS );
+                case 940: tr_bencDictAddInt( top, "tag", TAG_FILES );
+                          n = TR_N_ELEMENTS( files_keys );
+                          for( i=0; i<n; ++i ) tr_bencListAddStr( fields, files_keys[i] );
+                          addIdArg( args, id );
+                          break;
+                case 941: tr_bencDictAddInt( top, "tag", TAG_PEERS );
                           tr_bencListAddStr( fields, "peers" );
+                          addIdArg( args, id );
+                          break;
+                case 942: tr_bencDictAddInt( top, "tag", TAG_PIECES );
+                          tr_bencListAddStr( fields, "pieces" );
+                          tr_bencListAddStr( fields, "pieceCount" );
+                          addIdArg( args, id );
+                          break;
+                case 943: tr_bencDictAddInt( top, "tag", TAG_TRACKERS );
+                          tr_bencListAddStr( fields, "trackerStats" );
                           addIdArg( args, id );
                           break;
                 default:  assert( "unhandled value" && 0 );
@@ -1797,9 +1919,9 @@ processArgs( const char * host, int port, int argc, const char ** argv )
                           break;
                 case 971: tr_bencDictAddBool( args, TR_PREFS_KEY_ALT_SPEED_ENABLED, FALSE );
                           break;
-                case 972: tr_bencDictAddInt( args, TR_PREFS_KEY_ALT_SPEED_DOWN, numarg( optarg ) );
+                case 972: tr_bencDictAddInt( args, TR_PREFS_KEY_ALT_SPEED_DOWN_KBps, numarg( optarg ) );
                           break;
-                case 973: tr_bencDictAddInt( args, TR_PREFS_KEY_ALT_SPEED_UP, numarg( optarg ) );
+                case 973: tr_bencDictAddInt( args, TR_PREFS_KEY_ALT_SPEED_UP_KBps, numarg( optarg ) );
                           break;
                 case 974: tr_bencDictAddBool( args, TR_PREFS_KEY_ALT_SPEED_TIME_ENABLED, TRUE );
                           break;
@@ -1815,6 +1937,8 @@ processArgs( const char * host, int port, int argc, const char ** argv )
                           tr_bencDictAddBool( args, TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED, TRUE );
                           break;
                 case 'C': tr_bencDictAddBool( args, TR_PREFS_KEY_INCOMPLETE_DIR_ENABLED, FALSE );
+                          break;
+                case 'e': tr_bencDictAddInt( args, TR_PREFS_KEY_MAX_CACHE_SIZE_MB, atoi(optarg) );
                           break;
                 case 910: tr_bencDictAddStr( args, TR_PREFS_KEY_ENCRYPTION, "required" );
                           break;
@@ -1875,7 +1999,7 @@ processArgs( const char * host, int port, int argc, const char ** argv )
                               tr_bencDictAddInt( targs, "downloadLimit", numarg( optarg ) );
                               tr_bencDictAddBool( targs, "downloadLimited", TRUE );
                           } else {
-                              tr_bencDictAddInt( sargs, TR_PREFS_KEY_DSPEED, numarg( optarg ) );
+                              tr_bencDictAddInt( sargs, TR_PREFS_KEY_DSPEED_KBps, numarg( optarg ) );
                               tr_bencDictAddBool( sargs, TR_PREFS_KEY_DSPEED_ENABLED, TRUE );
                           }
                           break;
@@ -1888,7 +2012,7 @@ processArgs( const char * host, int port, int argc, const char ** argv )
                               tr_bencDictAddInt( targs, "uploadLimit", numarg( optarg ) );
                               tr_bencDictAddBool( targs, "uploadLimited", TRUE );
                           } else {
-                              tr_bencDictAddInt( sargs, TR_PREFS_KEY_USPEED, numarg( optarg ) );
+                              tr_bencDictAddInt( sargs, TR_PREFS_KEY_USPEED_KBps, numarg( optarg ) );
                               tr_bencDictAddBool( sargs, TR_PREFS_KEY_USPEED_ENABLED, TRUE );
                           }
                           break;
@@ -1912,6 +2036,8 @@ processArgs( const char * host, int port, int argc, const char ** argv )
 
             switch( c )
             {
+                case 712: tr_bencListAddInt( tr_bencDictAddList( args, "trackerRemove", 1 ), atoi( optarg ) );
+                          break;
                 case 950: tr_bencDictAddReal( args, "seedRatioLimit", atof(optarg) );
                           tr_bencDictAddInt( args, "seedRatioMode", TR_RATIOLIMIT_SINGLE );
                           break;
@@ -1953,6 +2079,8 @@ processArgs( const char * host, int port, int argc, const char ** argv )
                 case 701: tr_bencDictAddInt( args, "bandwidthPriority",  0 );
                           break;
                 case 702: tr_bencDictAddInt( args, "bandwidthPriority", -1 );
+                          break;
+                case 710: tr_bencListAddStr( tr_bencDictAddList( args, "trackerAdd", 1 ), optarg );
                           break;
                 default:  assert( "unhandled value" && 0 );
                           break;
@@ -2147,6 +2275,10 @@ main( int argc, char ** argv )
         showUsage( );
         return EXIT_FAILURE;
     }
+
+    tr_formatter_mem_init( MEM_K, MEM_K_STR, MEM_M_STR, MEM_G_STR, MEM_T_STR );
+    tr_formatter_size_init( DISK_K,DISK_K_STR, DISK_M_STR, DISK_G_STR, DISK_T_STR );
+    tr_formatter_speed_init( SPEED_K, SPEED_K_STR, SPEED_M_STR, SPEED_G_STR, SPEED_T_STR );
 
     getHostAndPort( &argc, argv, &host, &port );
     if( host == NULL )

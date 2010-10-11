@@ -183,6 +183,9 @@ tr_session * fHandle;
     //set stop ratio
     [fRatioStopField setFloatValue: [fDefaults floatForKey: @"RatioLimit"]];
     
+    //set idle seeding minutes
+    [fIdleStopField setIntegerValue: [fDefaults integerForKey: @"IdleLimitMinutes"]];
+    
     //set limits
     [self updateLimitFields];
     
@@ -571,27 +574,33 @@ tr_session * fHandle;
 - (void) applySpeedSettings: (id) sender
 {
     tr_sessionLimitSpeed(fHandle, TR_UP, [fDefaults boolForKey: @"CheckUpload"]);
-    tr_sessionSetSpeedLimit(fHandle, TR_UP, [fDefaults integerForKey: @"UploadLimit"]);
+    tr_sessionSetSpeedLimit_KBps(fHandle, TR_UP, [fDefaults integerForKey: @"UploadLimit"]);
     
     tr_sessionLimitSpeed(fHandle, TR_DOWN, [fDefaults boolForKey: @"CheckDownload"]);
-    tr_sessionSetSpeedLimit(fHandle, TR_DOWN, [fDefaults integerForKey: @"DownloadLimit"]);
+    tr_sessionSetSpeedLimit_KBps(fHandle, TR_DOWN, [fDefaults integerForKey: @"DownloadLimit"]);
     
     [[NSNotificationCenter defaultCenter] postNotificationName: @"SpeedLimitUpdate" object: nil];
 }
 
 - (void) applyAltSpeedSettings
 {
-    tr_sessionSetAltSpeed(fHandle, TR_UP, [fDefaults integerForKey: @"SpeedLimitUploadLimit"]);
-    tr_sessionSetAltSpeed(fHandle, TR_DOWN, [fDefaults integerForKey: @"SpeedLimitDownloadLimit"]);
+    tr_sessionSetAltSpeed_KBps(fHandle, TR_UP, [fDefaults integerForKey: @"SpeedLimitUploadLimit"]);
+    tr_sessionSetAltSpeed_KBps(fHandle, TR_DOWN, [fDefaults integerForKey: @"SpeedLimitDownloadLimit"]);
         
     [[NSNotificationCenter defaultCenter] postNotificationName: @"SpeedLimitUpdate" object: nil];
 }
 
 - (void) applyRatioSetting: (id) sender
 {
-    //[[NSNotificationCenter defaultCenter] postNotificationName: @"UpdateUI" object: nil];
     tr_sessionSetRatioLimited(fHandle, [fDefaults boolForKey: @"RatioCheck"]);
     tr_sessionSetRatioLimit(fHandle, [fDefaults floatForKey: @"RatioLimit"]);
+}
+
+- (void) setRatioStop: (id) sender
+{
+    [fDefaults setFloat: [sender floatValue] forKey: @"RatioLimit"];
+    
+    [self applyRatioSetting: nil];
 }
 
 - (void) updateRatioStopField
@@ -602,11 +611,17 @@ tr_session * fHandle;
     [self applyRatioSetting: nil];
 }
 
-- (void) setRatioStop: (id) sender
+- (void) applyIdleStopSetting: (id) sender
 {
-    [fDefaults setFloat: [sender floatValue] forKey: @"RatioLimit"];
+    tr_sessionSetIdleLimited(fHandle, [fDefaults boolForKey: @"IdleLimitCheck"]);
+    tr_sessionSetIdleLimit(fHandle, [fDefaults integerForKey: @"IdleLimitMinutes"]);
+}
+
+- (void) setIdleStop: (id) sender
+{
+    [fDefaults setInteger: [sender integerValue] forKey: @"IdleLimitMinutes"];
     
-    [self applyRatioSetting: nil];
+    [self applyIdleStopSetting: nil];
 }
 
 - (void) updateLimitFields
@@ -1103,19 +1118,19 @@ tr_session * fHandle;
 
 - (void) helpForPeers: (id) sender
 {
-    [[NSHelpManager sharedHelpManager] openHelpAnchor: @"PeersPrefs"
+    [[NSHelpManager sharedHelpManager] openHelpAnchor: @"peers"
         inBook: [[NSBundle mainBundle] objectForInfoDictionaryKey: @"CFBundleHelpBookName"]];
 }
 
 - (void) helpForNetwork: (id) sender
 {
-    [[NSHelpManager sharedHelpManager] openHelpAnchor: @"NetworkPrefs"
+    [[NSHelpManager sharedHelpManager] openHelpAnchor: @"network"
         inBook: [[NSBundle mainBundle] objectForInfoDictionaryKey: @"CFBundleHelpBookName"]];
 }
 
 - (void) helpForRemote: (id) sender
 {
-    [[NSHelpManager sharedHelpManager] openHelpAnchor: @"RemotePrefs"
+    [[NSHelpManager sharedHelpManager] openHelpAnchor: @"remote"
         inBook: [[NSBundle mainBundle] objectForInfoDictionaryKey: @"CFBundleHelpBookName"]];
 }
 
@@ -1156,7 +1171,7 @@ tr_session * fHandle;
     
     //dht
     const BOOL lpd = tr_sessionIsLPDEnabled(fHandle);
-    [fDefaults setBool: lpd forKey: @"LocalPeerDiscovery"];
+    [fDefaults setBool: lpd forKey: @"LocalPeerDiscoveryGlobal"];
     
     //auto start
     const BOOL autoStart = !tr_sessionGetPaused(fHandle);
@@ -1180,14 +1195,14 @@ tr_session * fHandle;
     const BOOL downLimitEnabled = tr_sessionIsSpeedLimited(fHandle, TR_DOWN);
     [fDefaults setBool: downLimitEnabled forKey: @"CheckDownload"];
     
-    const int downLimit = tr_sessionGetSpeedLimit(fHandle, TR_DOWN);
+    const int downLimit = tr_sessionGetSpeedLimit_KBps(fHandle, TR_DOWN);
     [fDefaults setInteger: downLimit forKey: @"DownloadLimit"];
     
     //speed limit - up
     const BOOL upLimitEnabled = tr_sessionIsSpeedLimited(fHandle, TR_UP);
     [fDefaults setBool: upLimitEnabled forKey: @"CheckUpload"];
     
-    const int upLimit = tr_sessionGetSpeedLimit(fHandle, TR_UP);
+    const int upLimit = tr_sessionGetSpeedLimit_KBps(fHandle, TR_UP);
     [fDefaults setInteger: upLimit forKey: @"UploadLimit"];
     
     //alt speed limit enabled
@@ -1195,11 +1210,11 @@ tr_session * fHandle;
     [fDefaults setBool: useAltSpeed forKey: @"SpeedLimit"];
     
     //alt speed limit - down
-    const int downLimitAlt = tr_sessionGetAltSpeed(fHandle, TR_DOWN);
+    const int downLimitAlt = tr_sessionGetAltSpeed_KBps(fHandle, TR_DOWN);
     [fDefaults setInteger: downLimitAlt forKey: @"SpeedLimitDownloadLimit"];
     
     //alt speed limit - up
-    const int upLimitAlt = tr_sessionGetAltSpeed(fHandle, TR_UP);
+    const int upLimitAlt = tr_sessionGetAltSpeed_KBps(fHandle, TR_UP);
     [fDefaults setInteger: upLimitAlt forKey: @"SpeedLimitUploadLimit"];
     
     //alt speed limit schedule
@@ -1225,6 +1240,13 @@ tr_session * fHandle;
     
     const float ratioLimit = tr_sessionGetRatioLimit(fHandle);
     [fDefaults setFloat: ratioLimit forKey: @"RatioLimit"];
+    
+    //Idle seed limit
+    const BOOL idleLimited = tr_sessionIsIdleLimited(fHandle);
+    [fDefaults setBool: idleLimited forKey: @"IdleLimitCheck"];
+    
+    const NSUInteger idleLimitMin = tr_sessionGetIdleLimit(fHandle);
+    [fDefaults setInteger: idleLimitMin forKey: @"IdleLimitMinutes"];
     
     //update gui if loaded
     if (fHasLoaded)
@@ -1264,6 +1286,9 @@ tr_session * fHandle;
         
         //ratio limit enabled handled by bindings
         [fRatioStopField setFloatValue: ratioLimit];
+        
+        //idle limit enabled handled by bindings
+        [fIdleStopField setIntegerValue: idleLimitMin];
     }
     
     [[NSNotificationCenter defaultCenter] postNotificationName: @"SpeedLimitUpdate" object: nil];

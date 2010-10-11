@@ -31,9 +31,7 @@
 
 #ifdef WIN32
  #include <inttypes.h>
- #include <winsock2.h>
- #include <WS2tcpip.h>
- typedef int socklen_t;
+ #include <ws2tcpip.h>
 #else
  #include <sys/types.h>
  #include <sys/socket.h>
@@ -42,6 +40,7 @@
 #endif
 
 #ifdef WIN32
+ #define EADDRINUSE              WSAEADDRINUSE
  #define ECONNREFUSED            WSAECONNREFUSED
  #define ECONNRESET              WSAECONNRESET
  #define EHOSTUNREACH            WSAEHOSTUNREACH
@@ -123,7 +122,21 @@ void tr_netCloseSocket( int fd );
 
 void tr_netInit( void );
 
+/**
+ * @brief get a human-representable string representing the network error.
+ * @param err an errno on Unix/Linux and an WSAError on win32)
+ */
+char* tr_net_strerror( char * buf, size_t buflen, int err );
+
 const unsigned char *tr_globalIPv6( void );
 
+#if defined( WIN32) && !defined(QT_DLL)
+/* The QT exclusion is because something clashes whith the next include */
+#include <ws2tcpip.h>		/* socklen_t */
+
+/** @brief Missing in Windows and Mingw */
+const char *inet_ntop( int af, const void *src, char *dst, socklen_t cnt );
+int inet_pton(int af, const char *src, void *dst);
+#endif
 
 #endif /* _TR_NET_H_ */

@@ -1,6 +1,5 @@
 /*
  * This file Copyright (C) 2009-2010 Mnemosyne LLC
-            trackers[trackerCount].id = 0;
  *
  * This file is licensed by the GPL version 2.  Works owned by the
  * Transmission project are granted a special exemption to clause 2(b)
@@ -169,7 +168,7 @@ getfile( char ** setme, const char * root, tr_benc * path )
             }
         }
 
-        *setme = tr_utf8clean( (char*)EVBUFFER_DATA( buf ), EVBUFFER_LENGTH( buf ), NULL );
+        *setme = tr_utf8clean( (char*)EVBUFFER_DATA( buf ), EVBUFFER_LENGTH( buf ) );
         /* fprintf( stderr, "[%s]\n", *setme ); */
         evbuffer_free( buf );
         success = TRUE;
@@ -360,11 +359,11 @@ geturllist( tr_info * inf,
             tr_benc * meta )
 {
     tr_benc * urls;
+    const char * url;
 
     if( tr_bencDictFindList( meta, "url-list", &urls ) )
     {
         int          i;
-        const char * url;
         const int    n = tr_bencListSize( urls );
 
         inf->webseedCount = 0;
@@ -374,6 +373,12 @@ geturllist( tr_info * inf,
             if( tr_bencGetStr( tr_bencListChild( urls, i ), &url ) )
                 inf->webseeds[inf->webseedCount++] = tr_strdup( url );
     }
+    else if( tr_bencDictFindStr( meta, "url-list", &url ) ) /* handle single items in webseeds */
+    {
+        inf->webseedCount = 1;
+        inf->webseeds = tr_new0( char*, 1 );
+        inf->webseeds[0] = tr_strdup( url );
+    }
 }
 
 static int
@@ -381,7 +386,11 @@ is_rfc2396_alnum( char ch )
 {
     return ( '0' <= ch && ch <= '9' )
         || ( 'A' <= ch && ch <= 'Z' )
-        || ( 'a' <= ch && ch <= 'z' );
+        || ( 'a' <= ch && ch <= 'z' )
+        || ch == '.'
+        || ch == '-'
+        || ch == '_'
+        || ch == '~';
 }
 
 static void
@@ -393,7 +402,7 @@ escape( char * out, const uint8_t * in, size_t in_len ) /* rfc2396 */
         if( is_rfc2396_alnum( *in ) )
             *out++ = (char) *in++;
         else
-            out += tr_snprintf( out, 4, "%%%02X", (unsigned int)*in++ );
+            out += tr_snprintf( out, 4, "%%%02x", (unsigned int)*in++ );
 
     *out = '\0';
 }
@@ -412,7 +421,6 @@ tr_metainfoParseImpl( const tr_session  * session,
     tr_benc *       d;
     tr_benc *       infoDict = NULL;
     tr_benc *       meta = (tr_benc *) meta_in;
-    tr_bool         err;
     tr_bool         b;
     tr_bool         isMagnet = FALSE;
 
@@ -439,10 +447,14 @@ tr_metainfoParseImpl( const tr_session  * session,
             escape( inf->hashEscaped, inf->hash, SHA_DIGEST_LENGTH );
 
             /* maybe get the display name */
+          
             if( tr_bencDictFindStr( d, "display-name", &str ) ) {
                 tr_free( inf->name );
                 inf->name = tr_strdup( str );
             }
+
+            if( !inf->name )
+                inf->name = tr_strdup( inf->hashString );
         }
         else /* not a magnet link and has no info dict... */
         {
@@ -471,7 +483,7 @@ tr_metainfoParseImpl( const tr_session  * session,
         if( !str || !*str )
             return "name";
         tr_free( inf->name );
-        inf->name = tr_utf8clean( str, -1, &err );
+        inf->name = tr_utf8clean( str, -1 );
     }
 
     /* comment */
@@ -479,14 +491,14 @@ tr_metainfoParseImpl( const tr_session  * session,
         if( !tr_bencDictFindStr( meta, "comment", &str ) )
             str = "";
     tr_free( inf->comment );
-    inf->comment = tr_utf8clean( str, -1, &err );
+    inf->comment = tr_utf8clean( str, -1 );
 
     /* created by */
     if( !tr_bencDictFindStr( meta, "created by.utf-8", &str ) )
         if( !tr_bencDictFindStr( meta, "created by", &str ) )
             str = "";
     tr_free( inf->creator );
-    inf->creator = tr_utf8clean( str, -1, &err );
+    inf->creator = tr_utf8clean( str, -1 );
 
     /* creation date */
     if( !tr_bencDictFindInt( meta, "creation date", &i ) )

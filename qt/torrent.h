@@ -1,11 +1,11 @@
 /*
- * This file Copyright (C) 2009-2010 Mnemosyne LLC
+ * This file Copyright (C) Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2.  Works owned by the
- * Transmission project are granted a special exemption to clause 2(b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2
+ * as published by the Free Software Foundation.
+ *
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
  *
  * $Id$
  */
@@ -34,6 +34,7 @@ extern "C"
 }
 
 class Prefs;
+class QPixmap;
 class QStyle;
 
 struct Peer
@@ -42,6 +43,7 @@ struct Peer
     QString clientName;
     bool clientIsChoked;
     bool clientIsInterested;
+    QString flagStr;
     bool isDownloadingFrom;
     bool isEncrypted;
     bool isIncoming;
@@ -69,7 +71,7 @@ struct TrackerStat
     int id;
     bool isBackup;
     int lastAnnouncePeerCount;
-    int lastAnnounceResult;
+    QString lastAnnounceResult;
     int lastAnnounceStartTime;
     bool lastAnnounceSucceeded;
     int lastAnnounceTime;
@@ -85,6 +87,7 @@ struct TrackerStat
     int scrapeState;
     int seederCount;
     int tier;
+    QPixmap getFavicon( ) const;
 };
 
 typedef QList<TrackerStat> TrackerStatsList;
@@ -152,6 +155,8 @@ class Torrent: public QObject
             MIME_ICON,
             SEED_RATIO_LIMIT,
             SEED_RATIO_MODE,
+            SEED_IDLE_LIMIT,
+            SEED_IDLE_MODE,
             DOWN_LIMIT,
             DOWN_LIMITED,
             UP_LIMIT,
@@ -278,20 +283,23 @@ class Torrent: public QObject
         bool isUploading( ) const { return peersWeAreUploadingTo( ) > 0; }
         int connectedPeers( ) const { return getInt( PEERS_CONNECTED ); }
         int connectedPeersAndWebseeds( ) const { return connectedPeers( ) + getInt( WEBSEEDS_SENDING_TO_US ); }
-        Speed downloadSpeed( ) const { return Speed::fromBps( getInt( DOWNLOAD_SPEED ) ); }
-        Speed uploadSpeed( ) const { return Speed::fromBps( getInt( UPLOAD_SPEED ) ); }
+        Speed downloadSpeed( ) const { return Speed::fromBps( getSize( DOWNLOAD_SPEED ) ); }
+        Speed uploadSpeed( ) const { return Speed::fromBps( getSize( UPLOAD_SPEED ) ); }
         double getVerifyProgress( ) const { return getDouble( PERCENT_VERIFIED ); }
         bool hasFileSubstring( const QString& substr ) const;
         bool hasTrackerSubstring( const QString& substr ) const;
-        Speed uploadLimit( ) const { return Speed::fromKbps( getInt( UP_LIMIT ) ); }
-        Speed downloadLimit( ) const { return Speed::fromKbps( getInt( DOWN_LIMIT ) ); }
+        Speed uploadLimit( ) const { return Speed::fromKBps( getInt( UP_LIMIT ) ); }
+        Speed downloadLimit( ) const { return Speed::fromKBps( getInt( DOWN_LIMIT ) ); }
         bool uploadIsLimited( ) const { return getBool( UP_LIMITED ); }
         bool downloadIsLimited( ) const { return getBool( DOWN_LIMITED ); }
         bool honorsSessionLimits( ) const { return getBool( HONORS_SESSION_LIMITS ); }
         int peerLimit( ) const { return getInt( PEER_LIMIT ); }
         double seedRatioLimit( ) const { return getDouble( SEED_RATIO_LIMIT ); }
         tr_ratiolimit seedRatioMode( ) const { return (tr_ratiolimit) getInt( SEED_RATIO_MODE ); }
+        int seedIdleLimit( ) const { return getInt( SEED_IDLE_LIMIT ); }
+        tr_idlelimit seedIdleMode( ) const { return (tr_idlelimit) getInt( SEED_IDLE_MODE ); }
         TrackerStatsList trackerStats( ) const{ return myValues[TRACKERSTATS].value<TrackerStatsList>(); }
+        QStringList trackers() const { return myValues[TRACKERS].value<QStringList>(); }
         PeerList peers( ) const{ return myValues[PEERS].value<PeerList>(); }
         const FileList& files( ) const { return myFiles; }
 
@@ -300,6 +308,7 @@ class Torrent: public QObject
         tr_torrent_activity getActivity( ) const { return (tr_torrent_activity) getInt( ACTIVITY ); }
         bool isFinished( ) const { return getBool( IS_FINISHED ); }
         bool isPaused( ) const { return getActivity( ) == TR_STATUS_STOPPED; }
+        bool isWaitingToVerify( ) const { return getActivity( ) == TR_STATUS_CHECK_WAIT; }
         bool isVerifying( ) const { return getActivity( ) == TR_STATUS_CHECK; }
         bool isDownloading( ) const { return getActivity( ) == TR_STATUS_DOWNLOAD; }
         bool isSeeding( ) const { return getActivity( ) == TR_STATUS_SEED; }

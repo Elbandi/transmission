@@ -7,7 +7,7 @@
  * This exemption does not extend to derived works not owned by
  * the Transmission project.
  *
- * $Id:$
+ * $Id$
  */
 
 #include <assert.h>
@@ -21,7 +21,6 @@
 #include "crypto.h"
 #include "net.h"
 #include "ptrarray.h"
-#include "publish.h"
 #include "session.h"
 #include "tr-dht.h"
 #include "tr-lpd.h"
@@ -78,8 +77,8 @@ enum
 ***/
 
 static int
-compareTransfer( int a_uploaded, int a_downloaded,
-                 int b_uploaded, int b_downloaded )
+compareTransfer( uint32_t a_uploaded, uint32_t a_downloaded,
+                 uint32_t b_uploaded, uint32_t b_downloaded )
 {
     /* higher upload count goes first */
     if( a_uploaded != b_uploaded )
@@ -137,7 +136,7 @@ getHostName( const char * url )
     int port = 0;
     char * host = NULL;
     char * ret;
-    tr_urlParse( url, strlen( url ), NULL, &host, &port, NULL );
+    tr_urlParse( url, -1, NULL, &host, &port, NULL );
     ret = tr_strdup_printf( "%s:%d", ( host ? host : "invalid" ), port );
     tr_free( host );
     return ret;
@@ -173,8 +172,8 @@ struct stop_message
 {
     tr_host * host;
     char * url;
-    int up;
-    int down;
+    uint32_t up;
+    uint32_t down;
 };
 
 static void
@@ -339,7 +338,7 @@ generateKeyParam( char * msg, size_t msglen )
 {
     size_t i;
     const char * pool = "abcdefghijklmnopqrstuvwxyz0123456789";
-    const int poolSize = strlen( pool );
+    const int poolSize = 36;
 
     for( i=0; i<msglen; ++i )
         *msg++ = pool[tr_cryptoRandInt( poolSize )];
@@ -386,7 +385,7 @@ typedef struct
 {
     /* number of up/down/corrupt bytes since the last time we sent an
      * "event=stopped" message that was acknowledged by the tracker */
-    uint64_t byteCounts[3];
+    uint32_t byteCounts[3];
 
     tr_ptrArray trackers; /* tr_tracker_item */
     tr_tracker_item * currentTracker;
@@ -530,7 +529,8 @@ tierAddTracker( tr_announcer * announcer,
 typedef struct tr_torrent_tiers
 {
     tr_ptrArray tiers;
-    tr_publisher publisher;
+    tr_tracker_callback * callback;
+    void * callbackData;
 }
 tr_torrent_tiers;
 
@@ -539,14 +539,12 @@ tiersNew( void )
 {
     tr_torrent_tiers * tiers = tr_new0( tr_torrent_tiers, 1 );
     tiers->tiers = TR_PTR_ARRAY_INIT;
-    tiers->publisher = TR_PUBLISHER_INIT;
     return tiers;
 }
 
 static void
 tiersFree( tr_torrent_tiers * tiers )
 {
-    tr_publisherDestruct( &tiers->publisher );
     tr_ptrArrayDestruct( &tiers->tiers, tierFree );
     tr_free( tiers );
 }
@@ -593,7 +591,9 @@ publishMessage( tr_tier * tier, const char * msg, int type )
         event.messageType = type;
         event.text = msg;
         event.tracker = tier->currentTracker ? tier->currentTracker->announce : NULL;
-        tr_publisherPublish( &tiers->publisher, tier, &event );
+
+        if( tiers->callback != NULL )
+            tiers->callback( tier->tor, &event, tiers->callbackData );
     }
 }
 
@@ -617,14 +617,14 @@ publishWarning( tr_tier * tier, const char * msg )
     publishMessage( tier, msg, TR_TRACKER_WARNING );
 }
 
-static int
+static int8_t
 getSeedProbability( int seeds, int leechers )
 {
     if( !seeds )
         return 0;
 
     if( seeds>=0 && leechers>=0 )
-        return (int)((100.0*seeds)/(seeds+leechers));
+        return (int8_t)((100.0*seeds)/(seeds+leechers));
 
     return -1; /* unknown */
 }
@@ -640,7 +640,8 @@ publishNewPeers( tr_tier * tier, int seeds, int leechers,
     e.compact = compact;
     e.compactLen = compactLen;
 
-    tr_publisherPublish( &tier->tor->tiers->publisher, tier, &e );
+    if( tier->tor->tiers->callback != NULL )
+        tier->tor->tiers->callback( tier->tor, &e, NULL );
 
     return compactLen / 6;
 }
@@ -733,8 +734,8 @@ createAnnounceURL( const tr_announcer     * announcer,
                               "info_hash=%s"
                               "&peer_id=%s"
                               "&port=%d"
-                              "&uploaded=%" PRIu64
-                              "&downloaded=%" PRIu64
+                              "&uploaded=%" PRIu32
+                              "&downloaded=%" PRIu32
                               "&left=%" PRIu64
                               "&numwant=%d"
                               "&key=%s"
@@ -744,7 +745,7 @@ createAnnounceURL( const tr_announcer     * announcer,
                               strchr( ann, '?' ) ? '&' : '?',
                               torrent->info.hashEscaped,
                               torrent->peer_id,
-                              (int)tr_sessionGetPeerPort( announcer->session ),
+                              (int)tr_sessionGetPublicPeerPort( announcer->session ),
                               tier->byteCounts[TR_ANN_UP],
                               tier->byteCounts[TR_ANN_DOWN],
                               tr_cpLeftUntilComplete( &torrent->completion ),
@@ -755,7 +756,7 @@ createAnnounceURL( const tr_announcer     * announcer,
         evbuffer_add_printf( buf, "&requirecrypto=1" );
 
     if( tier->byteCounts[TR_ANN_CORRUPT] )
-        evbuffer_add_printf( buf, "&corrupt=%" PRIu64, tier->byteCounts[TR_ANN_CORRUPT] );
+        evbuffer_add_printf( buf, "&corrupt=%" PRIu32, tier->byteCounts[TR_ANN_CORRUPT] );
 
     str = eventName;
     if( str && *str )
@@ -779,7 +780,7 @@ createAnnounceURL( const tr_announcer     * announcer,
         char ipv6_readable[INET6_ADDRSTRLEN];
         inet_ntop( AF_INET6, ipv6, ipv6_readable, INET6_ADDRSTRLEN );
         evbuffer_add_printf( buf, "&ipv6=");
-        tr_http_escape( buf, ipv6_readable, strlen(ipv6_readable), TRUE );
+        tr_http_escape( buf, ipv6_readable, -1, TRUE );
     }
 
     ret = tr_strndup( EVBUFFER_DATA( buf ), EVBUFFER_LENGTH( buf ) );
@@ -844,7 +845,8 @@ addTorrentToTier( tr_announcer * announcer, tr_torrent_tiers * tiers, tr_torrent
 }
 
 tr_torrent_tiers *
-tr_announcerAddTorrent( tr_announcer * announcer, tr_torrent * tor )
+tr_announcerAddTorrent( tr_announcer * announcer, tr_torrent * tor,
+                        tr_tracker_callback * callback, void * callbackData )
 {
     tr_torrent_tiers * tiers;
 
@@ -852,6 +854,8 @@ tr_announcerAddTorrent( tr_announcer * announcer, tr_torrent * tor )
     assert( tr_isTorrent( tor ) );
 
     tiers = tiersNew( );
+    tiers->callback = callback;
+    tiers->callbackData = callbackData;
 
     addTorrentToTier( announcer, tiers, tor );
 
@@ -927,22 +931,6 @@ tr_announcerResetTorrent( tr_announcer * announcer, tr_torrent * tor )
 
     /* cleanup */
     tr_ptrArrayDestruct( &oldTiers, tierFree );
-}
-
-tr_publisher_tag
-tr_announcerSubscribe( struct tr_torrent_tiers   * tiers,
-                       tr_delivery_func            func,
-                       void                      * userData )
-{
-    return tr_publisherSubscribe( &tiers->publisher, func, userData );
-}
-
-void
-tr_announcerUnsubscribe( struct tr_torrent_tiers  * tiers,
-                         tr_publisher_tag           tag )
-{
-    if( tiers )
-        tr_publisherUnsubscribe( &tiers->publisher, tag );
 }
 
 static tr_bool
@@ -1181,7 +1169,7 @@ compareTiers( const void * va, const void * vb )
 }
 
 static uint8_t *
-parseOldPeers( tr_benc * bePeers, size_t *  byteCount )
+parseOldPeers( tr_benc * bePeers, size_t * byteCount )
 {
     int       i;
     uint8_t * array, *walk;
@@ -1209,7 +1197,7 @@ parseOldPeers( tr_benc * bePeers, size_t *  byteCount )
             continue;
 
         memcpy( walk, &addr, sizeof( tr_address ) );
-        port = htons( itmp );
+        port = htons( (uint16_t)itmp );
         memcpy( walk + sizeof( tr_address ), &port, 2 );
         walk += sizeof( tr_address ) + 2;
     }
@@ -2008,6 +1996,10 @@ tr_announcerStats( const tr_torrent * torrent,
             st->tier = i;
             st->isBackup = tracker != tier->currentTracker;
             st->lastScrapeStartTime = tier->lastScrapeStartTime;
+            if( tracker->scrape )
+                tr_strlcpy( st->scrape, tracker->scrape, sizeof( st->scrape ) );
+            else
+                st->scrape[0] = '\0';
 
             st->seederCount = tracker->seederCount;
             st->leecherCount = tracker->leecherCount;
