@@ -1,3 +1,10 @@
+transmission (2.12-0) unstable; urgency=low
+
+  * new upstream release
+  * #3785 (web) "Webui image tb_backgrounds_highlight.png missing from Makefile.am"
+
+ -- Andras Elso <ea333@freemail.hu>  Fri, 03 Dec 2010 19:46:46 +0100
+
 transmission (2.10-0) unstable; urgency=low
 
   * new upstream release
