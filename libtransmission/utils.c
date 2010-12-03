@@ -24,7 +24,9 @@
 #include <assert.h>
 #include <ctype.h> /* isalpha(), tolower() */
 #include <errno.h>
-#include <math.h> /* pow(), fabs() */
+#include <float.h> /* DBL_EPSILON */
+#include <locale.h> /* localeconv() */
+#include <math.h> /* pow(), fabs(), floor() */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -333,6 +335,35 @@ tr_msg( const char * file, int line,
 ****
 ***/
 
+void*
+tr_malloc( size_t size )
+{
+    return size ? malloc( size ) : NULL;
+}
+
+void*
+tr_malloc0( size_t size )
+{
+    return size ? calloc( 1, size ) : NULL;
+}
+
+void
+tr_free( void * p )
+{
+    if( p != NULL )
+        free( p );
+}
+
+void*
+tr_memdup( const void * src, size_t byteCount )
+{
+    return memcpy( tr_malloc( byteCount ), src, byteCount );
+}
+
+/***
+****
+***/
+
 void
 tr_set_compare( const void * va,
                 size_t aCount,
@@ -399,9 +430,9 @@ tr_strip_positional_args( const char* str )
     const size_t  len = strlen( str );
     char *        out;
 
-    if( bufsize < len )
+    if( !buf || ( bufsize < len ) )
     {
-        bufsize = len * 2;
+        bufsize = len * 2 + 1;
         buf = tr_renew( char, buf, bufsize );
     }
 
@@ -420,7 +451,7 @@ tr_strip_positional_args( const char* str )
 
         if( ( *str == '%' ) && ( str[1] == '\'' ) )
             str = str + 1;
- 
+
     }
     *out = '\0';
 
@@ -659,6 +690,12 @@ tr_buildPath( const char *first_element, ... )
 /****
 *****
 ****/
+
+char*
+tr_strdup( const void * in )
+{
+    return tr_strndup( in, in ? (int)strlen((const char *)in) : 0 );
+}
 
 char*
 tr_strndup( const void * in, int len )
@@ -1128,6 +1165,19 @@ tr_base64_decode( const void * input,
 ****
 ***/
 
+void
+tr_removeElementFromArray( void         * array,
+                           unsigned int   index_to_remove,
+                           size_t         sizeof_element,
+                           size_t         nmemb )
+{
+    char * a = (char*) array;
+
+    memmove( a + sizeof_element * index_to_remove,
+             a + sizeof_element * ( index_to_remove  + 1 ),
+             sizeof_element * ( --nmemb - index_to_remove ) );
+}
+
 int
 tr_lowerBound( const void * key,
                const void * base,
@@ -1172,7 +1222,7 @@ strip_non_utf8( const char * in, size_t inlen )
     const char * end;
     const char zero = '\0';
     struct evbuffer * buf = evbuffer_new( );
- 
+
     while( !tr_utf8_validate( in, inlen, &end ) )
     {
         const int good_len = end - in;
@@ -1182,7 +1232,7 @@ strip_non_utf8( const char * in, size_t inlen )
         in += ( good_len + 1 );
         evbuffer_add( buf, "?", 1 );
     }
- 
+
     evbuffer_add( buf, in, inlen );
     evbuffer_add( buf, &zero, 1 );
     ret = tr_memdup( EVBUFFER_DATA( buf ), EVBUFFER_LENGTH( buf ) );
@@ -1383,12 +1433,15 @@ tr_parseNumberRange( const char * str_in, int len, int * setmeCount )
 ***/
 
 double
-tr_truncd( double x, int decimal_places )
+tr_truncd( double x, int precision )
 {
-    const int i = (int) pow( 10, decimal_places );
-    const double xup = x * i;
-    const double x2 = (int64_t)(xup);
-    return x2 / i;
+    char * pt;
+    char buf[128];
+    const int max_precision = (int) log10( 1.0 / DBL_EPSILON ) - 1;
+    tr_snprintf( buf, sizeof( buf ), "%.*f", max_precision, x );
+    if(( pt = strstr( buf, localeconv()->decimal_point )))
+        pt[precision ? precision+1 : 0] = '\0';
+    return atof(buf);
 }
 
 char*
@@ -1555,7 +1608,7 @@ struct formatter_unit
     char * name;
     uint64_t value;
 };
-  
+
 struct formatter_units
 {
     struct formatter_unit units[4];
@@ -1667,7 +1720,7 @@ tr_formatter_speed_KBps( char * buf, double KBps, size_t buflen )
 static struct formatter_units mem_units;
 
 unsigned int tr_mem_K = 0u;
- 
+
 void
 tr_formatter_mem_init( unsigned int kilo,
                        const char * kb, const char * mb,

@@ -641,7 +641,7 @@ FileTreeView :: FileTreeView( QWidget * parent ):
     sortByColumn( COL_NAME, Qt::AscendingOrder );
     installEventFilter( this );
 
-    for( int i=0; i<=NUM_COLUMNS; ++i )
+    for( int i=0; i<NUM_COLUMNS; ++i )
         header()->setResizeMode( i, QHeaderView::Fixed );
 
     connect( this, SIGNAL(clicked(const QModelIndex&)),
@@ -693,6 +693,25 @@ FileTreeView :: eventFilter( QObject * o, QEvent * event )
         left -= 20; // not sure why this is necessary.  it works in different themes + font sizes though...
         setColumnWidth( COL_NAME, std::max(left,0) );
         return false;
+    }
+
+    // handle using the keyboard to toggle the
+    // wanted/unwanted state or the file priority 
+    else if( event->type() == QEvent::KeyPress )
+    {
+        switch( dynamic_cast<QKeyEvent*>(event)->key() )
+        {
+            case Qt::Key_Space:
+                foreach( QModelIndex i, selectionModel()->selectedRows(COL_WANTED) )
+                    clicked( i );
+                return false;
+
+            case Qt::Key_Enter:
+            case Qt::Key_Return:
+                foreach( QModelIndex i, selectionModel()->selectedRows(COL_PRIORITY) )
+                    clicked( i );
+                return false;
+        }
     }
 
     return false;

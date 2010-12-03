@@ -48,6 +48,10 @@ enum
     /* how frequently to change which peers are choked */
     RECHOKE_PERIOD_MSEC = ( 10 * 1000 ),
 
+    /* an optimistically unchoked peer is immune from rechoking
+       for this many calls to rechokeUploads(). */
+    OPTIMISTIC_UNCHOKE_MULTIPLIER = 4,
+
     /* how frequently to reallocate bandwidth */
     BANDWIDTH_PERIOD_MSEC = 500,
 
@@ -179,8 +183,10 @@ typedef struct tr_torrent_peers
     tr_ptrArray                webseeds; /* tr_webseed */
 
     tr_torrent               * tor;
-    tr_peer                  * optimistic; /* the optimistic peer, or NULL if none */
     struct tr_peerMgr        * manager;
+
+    tr_peer                  * optimistic; /* the optimistic peer, or NULL if none */
+    int                        optimisticUnchokeTimeScaler;
 
     tr_bool                    isRunning;
     tr_bool                    needsCompletenessCheck;
@@ -836,20 +842,15 @@ comparePieceByIndex( const void * va, const void * vb )
 static void
 pieceListSort( Torrent * t, int mode )
 {
-    int(*compar)(const void *, const void *);
-
     assert( mode==PIECES_SORTED_BY_INDEX
          || mode==PIECES_SORTED_BY_WEIGHT );
 
-    switch( mode ) {
-        case PIECES_SORTED_BY_WEIGHT: compar = comparePieceByWeight; break;
-        case PIECES_SORTED_BY_INDEX: compar = comparePieceByIndex; break;
-        default: assert( 0 && "unhandled" );  break;
-    }
-
     weightTorrent = t->tor;
-    qsort( t->pieces, t->pieceCount,
-           sizeof( struct weighted_piece ), compar );
+
+    if( mode == PIECES_SORTED_BY_WEIGHT )
+        qsort( t->pieces, t->pieceCount, sizeof( struct weighted_piece ), comparePieceByWeight );
+    else
+        qsort( t->pieces, t->pieceCount, sizeof( struct weighted_piece ), comparePieceByIndex );
 }
 
 static tr_bool
@@ -2714,6 +2715,13 @@ rechokeUploads( Torrent * t, const uint64_t now )
 
     assert( torrentIsLocked( t ) );
 
+    /* an optimistic unchoke peer's "optimistic"
+     * state lasts for N calls to rechokeUploads(). */
+    if( t->optimisticUnchokeTimeScaler > 0 )
+        t->optimisticUnchokeTimeScaler--;
+    else
+        t->optimistic = NULL;
+
     /* sort the peers by preference and rate */
     for( i = 0, size = 0; i < peerCount; ++i )
     {
@@ -2732,7 +2740,7 @@ rechokeUploads( Torrent * t, const uint64_t now )
         {
             tr_peerMsgsSetChoke( peer->msgs, TRUE );
         }
-        else
+        else if( peer != t->optimistic )
         {
             struct ChokeData * n = &choke[size++];
             n->peer         = peer;
@@ -2769,7 +2777,7 @@ rechokeUploads( Torrent * t, const uint64_t now )
     }
 
     /* optimistic unchoke */
-    if( !isMaxedOut && (i<size) )
+    if( !t->optimistic && !isMaxedOut && (i<size) )
     {
         int n;
         struct ChokeData * c;
@@ -2792,6 +2800,7 @@ rechokeUploads( Torrent * t, const uint64_t now )
             c = tr_ptrArrayNth( &randPool, tr_cryptoWeakRandInt( n ));
             c->isChoked = FALSE;
             t->optimistic = c->peer;
+            t->optimisticUnchokeTimeScaler = OPTIMISTIC_UNCHOKE_MULTIPLIER;
         }
 
         tr_ptrArrayDestruct( &randPool, NULL );
@@ -2909,7 +2918,9 @@ shouldPeerBeClosed( const Torrent    * t,
 static void sortPeersByLivelinessReverse( tr_peer ** peers, void ** clientData, int n, uint64_t now );
 
 static tr_peer **
-getPeersToClose( Torrent * t, tr_close_type_t closeType, const time_t now, int * setmeSize )
+getPeersToClose( Torrent * t, tr_close_type_t closeType,
+                 const uint64_t now_msec, const time_t now_sec,
+                 int * setmeSize )
 {
     int i, peerCount, outsize;
     tr_peer ** peers = (tr_peer**) tr_ptrArrayPeek( &t->peers, &peerCount );
@@ -2918,10 +2929,10 @@ getPeersToClose( Torrent * t, tr_close_type_t closeType, const time_t now, int *
     assert( torrentIsLocked( t ) );
 
     for( i = outsize = 0; i < peerCount; ++i )
-        if( shouldPeerBeClosed( t, peers[i], peerCount, now ) == closeType )
+        if( shouldPeerBeClosed( t, peers[i], peerCount, now_sec ) == closeType )
             ret[outsize++] = peers[i];
 
-    sortPeersByLivelinessReverse ( ret, NULL, outsize, tr_time_msec( ) );
+    sortPeersByLivelinessReverse ( ret, NULL, outsize, now_msec );
 
     *setmeSize = outsize;
     return ret;
@@ -2988,10 +2999,8 @@ closePeer( Torrent * t, tr_peer * peer )
 }
 
 static void
-closeBadPeers( Torrent * t )
+closeBadPeers( Torrent * t, const uint64_t now_msec, const time_t now_sec )
 {
-    const time_t  now = tr_time( );
-
     if( !t->isRunning )
     {
         removeAllPeers( t );
@@ -3003,7 +3012,7 @@ closeBadPeers( Torrent * t )
         struct tr_peer ** mustClose;
 
         /* disconnect the really bad peers */
-        mustClose = getPeersToClose( t, TR_MUST_CLOSE, now, &mustCloseCount );
+        mustClose = getPeersToClose( t, TR_MUST_CLOSE, now_msec, now_sec, &mustCloseCount );
         for( i=0; i<mustCloseCount; ++i )
             closePeer( t, mustClose[i] );
         tr_free( mustClose );
@@ -3169,7 +3178,8 @@ reconnectPulse( int foo UNUSED, short bar UNUSED, void * vmgr )
 {
     tr_torrent * tor;
     tr_peerMgr * mgr = vmgr;
-    const uint64_t now = tr_time_msec( );
+    const time_t now_sec = tr_time( );
+    const uint64_t now_msec = tr_time_msec( );
 
     /**
     ***  enforce the per-session and per-torrent peer limits
@@ -3179,15 +3189,15 @@ reconnectPulse( int foo UNUSED, short bar UNUSED, void * vmgr )
     tor = NULL;
     while(( tor = tr_torrentNext( mgr->session, tor )))
         if( tor->isRunning )
-            enforceTorrentPeerLimit( tor->torrentPeers, now );
+            enforceTorrentPeerLimit( tor->torrentPeers, now_msec );
 
     /* if we're over the per-session peer limits, cull some peers */
-    enforceSessionPeerLimit( mgr->session, now );
+    enforceSessionPeerLimit( mgr->session, now_msec );
 
     /* remove crappy peers */
     tor = NULL;
     while(( tor = tr_torrentNext( mgr->session, tor )))
-        closeBadPeers( tor->torrentPeers );
+        closeBadPeers( tor->torrentPeers, now_msec, now_sec );
 
     /* try to make new peer connections */
     makeNewPeerConnections( mgr, MAX_CONNECTIONS_PER_PULSE );
