@@ -126,6 +126,12 @@ div#toolbar {
         color: #999; }
     #statusbar #filter #filter-count {
       margin-left: 8px; }
+  #statusbar #quota-info {
+    float: left;
+    margin-top: 7px;
+    margin-left: 10%; }
+    #statusbar #quota-info #quota-hard-label {
+      margin-left: 10px; }
   #statusbar #speed-info {
     float: right;
     margin-top: 5px;
