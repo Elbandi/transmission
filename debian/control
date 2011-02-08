@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Leo Costela <costela@debian.org>
 Uploaders: Philipp Benner <pbenner@uni-osnabrueck.de>
 DM-Upload-Allowed: yes
-Build-Depends: debhelper (>= 7), autotools-dev, libgtk2.0-dev, libevent-dev,
+Build-Depends: debhelper (>= 7), autotools-dev, libgtk2.0-dev, libevent-dev (>= 2.0.10),
  libglib2.0-dev, libnotify-dev, libssl-dev, libcurl4-dev | libcurl-dev, chrpath, python, intltool (>= 0.23), quilt
 Standards-Version: 3.8.3
 Vcs-Browser: http://svn.debian.org/wsvn/collab-maint/deb-maint/transmission/

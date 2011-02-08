@@ -1,6 +1,7 @@
 /*
  * icons.[ch] written by Paolo Bacchilega, who writes:
- * "There is no problem for me, you can license my code under whatever licence you wish :)"
+ * "There is no problem for me, you can license my code
+ * under whatever licence you wish :)"
  *
  * $Id$
  */
@@ -256,9 +257,9 @@ icon_cache_get_mime_type_icon( IconCache * icon_cache, const char * mime_type )
 
 
 GdkPixbuf *
-get_mime_type_icon( const char   * mime_type,
-                    GtkIconSize    icon_size,
-                    GtkWidget    * for_widget )
+gtr_get_mime_type_icon( const char   * mime_type,
+                        GtkIconSize    icon_size,
+                        GtkWidget    * for_widget )
 {
     int n;
 
@@ -280,7 +281,7 @@ get_mime_type_icon( const char   * mime_type,
 
 
 const char *
-get_mime_type_from_filename( const char * file G_GNUC_UNUSED )
+gtr_get_mime_type_from_filename( const char * file G_GNUC_UNUSED )
 {
 #ifdef USE_GIO_ICONS
     char * tmp = g_content_type_guess( file, NULL, 0, NULL );

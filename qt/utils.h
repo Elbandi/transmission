@@ -17,6 +17,8 @@
 #include <QObject>
 #include <QIcon>
 
+#include <cctype> // isxdigit()
+
 #include "speed.h"
 
 class Utils: public QObject
@@ -34,11 +36,18 @@ class Utils: public QObject
         // meh
         static void toStderr( const QString& qstr );
 
-        /// 
+        ///
         /// URLs
         ///
 
         static bool isMagnetLink( const QString& s ) { return s.startsWith( "magnet:?" ); }
+
+        static bool isHexHashcode( const QString& s )
+        {
+            if( s.length() != 40 ) return false;
+            foreach( QChar ch, s ) if( !isxdigit( ch.toAscii() ) ) return false;
+            return true;
+        }
 
         static bool isURL( const QString& s ) { return s.startsWith( "http://" )
                                                     || s.startsWith( "https://" )

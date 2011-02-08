@@ -1,7 +1,7 @@
 /******************************************************************************
  * $Id$
  *
- * Copyright (c) 2008-2010 Transmission authors and contributors
+ * Copyright (c) 2008-2011 Transmission authors and contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -236,7 +236,8 @@
         NSString * fileString;
         NSInteger count = [fTorrent fileCount];
         if (count != 1)
-            fileString = [NSString stringWithFormat: NSLocalizedString(@"%d files", "Add torrent -> info"), count];
+            fileString = [NSString stringWithFormat: NSLocalizedString(@"%@ files", "Add torrent -> info"),
+                            [NSString formattedUInteger: count]];
         else
             fileString = NSLocalizedString(@"1 file", "Add torrent -> info");
         

@@ -1,7 +1,7 @@
 /******************************************************************************
  * $Id$
  *
- * Copyright (c) 2007-2010 Transmission authors and contributors
+ * Copyright (c) 2007-2011 Transmission authors and contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -167,20 +167,20 @@ tr_session * fLib;
     tr_sessionGetStats(fLib, &statsSession);
     
     [fUploadedField setStringValue: [NSString stringForFileSize: statsSession.uploadedBytes]];
-    [fUploadedField setToolTip: [NSString stringWithFormat: NSLocalizedString(@"%llu bytes", "stats -> bytes"),
-                                    statsSession.uploadedBytes]];
+    [fUploadedField setToolTip: [NSString stringWithFormat: NSLocalizedString(@"%@ bytes", "stats -> bytes"),
+                                    [NSString formattedUInteger: statsSession.uploadedBytes]]];
     [fUploadedAllField setStringValue: [NSString stringWithFormat: NSLocalizedString(@"%@ total", "stats total"),
                                         [NSString stringForFileSize: statsAll.uploadedBytes]]];
-    [fUploadedAllField setToolTip: [NSString stringWithFormat: NSLocalizedString(@"%llu bytes", "stats -> bytes"),
-                                    statsAll.uploadedBytes]];
+    [fUploadedAllField setToolTip: [NSString stringWithFormat: NSLocalizedString(@"%@ bytes", "stats -> bytes"),
+                                    [NSString formattedUInteger: statsAll.uploadedBytes]]];
     
     [fDownloadedField setStringValue: [NSString stringForFileSize: statsSession.downloadedBytes]];
-    [fDownloadedField setToolTip: [NSString stringWithFormat: NSLocalizedString(@"%llu bytes", "stats -> bytes"),
-                                    statsSession.downloadedBytes]];
+    [fDownloadedField setToolTip: [NSString stringWithFormat: NSLocalizedString(@"%@ bytes", "stats -> bytes"),
+                                    [NSString formattedUInteger: statsSession.downloadedBytes]]];
     [fDownloadedAllField setStringValue: [NSString stringWithFormat: NSLocalizedString(@"%@ total", "stats total"),
                                         [NSString stringForFileSize: statsAll.downloadedBytes]]];
-    [fDownloadedAllField setToolTip: [NSString stringWithFormat: NSLocalizedString(@"%llu bytes", "stats -> bytes"),
-                                        statsAll.downloadedBytes]];
+    [fDownloadedAllField setToolTip: [NSString stringWithFormat: NSLocalizedString(@"%@ bytes", "stats -> bytes"),
+                                        [NSString formattedUInteger: statsAll.downloadedBytes]]];
     
     [fRatioField setStringValue: [NSString stringForRatio: statsSession.ratio]];
     

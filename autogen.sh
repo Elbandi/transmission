@@ -24,7 +24,8 @@ export LIBTOOLIZE
 
 ./update-version-h.sh
 
-autoreconf -fi
+autoreconf -fi || exit 1;
+
 
 if test "$GETTEXTIZE"; then
   echo "Creating aclocal.m4 ..."
@@ -40,8 +41,8 @@ fi
 cd "$ORIGDIR" || exit $?
 
 if test -z "$AUTOGEN_SUBDIR_MODE"; then
-	echo Running $srcdir/configure --enable-maintainer-mode "$@"
-        $srcdir/configure --enable-maintainer-mode "$@"
+	echo Running $srcdir/configure "$@"
+        $srcdir/configure "$@"
 
         echo 
         echo "Now type 'make' to compile $PROJECT."

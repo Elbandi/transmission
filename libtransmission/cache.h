@@ -1,7 +1,7 @@
 /*
- * This file Copyright (C) 2010 Mnemosyne LLC
+ * This file Copyright (C) Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2.  Works owned by the
+ * This file is licensed by the GPL version 2. Works owned by the
  * Transmission project are granted a special exemption to clause 2(b)
  * so that the bulk of its code can remain under the MIT license.
  * This exemption does not extend to derived works not owned by
@@ -16,6 +16,8 @@
 
 #ifndef TR_CACHE_H
 #define TR_CACHE_H
+
+struct evbuffer;
 
 typedef struct tr_cache tr_cache;
 
@@ -40,7 +42,7 @@ int tr_cacheWriteBlock( tr_cache         * cache,
                         tr_piece_index_t   piece,
                         uint32_t           offset,
                         uint32_t           len,
-                        const uint8_t    * writeme );
+                        struct evbuffer  * writeme );
 
 int tr_cacheReadBlock( tr_cache         * cache,
                        tr_torrent       * torrent,

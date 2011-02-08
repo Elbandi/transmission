@@ -1,7 +1,7 @@
 /******************************************************************************
  * $Id$
  * 
- * Copyright (c) 2007-2010 Transmission authors and contributors
+ * Copyright (c) 2007-2011 Transmission authors and contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -23,6 +23,7 @@
  *****************************************************************************/
 
 #import "FilterButton.h"
+#import "NSStringAdditions.h"
 
 @implementation FilterButton
 
@@ -41,8 +42,10 @@
         return;
     
     fCount = count;
+    
     [self setToolTip: fCount == 1 ? NSLocalizedString(@"1 transfer", "Filter Button -> tool tip")
-        : [NSString stringWithFormat: NSLocalizedString(@"%d transfers", "Filter Bar Button -> tool tip"), fCount]];
+        : [NSString stringWithFormat: NSLocalizedString(@"%@ transfers", "Filter Bar Button -> tool tip"),
+            [NSString formattedUInteger: fCount]]];
 }
 
 @end
