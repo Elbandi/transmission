@@ -1208,7 +1208,8 @@ tr_torrentStat (tr_torrent * tor)
                             &s->webseedsSendingToUs,
                             &s->peersSendingToUs,
                             &s->peersGettingFromUs,
-                            s->peersFrom);
+                            s->peersFrom,
+                            s->availablepeersFrom);
 
     now = tr_time_msec ();
     s->rawUploadSpeed_KBps     = toSpeedKBps (tr_bandwidthGetRawSpeed_Bps (&tor->bandwidth, now, TR_UP));
