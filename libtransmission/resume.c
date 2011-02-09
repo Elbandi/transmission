@@ -108,6 +108,41 @@ loadPeers (tr_variant * dict, tr_torrent * tor)
 ***/
 
 static void
+saveLabels (tr_variant * dict, const tr_torrent * tor)
+{
+  int i, n = tr_ptrArraySize (tor->labels);
+  tr_variant * list;
+
+  list = tr_variantDictAddList (dict, TR_KEY_labels, n);
+  for (i = 0; i<n; ++i)
+    tr_variantListAddStr (list, tr_ptrArrayNth (tor->labels, i));
+}
+
+static uint64_t
+loadLabels (tr_variant * dict, tr_torrent * tor)
+{
+  uint64_t ret = 0;
+  tr_variant * list = NULL;
+
+  if (tr_variantDictFindList (dict, TR_KEY_labels, &list))
+    {
+      int i, n = tr_variantListSize (list);
+      const char * str;
+      size_t str_len;
+      for (i = 0; i<n; ++i)
+        if (tr_variantGetStr (tr_variantListChild (list, i), &str, &str_len) && str && str_len)
+          tr_ptrArrayAppend (tor->labels, tr_strndup (str, str_len));
+      ret = TR_FR_LABELS;
+    }
+
+  return ret;
+}
+
+/***
+****
+***/
+
+static void
 saveDND (tr_variant * dict, const tr_torrent * tor)
 {
   tr_variant * list;
@@ -685,6 +720,7 @@ tr_torrentSaveResume (tr_torrent * tor)
   saveIdleLimits (&top, tor);
   saveFilenames (&top, tor);
   saveName (&top, tor);
+  saveLabels (&top, tor);
 
   filename = getResumeFilename (tor);
   if ((err = tr_variantToFile (&top, TR_VARIANT_FMT_BENC, filename)))
@@ -848,6 +884,9 @@ loadFromFile (tr_torrent * tor, uint64_t fieldsToLoad)
 
   if (fieldsToLoad & TR_FR_NAME)
     fieldsLoaded |= loadName (&top, tor);
+
+  if (fieldsToLoad & TR_FR_LABELS)
+    fieldsLoaded |= loadLabels (&top, tor);
 
   /* loading the resume file triggers of a lot of changes,
    * but none of them needs to trigger a re-saving of the

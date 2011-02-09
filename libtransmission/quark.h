@@ -162,6 +162,7 @@ enum
   TR_KEY_isStalled,
   TR_KEY_isUTP,
   TR_KEY_isUploadingTo,
+  TR_KEY_labels,
   TR_KEY_lastAnnouncePeerCount,
   TR_KEY_lastAnnounceResult,
   TR_KEY_lastAnnounceStartTime,

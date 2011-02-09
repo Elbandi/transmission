@@ -433,6 +433,18 @@ torrentVerify (tr_session               * session,
 ***/
 
 static void
+addLabels (const tr_torrent * tor, tr_variant * list)
+{
+  int i;
+  int labelsCount = tr_ptrArraySize (tor->labels);
+
+  tr_variantInitList (list, labelsCount);
+
+  for (i = 0; i<labelsCount; ++i)
+    tr_variantListAddStr (list, tr_ptrArrayNth (tor->labels, i));
+}
+
+static void
 addFileStats (const tr_torrent * tor, tr_variant * list)
 {
   tr_file_index_t i;
@@ -684,6 +696,10 @@ addField (tr_torrent       * const tor,
 
       case TR_KEY_isStalled:
         tr_variantDictAddBool (d, key, st->isStalled);
+        break;
+
+      case TR_KEY_labels:
+        addLabels (tor, tr_variantDictAdd (d, key));
         break;
 
       case TR_KEY_leftUntilDone:
@@ -967,6 +983,23 @@ torrentGet (tr_session               * session,
 /***
 ****
 ***/
+
+static void
+setLabels (tr_torrent * tor,
+           tr_variant * list)
+{
+  int i;
+  const char * str;
+  size_t str_len;
+  const int n = tr_variantListSize (list);
+  tr_ptrArrayForeach (tor->labels, (PtrArrayForeachFunc)tr_free);
+  tr_ptrArrayClear (tor->labels);
+  for (i = 0; i < n; i++)
+    {
+      if (tr_variantGetStr (tr_variantListChild (list, i), &str, &str_len) && str && str_len)
+        tr_ptrArrayAppend (tor->labels, tr_strndup (str, str_len));
+    }
+}
 
 static const char*
 setFilePriorities (tr_torrent * tor,
@@ -1267,6 +1300,9 @@ torrentSet (tr_session               * session,
       if (tr_variantDictFindInt (args_in, TR_KEY_bandwidthPriority, &tmp))
         if (tr_isPriority (tmp))
           tr_torrentSetPriority (tor, tmp);
+
+      if (tr_variantDictFindList (args_in, TR_KEY_labels, &files))
+        setLabels (tor, files);
 
       if (!errmsg && tr_variantDictFindList (args_in, TR_KEY_files_unwanted, &files))
         errmsg = setFileDLs (tor, false, files);
