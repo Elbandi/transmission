@@ -32,6 +32,9 @@ struct tr_device_info * tr_device_info_create (const char * path);
     Otherwise, it returns how much is available on the disk, or -1 on error. */
 int64_t tr_device_info_get_free_space (const struct tr_device_info * info);
 
+int64_t tr_device_info_get_space (const struct tr_device_info * info,
+    int64_t * disk_used, int64_t * disk_soft, int64_t * disk_hard, int64_t * disk_timeleft);
+
 void tr_device_info_free (struct tr_device_info * info);
 
 /** @} */
