@@ -44,6 +44,7 @@ enum
   TR_KEY_announce_list, /* metainfo */
   TR_KEY_announceState, /* rpc */
   TR_KEY_arguments, /* rpc */
+  TR_KEY_availablepeersFrom,
   TR_KEY_bandwidth_priority,
   TR_KEY_bandwidthPriority,
   TR_KEY_bind_address_ipv4,

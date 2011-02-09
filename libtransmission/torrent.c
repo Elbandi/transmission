@@ -1280,6 +1280,8 @@ tr_torrentStat (tr_torrent * tor)
   s->webseedsSendingToUs = swarm_stats.activeWebseedCount;
   for (i=0; i<TR_PEER_FROM__MAX; i++)
     s->peersFrom[i] = swarm_stats.peerFromCount[i];
+  for (i=0; i<TR_PEER_FROM__MAX; i++)
+    s->availablepeersFrom[i] = swarm_stats.availablepeerFromCount[i];
 
   s->rawUploadSpeed_KBps     = toSpeedKBps (tr_bandwidthGetRawSpeed_Bps (&tor->bandwidth, now, TR_UP));
   s->rawDownloadSpeed_KBps   = toSpeedKBps (tr_bandwidthGetRawSpeed_Bps (&tor->bandwidth, now, TR_DOWN));

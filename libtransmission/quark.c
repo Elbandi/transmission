@@ -46,6 +46,7 @@ static const struct tr_key_struct my_static[] =
   { "announce-list", 13 },
   { "announceState", 13 },
   { "arguments", 9 },
+  { "availablepeersFrom", 18 },
   { "bandwidth-priority", 18 },
   { "bandwidthPriority", 17 },
   { "bind-address-ipv4", 17 },

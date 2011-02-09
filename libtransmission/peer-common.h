@@ -158,6 +158,7 @@ typedef struct tr_swarm_stats
   int activeWebseedCount;
   int peerCount;
   int peerFromCount[TR_PEER_FROM__MAX];
+  int availablepeerFromCount[TR_PEER_FROM__MAX];
 }
 tr_swarm_stats;
 

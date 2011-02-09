@@ -100,7 +100,7 @@ enum
 
 const tr_peer_event TR_PEER_EVENT_INIT = { 0, 0, NULL, 0, 0, 0, 0 };
 
-const tr_swarm_stats TR_SWARM_STATS_INIT = { { 0, 0 }, 0, 0, { 0, 0, 0, 0, 0, 0, 0 } };
+const tr_swarm_stats TR_SWARM_STATS_INIT = { { 0, 0 }, 0, 0, { 0, 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0, 0 } };
 
 /**
 ***
@@ -1872,6 +1872,7 @@ ensureAtomExists (tr_swarm          * s,
       a->fromBest = from;
       a->shelf_date = tr_time () + getDefaultShelfLife (from) + jitter;
       a->blocklisted = -1;
+      ++s->stats.availablepeerFromCount[a->fromFirst];
       atomSetSeedProbability (a, seedProbability);
       tr_ptrArrayInsertSorted (&s->pool, a, compareAtomsByAddress);
 
@@ -3748,9 +3749,12 @@ atomPulse (evutil_socket_t foo UNUSED, short bar UNUSED, void * vmgr)
           /* rebuild Torrent.pool with what's left */
           tr_ptrArrayDestruct (&s->pool, NULL);
           s->pool = TR_PTR_ARRAY_INIT;
+          memset(&s->stats.availablepeerFromCount, 0, TR_PEER_FROM__MAX);
           qsort (keep, keepCount, sizeof (struct peer_atom *), compareAtomPtrsByAddress);
-          for (i=0; i<keepCount; ++i)
+          for (i=0; i<keepCount; ++i) {
             tr_ptrArrayAppend (&s->pool, keep[i]);
+            ++s->stats.availablepeerFromCount[keep[i]->fromFirst];
+          }
 
           tordbg (s, "max atom count is %d... pruned from %d to %d\n", maxAtomCount, atomCount, keepCount);
 
