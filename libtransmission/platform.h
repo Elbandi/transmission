@@ -48,6 +48,7 @@ int64_t tr_getFreeSpace (const char * path);
 
 /** @} */
 
+void                tr_getDiskStatus( const tr_session *, int *, int *, int *, int *);
 
 /**
  * @addtogroup utils Utilities
