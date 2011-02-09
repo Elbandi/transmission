@@ -46,6 +46,7 @@
 #define KEY_RATIOLIMIT          "ratio-limit"
 #define KEY_IDLELIMIT           "idle-limit"
 #define KEY_UPLOADED            "uploaded"
+#define KEY_LABELS              "labels"
 
 #define KEY_SPEED_KiBps            "speed"
 #define KEY_SPEED_Bps              "speed-Bps"
@@ -146,6 +147,40 @@ loadPeers (tr_benc * dict, tr_torrent * tor)
         const int numAdded = addPeers (tor, str, len);
         tr_tordbg (tor, "Loaded %d IPv6 peers from resume file", numAdded);
         ret = TR_FR_PEERS;
+    }
+
+    return ret;
+}
+
+/***
+****
+***/
+
+static void
+saveLabels (tr_benc * dict, const tr_torrent * tor)
+{
+    int i, n = tr_ptrArraySize (tor->labels);
+    tr_benc *             list;
+
+    list = tr_bencDictAddList (dict, KEY_LABELS, n);
+    for (i = 0; i < n; ++i)
+        tr_bencListAddStr (list, tr_ptrArrayNth (tor->labels, i));
+}
+
+static uint64_t
+loadLabels (tr_benc * dict, tr_torrent * tor)
+{
+    uint64_t              ret = 0;
+    tr_benc *             list;
+
+    if (tr_bencDictFindList (dict, KEY_LABELS, &list))
+    {
+        int i, n = tr_bencListSize (list);
+        const char * str;
+        for (i = 0; i < n; ++i)
+            if (tr_bencGetStr (tr_bencListChild (list, i), &str))
+                tr_ptrArrayAppend (tor->labels, tr_strdup (str));
+        ret = TR_FR_LABELS;
     }
 
     return ret;
@@ -657,6 +692,7 @@ tr_torrentSaveResume (tr_torrent * tor)
     saveSpeedLimits (&top, tor);
     saveRatioLimits (&top, tor);
     saveIdleLimits (&top, tor);
+    saveLabels (&top, tor);
 
     filename = getResumeFilename (tor);
     if ((err = tr_bencToFile (&top, TR_FMT_BENC, filename)))
@@ -812,6 +848,9 @@ loadFromFile (tr_torrent * tor, uint64_t fieldsToLoad)
      * but none of them needs to trigger a re-saving of the
      * same resume information... */
     tor->isDirty = wasDirty;
+
+    if (fieldsToLoad & TR_FR_LABELS)
+        fieldsLoaded |= loadLabels (&top, tor);
 
     tr_bencFree (&top);
     tr_free (filename);
