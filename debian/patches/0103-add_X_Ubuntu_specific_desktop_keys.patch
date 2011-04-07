@@ -1,0 +1,21 @@
+Description: Add Ubuntu-specific field to the desktop file
+Forwarded: not-needed
+Index: transmission/gtk/transmission-gtk.desktop.in
+===================================================================
+--- transmission.orig/gtk/transmission-gtk.desktop.in	2010-12-12 14:39:02.344418805 +0100
++++ transmission/gtk/transmission-gtk.desktop.in	2011-01-28 21:42:34.541537003 +0100
+@@ -10,3 +10,5 @@
+ Type=Application
+ MimeType=application/x-bittorrent;
+ Categories=Network;FileTransfer;P2P;GTK;
++X-Ubuntu-Gettext-Domain=transmission
++X-AppInstall-Keywords=torrent
+Index: transmission/qt/transmission-qt.desktop
+===================================================================
+--- transmission.orig/qt/transmission-qt.desktop	2011-01-28 21:42:40.911537003 +0100
++++ transmission/qt/transmission-qt.desktop	2011-01-28 21:42:50.381537002 +0100
+@@ -8,3 +8,4 @@
+ Type=Application
+ MimeType=application/x-bittorrent;
+ Categories=Network;FileTransfer;P2P;Qt;
++X-AppInstall-Keywords=torrent

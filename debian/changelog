@@ -4,46 +4,144 @@ transmission (2.21-0) unstable; urgency=low
 
  -- Andras Elso <ea333@freemail.hu>  Wed, 09 Feb 2011 00:23:26 +0100
 
-transmission (2.12-0) unstable; urgency=low
-
+transmission (2.11-1) experimental; urgency=low
+  
   * new upstream release
-  * #3785 (web) "Webui image tb_backgrounds_highlight.png missing from Makefile.am"
+  * debian/control:
+    - correct replaces/breaks "off-by-one"
+    - remove build-dep on rpath, not needed anymore
+    - change transmission metapackage to depend on all frontends
 
- -- Andras Elso <ea333@freemail.hu>  Fri, 03 Dec 2010 19:46:46 +0100
+ -- Leo Costela <costela@debian.org>  Tue, 19 Oct 2010 10:45:17 +0200
 
-transmission (2.10-0) unstable; urgency=low
+transmission (2.10-2) experimental; urgency=low
+  
+  * correct binary names in mime files
+  * remove old example script which depended on specific 
+    transmission-remote output; added example for download hook script
+  * update replaces/breaks for the /usr/share/icons move to 
+    transmission-common (closes: #600637)
 
+ -- Leo Costela <costela@debian.org>  Mon, 18 Oct 2010 20:41:44 +0200
+
+transmission (2.10-1) experimental; urgency=low
+  
+  * new upstream release (closes: #592835)
+    - link to online help has been fixed (closes: #592960)
+  * imported work into git repo
+  * debian/control:
+    - remove Philipp Benner from Uploaders
+    - change VCS headers to point to new git repo
+    - bump debhelper version to 8
+    - bump policy to 3.9.1 (no changes needed)
+    - rewrite long description to better explain the multiple 
+      incarnations of transmission, also correcting to which package
+      transmission-remote actually belongs. (closes: #595411,#595412)
+  * debian/copyright: long-needed refresh
+  * debian/qtr.1, debian/transmission-qt.desktop: dropped, upstream now
+    has them both
+  * debian/watch: updated to reflect new download link
+  * debian/NEWS.Debian: added to announce the binary name changes
+  * debian/rules: rewrite to use compact dh style
+
+ -- Leo Costela <costela@debian.org>  Wed, 13 Oct 2010 22:34:00 +0200
+
+transmission (2.03-1) unstable; urgency=low
+  
   * new upstream release
-  * debian/patches drop (see above: fixed upstream)
-    - dont_build_libevent.patch
-    - qt_client_use_system_libevent
-    - use_old_intltool.patch
 
- -- Andras Elso <ea333@freemail.hu>  Mon, 11 Oct 2010 23:33:23 +0200
+ -- Leo Costela <costela@debian.org>  Thu, 22 Jul 2010 16:52:46 +0200
 
-transmission (1.92-0) unstable; urgency=low
-
+transmission (2.01-1) unstable; urgency=low
+  
   * new upstream release
+  * debian/transmission-daemon.postinst:
+    - don't choke if the config file isn't there (closes: #588010)
+  * debian/control: 
+    - bump policy to 3.9.0: use Breaks for file moved between packages
+    - remove old conflicts for versions older than the ones in stable
 
- -- Andras Elso <ea333@freemail.hu>  Sun, 14 Mar 2010 21:20:45 +0100
+ -- Leo Costela <costela@debian.org>  Thu, 15 Jul 2010 17:21:54 +0200
 
-transmission (1.90-0) unstable; urgency=low
+transmission (2.00-1) unstable; urgency=low
+  
+  * new upstream release (closes: #586503)
+  * debian/patches: 
+    - dropped libevent-build-related patches (integrated upstream)
+    - refresh libnatpmp_freebsd patch
 
+ -- Leo Costela <costela@debian.org>  Sun, 20 Jun 2010 14:23:44 +0200
+
+transmission (1.93-2) unstable; urgency=low
+  
+  * change permission from /etc/transmission-daemon to enable config
+    update by daemon itself (closes: #579998, #579304)
+  * debian/transmission-daemon.{postinst,postrm}:
+    - rework the dpkg-statoverride usage, don't add overrides ourselves
+    - don't delete overrides on package remove, we're not setting them
+      anymore
+    - remove old overrides if they're the ones set by the package
+
+ -- Leo Costela <costela@debian.org>  Sun, 16 May 2010 17:13:34 +0200
+
+transmission (1.93-1) unstable; urgency=low
+  
+  * new upstream release 
+    - don't overwrite settings.json symlink (closes: #579304)
+  * debian/patches: refresh dont_build_libevent.patch
+
+ -- Leo Costela <costela@debian.org>  Sun, 02 May 2010 04:37:04 +0200
+
+transmission (1.92-1) unstable; urgency=low
+  
+  * new upstream release 
+    - fix possible data corruption (closes: #574507)
+  * debian/transmission-daemon.default: drop --auth to avoid overriding
+    saved settings (closes: #575828)
+  * debian/rules: finally clean up get-orig-source (closes: #573568)
+
+ -- Leo Costela <costela@debian.org>  Mon, 29 Mar 2010 19:36:09 +0200
+
+transmission (1.91-1) unstable; urgency=low
+  
   * new upstream release
+  * debian/transmission-daemon.postrm: don't remove statoverride on 
+    purge (closes: #571934)
 
- -- Andras Elso <ea333@freemail.hu>  Wed, 17 Feb 2010 16:40:51 +0100
+ -- Leo Costela <costela@debian.org>  Sun, 28 Feb 2010 13:26:07 +0100
 
-transmission (1.83-0) unstable; urgency=low
-
+transmission (1.90-1) unstable; urgency=low
+  
   * new upstream release
-    - Fix 1.80 announce error that caused uploads and downloads to periodically freeze
-    - Fix 1.80 announce timeout error that caused "no response from tracker" message
-    - Fix 1.80 "file not found" error message that stopped some torrents
-    - Fix 1.82 crash when adding new torrents via their ftp URL
-    - Fix 1.80 crash when receiving invalid request messages from peers
-    - Fix 1.82 error when updating the blocklist
+  * debian/transmission-daemon.postrm: remove statoverride after deleting 
+    group (closes: #569238)
+  * debian/{control,rules}: drop libcanberra-dev and libgconf-dev build-deps
+    and ensure we build without them. Please check the bug log for a more
+    complete rationalle behind the decision. (closes: #570416)
 
- -- Andras Elso <ea333@freemail.hu>  Sat, 30 Jan 2010 04:05:28 +0100
+ -- Leo Costela <costela@debian.org>  Sun, 21 Feb 2010 21:38:22 +0100
+
+transmission (1.83-2) unstable; urgency=low
+  
+  * debian/control: bump build-dep on libevent-dev to >= 1.4 (closes: #568544)
+
+ -- Leo Costela <costela@debian.org>  Sun, 07 Feb 2010 17:31:13 +0100
+
+transmission (1.83-1) unstable; urgency=low
+  
+  * new upstream version
+  * bump policy to 3.8.4 (no changes)
+
+ -- Leo Costela <costela@debian.org>  Mon, 01 Feb 2010 14:50:35 +0100
+
+transmission (1.82-2) unstable; urgency=low
+
+  * debian/control
+    - drop python build-dep, not needed for some time
+    - bump intltool build-dep to >= 0.40 (closes: #566875)
+    - add libcanberra-gtk and libgconf build-deps
+
+ -- Leo Costela <costela@debian.org>  Tue, 26 Jan 2010 23:39:47 +0100
 
 transmission (1.82-1) unstable; urgency=low
 

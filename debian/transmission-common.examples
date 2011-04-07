@@ -1,1 +1,1 @@
-debian/examples/checkFinishedTransmissionDownloads.sh
+extras/send-email-when-torrent-done.sh

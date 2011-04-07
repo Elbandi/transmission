@@ -1,0 +1,24 @@
+Description: Add magnet handler
+Forwarded: ticket in queue
+Author: Andreas Moog <amoog@ubuntu.com>
+Last-Update: 2011-02-28
+Bug-Ubuntu: http://bugs.launchpad.net/bugs/726756
+Index: natty/gtk/transmission-gtk.desktop.in
+===================================================================
+--- natty.orig/gtk/transmission-gtk.desktop.in	2011-03-16 05:34:44.972426177 +0100
++++ natty/gtk/transmission-gtk.desktop.in	2011-03-17 20:33:18.974916162 +0100
+@@ -3,12 +3,12 @@
+ _GenericName=BitTorrent Client
+ _X-GNOME-FullName=Transmission BitTorrent Client
+ _Comment=Download and share files over BitTorrent
+-Exec=transmission-gtk %F
++Exec=transmission-gtk %U
+ Icon=transmission
+ Terminal=false
+ TryExec=transmission-gtk
+ Type=Application
+-MimeType=application/x-bittorrent;
++MimeType=application/x-bittorrent;x-scheme-handler/magnet;
+ Categories=Network;FileTransfer;P2P;GTK;
+ X-Ubuntu-Gettext-Domain=transmission
+ X-AppInstall-Keywords=torrent
