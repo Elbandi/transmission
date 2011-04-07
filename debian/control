@@ -5,7 +5,7 @@ Maintainer: Leo Costela <costela@debian.org>
 DM-Upload-Allowed: yes
 Build-Depends: debhelper (>= 7), autotools-dev, libgtk2.0-dev, libevent-dev 
  (>= 2.0), libglib2.0-dev, libnotify-dev, libssl-dev, libcurl4-dev | 
- libcurl-dev, intltool (>= 0.37), quilt
+ libcurl-dev, intltool (>= 0.37), chrpath, quilt, dh-autoreconf, automake, git-core
 Standards-Version: 3.9.1
 Vcs-Browser: http://git.debian.org/collab-maint/transmission/
 Vcs-Git: git://git.debian.org/git/collab-maint/transmission.git
