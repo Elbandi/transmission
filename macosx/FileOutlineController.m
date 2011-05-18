@@ -115,7 +115,7 @@ typedef enum
         NSMutableArray * list = [NSMutableArray arrayWithCapacity: [fTorrent fileCount]];
         
         for (FileListNode * node in [fTorrent flatFileList])
-            if ([[node name] rangeOfString: fFilterText options: NSCaseInsensitiveSearch].location != NSNotFound)
+            if ([[node name] rangeOfString: fFilterText options: (NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch)].location != NSNotFound)
                 [list addObject: node];
         
         fFileList = [[NSArray alloc] initWithArray: list];
@@ -211,7 +211,12 @@ typedef enum
 {
     NSString * ident = [tableColumn identifier];
     if ([ident isEqualToString: @"Name"])
-        return [fTorrent fileLocation: item];
+    {
+        NSString * path = [fTorrent fileLocation: item];
+        if (!path)
+            path = [[item path] stringByAppendingPathComponent: [item name]];
+        return path;
+    }
     else if ([ident isEqualToString: @"Check"])
     {
         switch ([cell state])

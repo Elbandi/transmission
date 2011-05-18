@@ -53,18 +53,18 @@ int tr_ioWrite( struct tr_torrent  * tor,
 /**
  * @brief Test to see if the piece matches its metainfo's SHA1 checksum.
  */
-tr_bool tr_ioTestPiece( tr_torrent       * tor,
-                        tr_piece_index_t   piece );
+bool tr_ioTestPiece( tr_torrent       * tor,
+                     tr_piece_index_t   piece );
 
 
 /**
  * Converts a piece index + offset into a file index + offset.
  */
-void     tr_ioFindFileLocation( const tr_torrent * tor,
-                                tr_piece_index_t   pieceIndex,
-                                uint32_t           pieceOffset,
-                                tr_file_index_t *  fileIndex,
-                                uint64_t *         fileOffset );
+void tr_ioFindFileLocation( const tr_torrent  * tor,
+                             tr_piece_index_t   pieceIndex,
+                             uint32_t           pieceOffset,
+                             tr_file_index_t  * fileIndex,
+                             uint64_t         * fileOffset );
 
 
 /* @} */

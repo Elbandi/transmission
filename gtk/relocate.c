@@ -27,7 +27,7 @@ static char * previousLocation = NULL;
 struct relocate_dialog_data
 {
     int done;
-    tr_bool do_move;
+    bool do_move;
     TrCore * core;
     GSList * torrent_ids;
     GtkWidget * message_dialog;
@@ -52,16 +52,14 @@ startMovingNextTorrent( struct relocate_dialog_data * data )
     char * str;
     const int id = GPOINTER_TO_INT( data->torrent_ids->data );
 
-    tr_session * session = tr_core_session( data->core );
-
-    tr_torrent * tor = tr_torrentFindFromId( session, id );
+    tr_torrent * tor = gtr_core_find_torrent( data->core, id );
     if( tor != NULL )
         tr_torrentSetLocation( tor, previousLocation, data->do_move, NULL, &data->done );
 
     data->torrent_ids = g_slist_delete_link( data->torrent_ids,
                                              data->torrent_ids );
 
-    str = g_strdup_printf( _( "Moving \"%s\"" ), tr_torrentInfo(tor)->name );
+    str = g_strdup_printf( _( "Moving \"%s\"" ), tr_torrentName( tor ) );
     gtk_message_dialog_set_markup( GTK_MESSAGE_DIALOG( data->message_dialog ), str );
     g_free( str );
 }
