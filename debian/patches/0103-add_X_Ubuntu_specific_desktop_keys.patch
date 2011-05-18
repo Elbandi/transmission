@@ -6,7 +6,7 @@ Index: transmission/gtk/transmission-gtk.desktop.in
 +++ transmission/gtk/transmission-gtk.desktop.in	2011-01-28 21:42:34.541537003 +0100
 @@ -10,3 +10,5 @@
  Type=Application
- MimeType=application/x-bittorrent;
+ MimeType=application/x-bittorrent;x-scheme-handler/magnet;
  Categories=Network;FileTransfer;P2P;GTK;
 +X-Ubuntu-Gettext-Domain=transmission
 +X-AppInstall-Keywords=torrent

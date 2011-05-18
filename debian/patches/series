@@ -1,4 +1,2 @@
 libnatpmp_freebsd_ftbfs.patch
 0103-add_X_Ubuntu_specific_desktop_keys.patch
-0107-handle_unsorted_blocklist_rules.patch
-0104-add-scheme-handler.patch

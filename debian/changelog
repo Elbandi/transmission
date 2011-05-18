@@ -1,3 +1,12 @@
+transmission (2.31-0) unstable; urgency=low
+
+  * new upstream release
+  * debian/patches: 
+    - dropped add-scheme-handler,handle_unsorted_blocklist_rules patches (integrated upstream)
+    - refresh add_X_Ubuntu_specific_desktop_keys patch
+
+ -- Andras Elso <ea333@freemail.hu>  Wed, 18 May 2011 03:32:03 +0200
+
 transmission (2.21-0) unstable; urgency=low
 
   * new upstream release
