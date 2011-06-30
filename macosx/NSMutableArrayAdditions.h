@@ -1,7 +1,7 @@
 /******************************************************************************
  * $Id$
  *
- * Copyright (c) 2008-2011 Transmission authors and contributors
+ * Copyright (c) 2011 Transmission authors and contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -22,42 +22,8 @@
  * DEALINGS IN THE SOFTWARE.
  *****************************************************************************/
 
-#import <Cocoa/Cocoa.h>
+@interface NSMutableArray (NSMutableArrayAdditions)
 
-@class Torrent;
-
-@interface FileListNode : NSObject <NSCopying>
-{
-    NSString * fName, * fPath;
-    BOOL fIsFolder;
-    NSMutableIndexSet * fIndexes;
-    
-    uint64_t fSize;
-    NSImage * fIcon;
-    
-    NSMutableArray * fChildren;
-    
-    Torrent * fTorrent;
-}
-
-- (id) initWithFolderName: (NSString *) name path: (NSString *) path torrent: (Torrent *) torrent;
-- (id) initWithFileName: (NSString *) name path: (NSString *) path size: (uint64_t) size index: (NSUInteger) index torrent: (Torrent *) torrent;
-
-- (void) insertChild: (FileListNode *) child;
-- (void) insertIndex: (NSUInteger) index withSize: (uint64_t) size;
-
-- (NSString *) description;
-
-- (BOOL) isFolder;
-- (NSString *) name;
-- (NSString *) path;
-- (NSIndexSet *) indexes;
-
-- (uint64_t) size;
-- (NSImage *) icon;
-
-- (NSMutableArray *) children;
-
-- (Torrent *) torrent;
+- (void) moveObjectAtIndex: (NSUInteger) fromIndex toIndex: (NSUInteger) toIndex;
 
 @end

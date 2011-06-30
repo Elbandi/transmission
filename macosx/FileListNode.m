@@ -26,15 +26,15 @@
 
 @interface FileListNode (Private)
 
-- (id) initWithFolder: (BOOL) isFolder name: (NSString *) name path: (NSString *) path;
+- (id) initWithFolder: (BOOL) isFolder name: (NSString *) name path: (NSString *) path torrent: (Torrent *) torrent;
 
 @end
 
 @implementation FileListNode
 
-- (id) initWithFolderName: (NSString *) name path: (NSString *) path
+- (id) initWithFolderName: (NSString *) name path: (NSString *) path torrent: (Torrent *) torrent
 {
-    if ((self = [self initWithFolder: YES name: name path: path]))
+    if ((self = [self initWithFolder: YES name: name path: path torrent: torrent]))
     {
         fChildren = [[NSMutableArray alloc] init];
         fSize = 0;
@@ -43,9 +43,9 @@
     return self;
 }
 
-- (id) initWithFileName: (NSString *) name path: (NSString *) path size: (uint64_t) size index: (NSUInteger) index
+- (id) initWithFileName: (NSString *) name path: (NSString *) path size: (uint64_t) size index: (NSUInteger) index torrent: (Torrent *) torrent
 {
-    if ((self = [self initWithFolder: NO name: name path: path]))
+    if ((self = [self initWithFolder: NO name: name path: path torrent: torrent]))
     {
         fSize = size;
         [fIndexes addIndex: index];
@@ -88,6 +88,14 @@
     [super dealloc];
 }
 
+- (NSString *) description
+{
+    if (!fIsFolder)
+        return [NSString stringWithFormat: @"%@ (%d)", fName, [fIndexes firstIndex]];
+    else
+        return [NSString stringWithFormat: @"%@ (folder: %@)", fName, fIndexes];
+}
+
 - (BOOL) isFolder
 {
     return fIsFolder;
@@ -128,11 +136,16 @@
     return fChildren;
 }
 
+- (Torrent *) torrent
+{
+    return fTorrent;
+}
+
 @end
 
 @implementation FileListNode (Private)
 
-- (id) initWithFolder: (BOOL) isFolder name: (NSString *) name path: (NSString *) path
+- (id) initWithFolder: (BOOL) isFolder name: (NSString *) name path: (NSString *) path torrent: (Torrent *) torrent
 {
     if ((self = [super init]))
     {
@@ -141,6 +154,8 @@
         fPath = [path retain];
         
         fIndexes = [[NSMutableIndexSet alloc] init];
+        
+        fTorrent = torrent;
     }
     
     return self;
