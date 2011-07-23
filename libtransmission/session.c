@@ -37,7 +37,7 @@
 #include "net.h"
 #include "peer-io.h"
 #include "peer-mgr.h"
-#include "platform.h" /* tr_lock */
+#include "platform.h" /* tr_lock, tr_getTorrentDir(), tr_getFreeSpace() */
 #include "port-forwarding.h"
 #include "rpc-server.h"
 #include "session.h"
@@ -1951,7 +1951,7 @@ tr_sessionIsPexEnabled( const tr_session * session )
 }
 
 bool
-tr_sessionAllowsDHT( const tr_session * session UNUSED )
+tr_sessionAllowsDHT( const tr_session * session )
 {
     return tr_sessionIsDHTEnabled( session );
 }
