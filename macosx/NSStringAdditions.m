@@ -182,6 +182,34 @@
     return [self compare: string options: comparisonOptions range: NSMakeRange(0, [self length]) locale: [NSLocale currentLocale]];
 }
 
+- (NSArray *) betterComponentsSeparatedByCharactersInSet: (NSCharacterSet *) separator
+{
+    NSMutableArray * components = [NSMutableArray array];
+    
+    NSUInteger i = 0;
+    while (i < [self length])
+    {
+        const NSRange range = [self rangeOfCharacterFromSet: separator options: 0 range: NSMakeRange(i, [self length]-i)];
+        
+        if (range.location == NSNotFound)
+        {
+            [components addObject: [self substringFromIndex: i]];
+            break;
+        }
+        else if (range.location != i)
+        {
+            const NSUInteger length = range.location - i;
+            [components addObject: [self substringWithRange: NSMakeRange(i, length)]];
+            
+            i += length;
+        }
+        
+        i += range.length;
+    }
+    
+    return components;
+}
+
 @end
 
 @implementation NSString (Private)

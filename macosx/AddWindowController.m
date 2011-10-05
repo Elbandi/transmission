@@ -274,25 +274,28 @@
     {
         const BOOL waiting = [fTorrent isCheckingWaiting];
         [fVerifyIndicator setIndeterminate: waiting];
-        if (!waiting)
+        if (waiting)
+            [fVerifyIndicator startAnimation: self];
+        else
             [fVerifyIndicator setDoubleValue: [fTorrent checkingProgress]];
-        
-        [fVerifyIndicator startAnimation: self];
     }
-    else
+    else {
+        [fVerifyIndicator setIndeterminate: YES]; //we want to hide when stopped, which only applies when indeterminate
         [fVerifyIndicator stopAnimation: self];
+    }
 }
 
 - (void) confirmAdd
 {
     [fTimer invalidate];
     fTimer = nil;
-    
-    [fTorrent setWaitToStart: [fStartCheck state] == NSOnState];
     [fTorrent setGroupValue: fGroupValue];
     
     if (fTorrentFile && [fDeleteCheck state] == NSOnState)
         [Torrent trashFile: fTorrentFile];
+    
+    if ([fStartCheck state] == NSOnState)
+        [fTorrent startTransfer];
     
     [fFileController setTorrent: nil]; //avoid a crash when window tries to update
     
