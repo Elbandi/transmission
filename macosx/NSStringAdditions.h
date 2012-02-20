@@ -1,7 +1,7 @@
 /******************************************************************************
  * $Id$
  *
- * Copyright (c) 2005-2011 Transmission authors and contributors
+ * Copyright (c) 2005-2012 Transmission authors and contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -43,7 +43,6 @@
 + (NSString *) timeString: (uint64_t) seconds showSeconds: (BOOL) showSeconds;
 + (NSString *) timeString: (uint64_t) seconds showSeconds: (BOOL) showSeconds maxFields: (NSUInteger) max;
 
-- (NSComparisonResult) compareFinder: (NSString *) string; //how the Finder compares strings
 - (NSComparisonResult) compareNumeric: (NSString *) string; //simple compare method for strings with numbers (works for IP addresses)
 
 - (NSArray *) betterComponentsSeparatedByCharactersInSet: (NSCharacterSet *) separator; //like betterComponentsSeparatedByCharactersInSet:, but excludes blank values

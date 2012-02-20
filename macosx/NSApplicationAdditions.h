@@ -1,7 +1,7 @@
 /******************************************************************************
  * $Id$
  *
- * Copyright (c) 2009-2011 Transmission authors and contributors
+ * Copyright (c) 2009-2012 Transmission authors and contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -22,13 +22,11 @@
  * DEALINGS IN THE SOFTWARE.
  *****************************************************************************/
 
-#define QLPreviewPanelSL NSClassFromString(@"QLPreviewPanel")
-#define NSRunningApplicationSL NSClassFromString(@"NSRunningApplication")
 #define NSPopoverLion NSClassFromString(@"NSPopover")
+#define NSDataDetectorLion NSClassFromString(@"NSDataDetector")
 
 @interface NSApplication (NSApplicationAdditions)
 
-- (BOOL) isOnSnowLeopardOrBetter;
 - (BOOL) isOnLionOrBetter;
 
 @end
