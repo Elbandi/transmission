@@ -32,6 +32,16 @@ ifneq (,$(findstring parallel,$(DEB_BUILD_OPTIONS)))
  TRANSMISSION_MAKEFLAGS += -j$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif
 
+DEBIAN_DIST_NAME := $(shell lsb_release -sc)
+ifneq ($(filter $(DEBIAN_DIST_NAME), hardy),)
+ TRANSMISSION_QT = -Ntransmission-qt
+endif
+
+ifeq ($(filter $(DEBIAN_DIST_NAME), natty oneiric),)
+ TRANSMISSION_GTK = -Ntransmission-gtk
+ DISABLE_GTK=--disable-gtk
+endif
+
 # nostrip is handled by dh_strip
 
 ################################################################################
@@ -77,10 +87,13 @@ configure-stamp:
 		--mandir=/usr/share/man \
 		--enable-cli --enable-daemon \
 		--enable-external-natpmp \
+		$(DISABLE_GTK) \
 		CFLAGS="$(CFLAGS)" LDFLAGS="-Wl,--as-needed,--no-undefined,--no-add-needed"
 
+ifeq ($(filter $(DEBIAN_DIST_NAME), hardy),)
 	# Qt client
 	( cd qt && qmake-qt4 qtr.pro )
+endif
 
 	touch $@
 
@@ -90,8 +103,10 @@ build-stamp: configure
 
 	$(MAKE) $(TRANSMISSION_MAKEFLAGS)
 	
+ifeq ($(filter $(DEBIAN_DIST_NAME), hardy),)
 	# Qt client
 	( cd qt && $(MAKE) && lrelease qtr.pro )
+endif
 
 	touch $@
 
@@ -103,9 +118,11 @@ clean: config-clean distclean unpatch
 	dh_testdir
 	dh_testroot
 	
+ifeq ($(filter $(DEBIAN_DIST_NAME), hardy),)
 	# QT client
 	[ ! -f qt/Makefile ] || ( cd qt && $(MAKE) clean )
 	rm -f qt/translations/*.qm
+endif
 	
 	dh_clean 
 
@@ -117,8 +134,10 @@ install: build
 
 	$(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
 
+ifeq ($(filter $(DEBIAN_DIST_NAME),hardy),)
 	# Qt client
 	( cd qt && INSTALL_ROOT=$(CURDIR)/debian/tmp/usr $(MAKE) install )
+endif
 
 #	# clean RPATH from transmission binary (costela - 2007-10-27)
 	chrpath -d $(CURDIR)/debian/tmp/usr/bin/transmission-create
@@ -144,23 +163,23 @@ get-orig-source: transmission_$(UPSTREAM_VERSION).orig.tar.gz
 binary: build install
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs -p transmission-common NEWS
-	dh_installdocs -p transmission-common
-	dh_installexamples -p transmission-common
-	dh_installmenu
-	dh_installmime
-	dh_installinit --noscripts
-	dh_installman
-	dh_install --list-missing -X LICENSE # extra copy in web dir - costela 2008-08-15
-	dh_icons
-	dh_strip --dbg-package=transmission-dbg
-	dh_link
-	dh_compress
-	dh_fixperms
-	dh_installdeb
-	dh_shlibdeps
-	dh_gencontrol
-	dh_md5sums
-	dh_builddeb
+	dh_installchangelogs $(TRANSMISSION_QT) $(TRANSMISSION_GTK) -p transmission-common NEWS
+	dh_installdocs $(TRANSMISSION_QT) $(TRANSMISSION_GTK) -p transmission-common
+	dh_installexamples $(TRANSMISSION_QT) $(TRANSMISSION_GTK) -p transmission-common
+	dh_installmenu $(TRANSMISSION_QT) $(TRANSMISSION_GTK)
+	dh_installmime $(TRANSMISSION_QT) $(TRANSMISSION_GTK)
+	dh_installinit $(TRANSMISSION_QT) $(TRANSMISSION_GTK) --noscripts
+	dh_installman $(TRANSMISSION_QT) $(TRANSMISSION_GTK)
+	dh_install $(TRANSMISSION_QT) $(TRANSMISSION_GTK) --list-missing -X LICENSE # extra copy in web dir - costela 2008-08-15
+	dh_icons $(TRANSMISSION_QT) $(TRANSMISSION_GTK)
+	dh_strip $(TRANSMISSION_QT) $(TRANSMISSION_GTK) --dbg-package=transmission-dbg
+	dh_link $(TRANSMISSION_QT) $(TRANSMISSION_GTK)
+	dh_compress $(TRANSMISSION_QT) $(TRANSMISSION_GTK)
+	dh_fixperms $(TRANSMISSION_QT) $(TRANSMISSION_GTK)
+	dh_installdeb $(TRANSMISSION_QT) $(TRANSMISSION_GTK)
+	dh_shlibdeps $(TRANSMISSION_QT) $(TRANSMISSION_GTK)
+	dh_gencontrol $(TRANSMISSION_QT) $(TRANSMISSION_GTK)
+	dh_md5sums $(TRANSMISSION_QT) $(TRANSMISSION_GTK)
+	dh_builddeb $(TRANSMISSION_QT) $(TRANSMISSION_GTK)
 
 .PHONY: config config-clean configure build clean binary install
