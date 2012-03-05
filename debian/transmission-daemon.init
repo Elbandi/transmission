@@ -11,9 +11,7 @@
 NAME=transmission-daemon
 DAEMON=/usr/bin/$NAME
 USER=debian-transmission
-# FIXME: no pidfile support; forks, so --make-pidfile doesn't work either
-#PIDFILE=/var/run/$NAME.pid
-STOP_TIMEOUT=3
+STOP_TIMEOUT=30
 
 export PATH="${PATH:+$PATH:}/sbin"
 
@@ -29,6 +27,7 @@ start_daemon () {
     else    
         start-stop-daemon --start \
         --chuid $USER \
+		$START_STOP_OPTIONS \
         --exec $DAEMON -- $OPTIONS
     fi
 }
@@ -61,8 +60,11 @@ case "$1" in
         start_daemon
         log_end_msg 0
         ;;
+    status)
+        status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
+        ;;
     *)
-        echo "Usage: /etc/init.d/$NAME {start|stop|reload|force-reload|restart}"
+        echo "Usage: /etc/init.d/$NAME {start|stop|reload|force-reload|restart|status}"
         exit 2
         ;;
 esac

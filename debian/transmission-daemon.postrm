@@ -3,9 +3,6 @@
 set -e
 
 case "$1" in
-  remove)
-    getent passwd debian-transmission > /dev/null 2>&1 && deluser --system --quiet debian-transmission
-  ;;
   purge)
     if [ -d /var/lib/transmission-daemon/info ]; then
       rm -rf /var/lib/transmission-daemon/info/*

@@ -38,7 +38,7 @@ transmission (2.21-0) unstable; urgency=low
  -- Andras Elso <ea333@freemail.hu>  Wed, 09 Feb 2011 00:23:26 +0100
 
 transmission (2.11-1) experimental; urgency=low
-  
+
   * new upstream release
   * debian/control:
     - correct replaces/breaks "off-by-one"
@@ -48,7 +48,7 @@ transmission (2.11-1) experimental; urgency=low
  -- Leo Costela <costela@debian.org>  Tue, 19 Oct 2010 10:45:17 +0200
 
 transmission (2.10-2) experimental; urgency=low
-  
+
   * correct binary names in mime files
   * remove old example script which depended on specific 
     transmission-remote output; added example for download hook script
@@ -58,7 +58,7 @@ transmission (2.10-2) experimental; urgency=low
  -- Leo Costela <costela@debian.org>  Mon, 18 Oct 2010 20:41:44 +0200
 
 transmission (2.10-1) experimental; urgency=low
-  
+
   * new upstream release (closes: #592835)
     - link to online help has been fixed (closes: #592960)
   * imported work into git repo
@@ -80,13 +80,13 @@ transmission (2.10-1) experimental; urgency=low
  -- Leo Costela <costela@debian.org>  Wed, 13 Oct 2010 22:34:00 +0200
 
 transmission (2.03-1) unstable; urgency=low
-  
+
   * new upstream release
 
  -- Leo Costela <costela@debian.org>  Thu, 22 Jul 2010 16:52:46 +0200
 
 transmission (2.01-1) unstable; urgency=low
-  
+
   * new upstream release
   * debian/transmission-daemon.postinst:
     - don't choke if the config file isn't there (closes: #588010)
@@ -97,7 +97,7 @@ transmission (2.01-1) unstable; urgency=low
  -- Leo Costela <costela@debian.org>  Thu, 15 Jul 2010 17:21:54 +0200
 
 transmission (2.00-1) unstable; urgency=low
-  
+
   * new upstream release (closes: #586503)
   * debian/patches: 
     - dropped libevent-build-related patches (integrated upstream)
@@ -106,7 +106,7 @@ transmission (2.00-1) unstable; urgency=low
  -- Leo Costela <costela@debian.org>  Sun, 20 Jun 2010 14:23:44 +0200
 
 transmission (1.93-2) unstable; urgency=low
-  
+
   * change permission from /etc/transmission-daemon to enable config
     update by daemon itself (closes: #579998, #579304)
   * debian/transmission-daemon.{postinst,postrm}:
@@ -118,7 +118,7 @@ transmission (1.93-2) unstable; urgency=low
  -- Leo Costela <costela@debian.org>  Sun, 16 May 2010 17:13:34 +0200
 
 transmission (1.93-1) unstable; urgency=low
-  
+
   * new upstream release 
     - don't overwrite settings.json symlink (closes: #579304)
   * debian/patches: refresh dont_build_libevent.patch
@@ -126,7 +126,7 @@ transmission (1.93-1) unstable; urgency=low
  -- Leo Costela <costela@debian.org>  Sun, 02 May 2010 04:37:04 +0200
 
 transmission (1.92-1) unstable; urgency=low
-  
+
   * new upstream release 
     - fix possible data corruption (closes: #574507)
   * debian/transmission-daemon.default: drop --auth to avoid overriding
@@ -136,7 +136,7 @@ transmission (1.92-1) unstable; urgency=low
  -- Leo Costela <costela@debian.org>  Mon, 29 Mar 2010 19:36:09 +0200
 
 transmission (1.91-1) unstable; urgency=low
-  
+
   * new upstream release
   * debian/transmission-daemon.postrm: don't remove statoverride on 
     purge (closes: #571934)
@@ -144,7 +144,7 @@ transmission (1.91-1) unstable; urgency=low
  -- Leo Costela <costela@debian.org>  Sun, 28 Feb 2010 13:26:07 +0100
 
 transmission (1.90-1) unstable; urgency=low
-  
+
   * new upstream release
   * debian/transmission-daemon.postrm: remove statoverride after deleting 
     group (closes: #569238)
@@ -155,13 +155,13 @@ transmission (1.90-1) unstable; urgency=low
  -- Leo Costela <costela@debian.org>  Sun, 21 Feb 2010 21:38:22 +0100
 
 transmission (1.83-2) unstable; urgency=low
-  
+
   * debian/control: bump build-dep on libevent-dev to >= 1.4 (closes: #568544)
 
  -- Leo Costela <costela@debian.org>  Sun, 07 Feb 2010 17:31:13 +0100
 
 transmission (1.83-1) unstable; urgency=low
-  
+
   * new upstream version
   * bump policy to 3.8.4 (no changes)
 
@@ -208,7 +208,6 @@ transmission (1.76-1) unstable; urgency=low
 
   * new upstream release
   * debian/transmission-daemon.init: depend on $remote_fs (closes: #549241)
-  
 
  -- Leo Costela <costela@debian.org>  Sun, 01 Nov 2009 19:16:57 +0100
 
