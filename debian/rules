@@ -75,8 +75,9 @@ configure-stamp:
 		--host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
 		--prefix=/usr \
 		--mandir=/usr/share/man \
+		--enable-cli --enable-daemon \
 		--enable-external-natpmp \
-		CFLAGS="$(CFLAGS)" LDFLAGS="-Wl,-z,defs,--as-needed"
+		CFLAGS="$(CFLAGS)" LDFLAGS="-Wl,--as-needed,--no-undefined,--no-add-needed"
 
 	# Qt client
 	( cd qt && qmake-qt4 qtr.pro )
@@ -90,7 +91,7 @@ build-stamp: configure
 	$(MAKE) $(TRANSMISSION_MAKEFLAGS)
 	
 	# Qt client
-	( cd qt && $(MAKE) )
+	( cd qt && $(MAKE) && lrelease qtr.pro )
 
 	touch $@
 
@@ -104,6 +105,7 @@ clean: config-clean distclean unpatch
 	
 	# QT client
 	[ ! -f qt/Makefile ] || ( cd qt && $(MAKE) clean )
+	rm -f qt/translations/*.qm
 	
 	dh_clean 
 
@@ -139,41 +141,26 @@ get-orig-source: transmission_$(UPSTREAM_VERSION).orig.tar.gz
 	$(RM) transmission-$(UPSTREAM_VERSION).tar.bz2
 	$(RM) -r transmission-$(UPSTREAM_VERSION)
 
-# Build architecture-independent files here.
-binary-indep: build install
+binary: build install
 	dh_testdir
 	dh_testroot
-	dh_link -i
 	dh_installchangelogs -p transmission-common NEWS
 	dh_installdocs -p transmission-common
 	dh_installexamples -p transmission-common
-	dh_install -i -X LICENSE # extra copy in web dir - costela 2008-08-15
-	dh_compress -i
-	dh_fixperms -i
-	dh_installdeb -i
-	dh_gencontrol -i
-	dh_md5sums -i
-	dh_builddeb -i
+	dh_installmenu
+	dh_installmime
+	dh_installinit --noscripts
+	dh_installman
+	dh_install --list-missing -X LICENSE # extra copy in web dir - costela 2008-08-15
+	dh_icons
+	dh_strip --dbg-package=transmission-dbg
+	dh_link
+	dh_compress
+	dh_fixperms
+	dh_installdeb
+	dh_shlibdeps
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
 
-# Build architecture-dependent files here.
-binary-arch: build install
-	dh_testdir
-	dh_testroot
-	dh_link -a
-	dh_installinit -a --noscripts
-	dh_installmenu -a
-	dh_installman -a
-	dh_installmime -a
-	dh_install --list-missing -a
-	dh_icons -a
-	dh_strip -a
-	dh_compress -a
-	dh_fixperms -a
-	dh_installdeb -a
-	dh_shlibdeps -a
-	dh_gencontrol -a
-	dh_md5sums -a
-	dh_builddeb -a
-
-binary: binary-indep binary-arch
-.PHONY: config config-clean configure build clean binary-indep binary-arch binary install
+.PHONY: config config-clean configure build clean binary install
