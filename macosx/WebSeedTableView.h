@@ -1,7 +1,7 @@
 /******************************************************************************
  * $Id$
- *
- * Copyright (c) 2008-2012 Transmission authors and contributors
+ * 
+ * Copyright (c) 2012 Transmission authors and contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -24,33 +24,14 @@
 
 #import <Cocoa/Cocoa.h>
 
-@class Torrent;
-@class FileOutlineView;
-
-@interface FileOutlineController : NSObject
+@interface WebSeedTableView : NSTableView
 {
-    Torrent * fTorrent;
-    NSMutableArray * fFileList;
-    
-    IBOutlet FileOutlineView * fOutline;
-    
-    NSString * fFilterText;
+    //weak references
+    NSArray * fWebSeeds;
 }
 
-- (FileOutlineView *) outlineView;
+- (void) setWebSeeds: (NSArray *) webSeeds;
 
-- (void) setTorrent: (Torrent *) torrent;
-
-- (void) setFilterText: (NSString *) text;
-
-- (void) refresh;
-
-- (void) setCheck: (id) sender;
-- (void) setOnlySelectedCheck: (id) sender;
-- (void) checkAll;
-- (void) uncheckAll;
-- (void) setPriority: (id) sender;
-
-- (void) revealFile: (id) sender;
+- (void) copy: (id) sender;
 
 @end

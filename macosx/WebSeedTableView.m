@@ -1,7 +1,7 @@
 /******************************************************************************
  * $Id$
- *
- * Copyright (c) 2008-2012 Transmission authors and contributors
+ * 
+ * Copyright (c) 2012 Transmission authors and contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -22,35 +22,44 @@
  * DEALINGS IN THE SOFTWARE.
  *****************************************************************************/
 
-#import <Cocoa/Cocoa.h>
+#import "WebSeedTableView.h"
 
-@class Torrent;
-@class FileOutlineView;
+@implementation WebSeedTableView
 
-@interface FileOutlineController : NSObject
+- (void) mouseDown: (NSEvent *) event
 {
-    Torrent * fTorrent;
-    NSMutableArray * fFileList;
-    
-    IBOutlet FileOutlineView * fOutline;
-    
-    NSString * fFilterText;
+    [[self window] makeKeyWindow];
+    [super mouseDown: event];
 }
 
-- (FileOutlineView *) outlineView;
+- (void) setWebSeeds: (NSArray *) webSeeds
+{
+    fWebSeeds = webSeeds;
+}
 
-- (void) setTorrent: (Torrent *) torrent;
+- (void) copy: (id) sender
+{
+    NSIndexSet * indexes = [self selectedRowIndexes];
+    NSMutableArray * addresses = [NSMutableArray arrayWithCapacity: [indexes count]];
+    [fWebSeeds enumerateObjectsAtIndexes: indexes options: 0 usingBlock: ^(NSDictionary * webSeed, NSUInteger idx, BOOL * stop) {
+        [addresses addObject: [webSeed objectForKey: @"Address"]];
+    }];
+    
+    NSString * text = [addresses componentsJoinedByString: @"\n"];
+    
+    NSPasteboard * pb = [NSPasteboard generalPasteboard];
+    [pb clearContents];
+    [pb writeObjects: [NSArray arrayWithObject: text]];
+}
 
-- (void) setFilterText: (NSString *) text;
-
-- (void) refresh;
-
-- (void) setCheck: (id) sender;
-- (void) setOnlySelectedCheck: (id) sender;
-- (void) checkAll;
-- (void) uncheckAll;
-- (void) setPriority: (id) sender;
-
-- (void) revealFile: (id) sender;
+- (BOOL) validateMenuItem: (NSMenuItem *) menuItem
+{
+    const SEL action = [menuItem action];
+    
+    if (action == @selector(copy:))
+        return [self numberOfSelectedRows] > 0;
+    
+    return YES;
+}
 
 @end
