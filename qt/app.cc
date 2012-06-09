@@ -14,10 +14,13 @@
 #include <ctime>
 #include <iostream>
 
+#ifdef WITH_DBUS
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusError>
 #include <QDBusMessage>
+#endif
+
 #include <QDialogButtonBox>
 #include <QIcon>
 #include <QLabel>
@@ -31,7 +34,11 @@
 
 #include "add-data.h"
 #include "app.h"
+
+#ifdef WITH_DBUS
 #include "dbus-adaptor.h"
+#endif
+
 #include "formatter.h"
 #include "mainwin.h"
 #include "options.h"
@@ -44,9 +51,11 @@
 
 namespace
 {
+#ifdef WITH_DBUS
     const QString DBUS_SERVICE     = QString::fromAscii( "com.transmissionbt.Transmission"  );
     const QString DBUS_OBJECT_PATH = QString::fromAscii( "/com/transmissionbt/Transmission" );
     const QString DBUS_INTERFACE   = QString::fromAscii( "com.transmissionbt.Transmission"  );
+#endif
 
     const char * MY_READABLE_NAME( "transmission-qt" );
 
@@ -240,12 +249,14 @@ MyApp :: MyApp( int& argc, char ** argv ):
         addTorrent( *it );
 
     // register as the dbus handler for Transmission
+#ifdef WITH_DBUS
     new TrDBusAdaptor( this );
     QDBusConnection bus = QDBusConnection::sessionBus();
     if( !bus.registerService( DBUS_SERVICE ) )
         std::cerr << "couldn't register " << qPrintable(DBUS_SERVICE) << std::endl;
     if( !bus.registerObject( DBUS_OBJECT_PATH, this ) )
         std::cerr << "couldn't register " << qPrintable(DBUS_OBJECT_PATH) << std::endl;
+#endif
 }
 
 /* these functions are for popping up desktop notifications */
@@ -277,7 +288,9 @@ MyApp :: onTorrentCompleted( int id )
 
     if( tor && !tor->name().isEmpty() )
     {
+#ifdef WITH_DBUS
         notify( tr( "Torrent Completed" ), tor->name( ) );
+#endif
 
         disconnect( tor, SIGNAL(torrentCompleted(int)), this, SLOT(onTorrentCompleted(int)) );
     }
@@ -290,9 +303,11 @@ MyApp :: onNewTorrentChanged( int id )
 
     if( tor && !tor->name().isEmpty() )
     {
+#ifdef WITH_DBUS
         const int age_secs = tor->dateAdded().secsTo(QDateTime::currentDateTime());
         if( age_secs < 30 )
             notify( tr( "Torrent Added" ), tor->name( ) );
+#endif
 
         disconnect( tor, SIGNAL(torrentChanged(int)), this, SLOT(onNewTorrentChanged(int)) );
 
@@ -438,6 +453,7 @@ MyApp :: raise( )
     QApplication :: alert ( myWindow );
 }
 
+#ifdef WITH_DBUS
 bool
 MyApp :: notify( const QString& title, const QString& body ) const
 {
@@ -461,6 +477,7 @@ MyApp :: notify( const QString& title, const QString& body ) const
     //std::cerr << qPrintable(replyMsg.errorMessage()) << std::endl;
     return (replyMsg.type() == QDBusMessage::ReplyMessage) && !replyMsg.arguments().isEmpty();
 }
+#endif
 
 /***
 ****
@@ -480,6 +497,7 @@ main( int argc, char * argv[] )
 
     // try to delegate the work to an existing copy of Transmission
     // before starting ourselves...
+#ifdef WITH_DBUS
     bool delegated = false;
     QDBusConnection bus = QDBusConnection::sessionBus();
     for( int i=0, n=addme.size(); i<n; ++i )
@@ -508,6 +526,7 @@ main( int argc, char * argv[] )
 
     if( delegated )
         return 0;
+#endif
 
     tr_optind = 1;
     MyApp app( argc, argv );
