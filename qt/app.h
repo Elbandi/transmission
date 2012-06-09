@@ -34,7 +34,9 @@ class MyApp: public QApplication
 
   public:
     void raise ();
+#ifdef WITH_DBUS
     bool notifyApp (const QString& title, const QString& body) const;
+#endif
 
   public:
     Favicons favicons;

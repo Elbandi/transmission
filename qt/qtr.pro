@@ -12,7 +12,7 @@ man.path = /share/man/man1/
 man.files = transmission-qt.1
 
 CONFIG += qt thread debug link_pkgconfig c++11 warn_on
-QT += network dbus
+QT += network
 PKGCONFIG = fontconfig libcurl openssl libevent
 
 greaterThan(QT_MAJOR_VERSION, 4) {
@@ -31,7 +31,6 @@ LIBS += $${TRANSMISSION_TOP}/third-party/dht/libdht.a
 LIBS += $${LIBUPNP_LIBS}
 LIBS += $${LIBNATPMP_LIBS}
 unix: LIBS += -L$${EVENT_TOP}/lib -lz -lrt
-win32:DEFINES += QT_DBUS
 win32:LIBS += -levent-2.0 -lws2_32 -lintl
 win32:LIBS += -lidn -liconv -lwldap32 -liphlpapi
 
@@ -50,7 +49,6 @@ RESOURCES += application.qrc
 SOURCES += about.cc \
            add-data.cc \
            app.cc \
-           dbus-adaptor.cc \
            details.cc \
            favicon.cc \
            file-tree.cc \
@@ -80,6 +78,14 @@ SOURCES += about.cc \
            triconpushbutton.cc \
            utils.cc \
            watchdir.cc
+
+qdbus {
+  win32:DEFINES += QT_DBUS
+  SOURCES += dbus-adaptor.cc
+  DEFINES += WITH_DBUS
+  QT += dbus
+}
+
 HEADERS += $$replace(SOURCES, .cc, .h)
 HEADERS += speed.h types.h
 
