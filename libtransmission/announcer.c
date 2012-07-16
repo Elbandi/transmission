@@ -912,7 +912,9 @@ announce_request_new( const tr_announcer  * announcer,
     req->up = tier->byteCounts[TR_ANN_UP];
     req->down = tier->byteCounts[TR_ANN_DOWN];
     req->corrupt = tier->byteCounts[TR_ANN_CORRUPT];
-    req->left = tr_cpLeftUntilComplete( &tor->completion );
+    req->leftUntilComplete = tr_torrentHasMetadata( tor )
+            ? tor->info.totalSize - tr_cpHaveTotal( &tor->completion )
+            : ~(uint64_t)0;
     req->event = event;
     req->numwant = event == TR_ANNOUNCE_EVENT_STOPPED ? 0 : NUMWANT;
     req->key = announcer->key;
@@ -1141,7 +1143,7 @@ on_announce_done( const tr_announce_response  * response,
 
             /* if the tracker included scrape fields in its announce response,
                then a separate scrape isn't needed */
-            if( scrape_fields >= 3 )
+            if( ( scrape_fields >= 3 ) || ( !tracker->scrape && ( scrape_fields >= 1 ) ) )
             {
                 tr_tordbg( tier->tor, "Announce response contained scrape info; "
                                       "rescheduling next scrape to %d seconds from now.",
