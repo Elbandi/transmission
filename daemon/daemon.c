@@ -65,6 +65,9 @@ static bool paused = false;
 static bool seenHUP = false;
 static const char *logfileName = NULL;
 static FILE *logfile = NULL;
+#ifdef HAVE_SYSLOG
+static bool usesyslog = false;
+#endif
 static tr_session * mySession = NULL;
 static tr_quark key_pidfile = 0;
 static struct event_base *ev_base = NULL;
@@ -302,7 +305,7 @@ onFileAdded (tr_session * session, const char * dir, const char * file)
 }
 
 static void
-printMessage (FILE * logfile, int level, const char * name, const char * message, const char * file, int line)
+printMessage (FILE * logfile, bool usesyslog, int level, const char * name, const char * message, const char * file, int line)
 {
     if (logfile != NULL)
     {
@@ -314,7 +317,7 @@ printMessage (FILE * logfile, int level, const char * name, const char * message
             fprintf (logfile, "[%s] %s (%s:%d)\n", timestr, message, file, line);
     }
 #ifdef HAVE_SYSLOG
-    else /* daemon... write to syslog */
+    if (usesyslog) /* daemon... write to syslog */
     {
         int priority;
 
@@ -334,13 +337,13 @@ printMessage (FILE * logfile, int level, const char * name, const char * message
 }
 
 static void
-pumpLogMessages (FILE * logfile)
+pumpLogMessages (FILE * logfile, bool usesyslog)
 {
     const tr_log_message * l;
     tr_log_message * list = tr_logGetQueue ();
 
     for (l=list; l!=NULL; l=l->next)
-        printMessage (logfile, l->level, l->name, l->message, l->file, l->line);
+        printMessage (logfile, usesyslog, l->level, l->name, l->message, l->file, l->line);
 
     if (logfile != NULL)
         fflush (logfile);
@@ -365,7 +368,7 @@ periodicUpdate (evutil_socket_t fd UNUSED, short what UNUSED, void *watchdir)
 {
     dtr_watchdir_update (watchdir);
 
-    pumpLogMessages (logfile);
+    pumpLogMessages (logfile, usesyslog);
 
     reportStatus ();
 }
@@ -390,9 +393,6 @@ main (int argc, char ** argv)
     bool boolVal;
     bool loaded;
     bool foreground = false;
-#ifdef HAVE_SYSLOG
-    bool usesyslog = false;
-#endif
     bool dumpSettings = false;
     const char * configDir = NULL;
     const char * pid_filename;
@@ -521,12 +521,15 @@ main (int argc, char ** argv)
         }
     }
 
+#ifdef HAVE_SYSLOG
+    usesyslog &= (foreground || !logfile);
+#endif
     if (foreground && !logfile)
         logfile = stderr;
 
     if (!loaded)
     {
-        printMessage (logfile, TR_LOG_ERROR, MY_NAME, "Error loading config file -- exiting.", __FILE__, __LINE__);
+        printMessage (logfile, false, TR_LOG_ERROR, MY_NAME, "Error loading config file -- exiting.", __FILE__, __LINE__);
         return -1;
     }
 
@@ -542,7 +545,7 @@ main (int argc, char ** argv)
     {
         char buf[256];
         tr_snprintf (buf, sizeof (buf), "Failed to daemonize: %s", tr_strerror (errno));
-        printMessage (logfile, TR_LOG_ERROR, MY_NAME, buf, __FILE__, __LINE__);
+        printMessage (logfile, false, TR_LOG_ERROR, MY_NAME, buf, __FILE__, __LINE__);
         exit (1);
     }
 
@@ -554,7 +557,7 @@ main (int argc, char ** argv)
     {
         char buf[256];
         tr_snprintf(buf, sizeof(buf), "Failed to init daemon event state: %s", tr_strerror(errno));
-        printMessage (logfile, TR_LOG_ERROR, MY_NAME, buf, __FILE__, __LINE__);
+        printMessage (logfile, false, TR_LOG_ERROR, MY_NAME, buf, __FILE__, __LINE__);
         exit (1);
     }
 
@@ -619,8 +622,7 @@ main (int argc, char ** argv)
     }
 
 #ifdef HAVE_SYSLOG
-    foreground &= !usesyslog;
-    if (!foreground)
+    if (usesyslog)
         openlog (MY_NAME, LOG_CONS|LOG_PID, LOG_DAEMON);
 #endif
 
@@ -663,14 +665,17 @@ cleanup:
     tr_sessionSaveSettings (mySession, configDir, &settings);
     dtr_watchdir_free (watchdir);
     tr_sessionClose (mySession);
-    pumpLogMessages (logfile);
+    pumpLogMessages (logfile, usesyslog);
     printf (" done.\n");
 
     /* shutdown */
 #if HAVE_SYSLOG
     if (!foreground)
     {
-        syslog (LOG_INFO, "%s", "Closing session");
+        printMessage (logfile, usesyslog, TR_LOG_INFO, MY_NAME, "Closing session", __FILE__, __LINE__);
+    }
+    if (usesyslog)
+    {
         closelog ();
     }
 #endif
