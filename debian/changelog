@@ -1,3 +1,26 @@
+transmission (2.77-0+elbandi1) unstable; urgency=low
+
+  [ Andras Elso ]
+  * Disable Gtk and Qt build in some distribution
+  * Daemon can force use of syslog
+  * Block status over rpc
+  * pieces complete count over rpc
+  * Next DHT announce query over rpc
+  * get the availablePeersFrom over rpc
+  * Send hostname in rpc query
+  * Disable dbus support in Qt client
+  * Allow query diskstatus over rpc
+  * T remote query the diskstatus
+  * WebClient query the diskstatus too
+  * Can add peer to torrent
+  * T remote add peer feature
+  * Torrent label feature
+  * T remote get/set the labels
+  * "This if statement is redundant" -- Suggested by wereHamster
+  * Fix: use syslog is needed
+
+ -- Andras Elso <ea333@freemail.hu>  Fri, 20 Sep 2013 18:26:19 +0200
+
 transmission (2.77-0) unstable; urgency=low
 
   * new upstream release
