@@ -1,3 +1,9 @@
+transmission (2.71-0) unstable; urgency=low
+
+  * new upstream release
+
+ -- Andras Elso <ea333@freemail.hu>  Thu, 11 Oct 2012 00:11:58 +0200
+
 transmission (2.61-0) unstable; urgency=low
 
   * new upstream release
