@@ -261,6 +261,7 @@ static tr_option opts[] =
     { 920, "session-info",           "Show the session's details", "si", 0, NULL },
     { 921, "session-stats",          "Show the session's statistics", "st", 0, NULL },
     { 'l', "list",                   "List all torrents", "l",  0, NULL },
+    { 'L', "labels",                 "Labels the current torrent(s)", "L",  1, "<label>" },
     { 960, "move",                   "Move current torrent's data to a new folder", NULL, 1, "<path>" },
     { 961, "find",                   "Tell Transmission where to find a torrent's data", NULL, 1, "<path>" },
     { 'm', "portmap",                "Enable portmapping via NAT-PMP or UPnP", "m",  0, NULL },
@@ -412,6 +413,7 @@ getOptMode (int val)
         case 993: /* no-trash-torrent */
             return MODE_SESSION_SET;
 
+        case 'L': /* labels */
         case 712: /* tracker-remove */
         case 950: /* seedratio */
         case 951: /* seedratio-default */
@@ -629,6 +631,29 @@ addDays (tr_benc * args, const char * key, const char * arg)
 }
 
 static void
+addLabels (tr_benc *    args,
+           const char * key,
+           const char * arg)
+{
+    tr_benc * labels = tr_bencDictAddList (args, key, 100);
+
+    while (arg && *arg)
+    {
+        const char * pch = strchr (arg, ',');
+        char * str;
+        if (pch) {
+            str = tr_strndup (arg, pch - arg);
+            arg = pch + 1;
+        } else {
+            str = tr_strdup (arg);
+            arg += strlen (arg);
+        }
+        tr_bencListAddStr (labels, str);
+        tr_free (str);
+    }
+}
+
+static void
 addFiles (tr_benc *    args,
           const char * key,
           const char * arg)
@@ -685,6 +710,7 @@ static const char * details_keys[] = {
     "id",
     "isFinished",
     "isPrivate",
+    "labels",
     "leftUntilDone",
     "magnetLink",
     "name",
@@ -873,6 +899,23 @@ printDetails (tr_benc * top)
                 printf ("  Hash: %s\n", str);
             if (tr_bencDictFindStr (t, "magnetLink", &str))
                 printf ("  Magnet: %s\n", str);
+            if (tr_bencDictFindList (t, "labels", &l))
+            {
+                int i, n = tr_bencListSize (l);
+                const char *str;
+                printf ("  Labels: ");
+                for (i = 0; i < n; i++)
+                {
+                    if (tr_bencGetStr (tr_bencListChild (l, i), &str))
+                    {
+                        if (i == 0)
+                            printf ("%s", str);
+                        else
+                            printf (", %s", str);
+                    }
+                }
+                printf("\n");
+            }
             printf ("\n");
 
             printf ("TRANSFER\n");
@@ -2215,6 +2258,8 @@ processArgs (const char * rpcurl, int argc, const char ** argv)
 
             switch (c)
             {
+                case 'L': addLabels (args, "labels", optarg);
+                          break;
                 case 712: tr_bencListAddInt (tr_bencDictAddList (args, "trackerRemove", 1), atoi (optarg));
                           break;
                 case 950: tr_bencDictAddReal (args, "seedRatioLimit", atof (optarg));
