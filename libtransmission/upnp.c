@@ -89,19 +89,17 @@ tr_upnpClose (tr_upnp * handle)
 static struct UPNPDev *
 tr_upnpDiscover (int msec)
 {
-    int err = 0;
     struct UPNPDev * ret = NULL;
 
 #if defined (HAVE_MINIUPNP_16)
+    int err = UPNPDISCOVER_SUCCESS;
     ret = upnpDiscover (msec, NULL, NULL, 0, 0, &err);
+    if (err != UPNPDISCOVER_SUCCESS)
 #elif defined (HAVE_MINIUPNP_15)
     ret = upnpDiscover (msec, NULL, NULL, 0);
-#else
-    ret = UPNPCOMMAND_UNKNOWN_ERROR;
+    if (ret == NULL)
 #endif
-
-    if (ret != UPNPCOMMAND_SUCCESS)
-        tr_ndbg (getKey (), "upnpDiscover failed (errno %d - %s)", err, tr_strerror (err));
+        tr_ndbg (getKey (), "upnpDiscover failed (errno %d - %s)", errno, tr_strerror (errno));
 
     return ret;
 }
