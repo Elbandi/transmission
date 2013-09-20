@@ -103,6 +103,7 @@ Transmission.prototype =
 		var async = false;
 		this.loadDaemonPrefs(async);
 		this.loadDaemonStats(async);
+		this.loadQuotas(async);
 		this.initializeTorrents();
 		this.refreshTorrents();
 		this.togglePeriodicSessionRefresh(true);
@@ -116,6 +117,13 @@ Transmission.prototype =
 			Prefs.getClutchPrefs(o);
 			this.updateGuiFromSession(o);
 			this.sessionProperties = o;
+		}, this, async);
+	},
+
+	loadQuotas: function(async) {
+		this.remote.loadQuotas(function(data) {
+			var o = data['arguments'];
+			this.updateQuotas(o);
 		}, this, async);
 	},
 
@@ -562,6 +570,8 @@ Transmission.prototype =
 		        var callback = $.proxy(this.loadDaemonPrefs,this),
 			    msec = 8000;
 			this.sessionInterval = setInterval(callback, msec);
+			callback = $.proxy(this.loadQuotas,this);
+			setInterval(callback, msec);
 		}
 	},
 
@@ -1125,6 +1135,24 @@ Transmission.prototype =
                         e.deselectMenuSiblings().selectMenuItem();
 		}
 	},
+
+	updateQuotas: function( quotas )
+	{
+		// remember them for later
+		this._quotas = quotas;
+		var fmt = Transmission.fmt;
+
+		if (quotas['block-used'] >= quotas['block-soft'])
+		{
+			setInnerHTML($('#statusbar #quota-used-label')[0], fmt.size(quotas['block-used'] * 1024)+' ('+quotas['block-timeleft']+' hours left)'  );
+		}
+		else
+		{
+			setInnerHTML($('#statusbar #quota-used-label')[0], fmt.size(quotas['block-used'] * 1024) );
+		}
+		setInnerHTML( $('#statusbar #quota-soft-label')[0], fmt.size(quotas['block-soft'] * 1024) );
+		setInnerHTML( $('#statusbar #quota-hard-label')[0], fmt.size(quotas['block-hard'] * 1024) );
+       },
 
 	updateStatusbar: function()
 	{
