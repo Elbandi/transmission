@@ -128,6 +128,9 @@ static const struct tr_option options[] =
     { 'r', "rpc-bind-address", "Where to listen for RPC connections", "r", 1, "<ipv4 addr>" },
     { 953, "global-seedratio", "All torrents, unless overridden by a per-torrent setting, should seed until a specific ratio", "gsr", 1, "ratio" },
     { 954, "no-global-seedratio", "All torrents, unless overridden by a per-torrent setting, should seed regardless of ratio", "GSR", 0, NULL },
+#ifdef HAVE_SYSLOG
+    { 's', "syslog", "Force use of syslog", "s", 0, NULL },
+#endif
     { 'x', "pid-file", "Enable PID file", "x", 1, "<pid-file>" },
     { 0, NULL, NULL, NULL, 0, NULL }
 };
@@ -296,7 +299,7 @@ onFileAdded (tr_session * session, const char * dir, const char * file)
 }
 
 static void
-printMessage (FILE * logfile, int level, const char * name, const char * message, const char * file, int line)
+printMessage (FILE * logfile, bool usesyslog, int level, const char * name, const char * message, const char * file, int line)
 {
     if (logfile != NULL)
     {
@@ -308,7 +311,7 @@ printMessage (FILE * logfile, int level, const char * name, const char * message
             fprintf (logfile, "[%s] %s (%s:%d)\n", timestr, message, file, line);
     }
 #ifdef HAVE_SYSLOG
-    else /* daemon... write to syslog */
+    if (usesyslog) /* daemon... write to syslog */
     {
         int priority;
 
@@ -328,13 +331,13 @@ printMessage (FILE * logfile, int level, const char * name, const char * message
 }
 
 static void
-pumpLogMessages (FILE * logfile)
+pumpLogMessages (FILE * logfile, bool usesyslog)
 {
     const tr_msg_list * l;
     tr_msg_list * list = tr_getQueuedMessages ();
 
     for (l=list; l!=NULL; l=l->next)
-        printMessage (logfile, l->level, l->name, l->message, l->file, l->line);
+        printMessage (logfile, usesyslog, l->level, l->name, l->message, l->file, l->line);
 
     if (logfile != NULL)
         fflush (logfile);
@@ -362,6 +365,7 @@ main (int argc, char ** argv)
     bool boolVal;
     bool loaded;
     bool foreground = false;
+    bool usesyslog = false;
     bool dumpSettings = false;
     const char * configDir = NULL;
     const char * pid_filename;
@@ -414,6 +418,10 @@ main (int argc, char ** argv)
                       break;
             case 'g': /* handled above */
                       break;
+#ifdef HAVE_SYSLOG
+            case 's': usesyslog = true;
+                      break;
+#endif
             case 'V': /* version */
                       fprintf (stderr, "%s %s\n", MY_NAME, LONG_VERSION_STRING);
                       exit (0);
@@ -483,12 +491,13 @@ main (int argc, char ** argv)
         }
     }
 
+    usesyslog &= (foreground || !logfile);
     if (foreground && !logfile)
         logfile = stderr;
 
     if (!loaded)
     {
-        printMessage (logfile, TR_MSG_ERR, MY_NAME, "Error loading config file -- exiting.", __FILE__, __LINE__);
+        printMessage (logfile, false, TR_MSG_ERR, MY_NAME, "Error loading config file -- exiting.", __FILE__, __LINE__);
         return -1;
     }
 
@@ -504,7 +513,7 @@ main (int argc, char ** argv)
     {
         char buf[256];
         tr_snprintf (buf, sizeof (buf), "Failed to daemonize: %s", tr_strerror (errno));
-        printMessage (logfile, TR_MSG_ERR, MY_NAME, buf, __FILE__, __LINE__);
+        printMessage (logfile, false, TR_MSG_ERR, MY_NAME, buf, __FILE__, __LINE__);
         exit (1);
     }
 
@@ -569,21 +578,21 @@ main (int argc, char ** argv)
     }
 
 #ifdef HAVE_SYSLOG
-    if (!foreground)
+    if (usesyslog)
         openlog (MY_NAME, LOG_CONS|LOG_PID, LOG_DAEMON);
 #endif
 
     while (!closing) {
         tr_wait_msec (1000); /* sleep one second */
         dtr_watchdir_update (watchdir);
-        pumpLogMessages (logfile);
+        pumpLogMessages (logfile, usesyslog);
     }
 
     printf ("Closing transmission session...");
     tr_sessionSaveSettings (mySession, configDir, &settings);
     dtr_watchdir_free (watchdir);
     tr_sessionClose (mySession);
-    pumpLogMessages (logfile);
+    pumpLogMessages (logfile, usesyslog);
     printf (" done.\n");
 
     /* shutdown */
@@ -591,6 +600,7 @@ main (int argc, char ** argv)
     if (!foreground)
     {
         syslog (LOG_INFO, "%s", "Closing session");
+        printMessage (logfile, true, TR_MSG_INF, MY_NAME, "Closing session", __FILE__, __LINE__);
         closelog ();
     }
 #endif

@@ -1201,13 +1201,15 @@ tr_torrentStat (tr_torrent * tor)
     tr_strlcpy (s->errorString, tor->errorString, sizeof (s->errorString));
 
     s->manualAnnounceTime = tr_announcerNextManualAnnounce (tor);
+    s->dhtAnnounceTime = MIN (tor->dhtAnnounceAt, tor->dhtAnnounce6At);
 
     tr_peerMgrTorrentStats (tor,
                             &s->peersConnected,
                             &s->webseedsSendingToUs,
                             &s->peersSendingToUs,
                             &s->peersGettingFromUs,
-                            s->peersFrom);
+                            s->peersFrom,
+                            s->availablepeersFrom);
 
     now = tr_time_msec ();
     s->rawUploadSpeed_KBps     = toSpeedKBps (tr_bandwidthGetRawSpeed_Bps (&tor->bandwidth, now, TR_UP));

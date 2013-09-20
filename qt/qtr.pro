@@ -11,7 +11,7 @@ unix: INSTALLS += man
 man.path = /share/man/man1/
 man.files = transmission-qt.1
 
-CONFIG += qt qdbus thread debug link_pkgconfig
+CONFIG += qt thread debug link_pkgconfig
 QT += network
 PKGCONFIG = fontconfig libcurl openssl libevent
 
@@ -27,7 +27,6 @@ LIBS += $${TRANSMISSION_TOP}/third-party/dht/libdht.a
 LIBS += $${LIBUPNP_LIBS}
 LIBS += $${LIBNATPMP_LIBS}
 unix: LIBS += -L$${EVENT_TOP}/lib -lz -lrt
-win32:DEFINES += QT_DBUS
 win32:LIBS += -levent-2.0 -lws2_32 -lintl
 win32:LIBS += -lidn -liconv -lwldap32 -liphlpapi
 
@@ -45,7 +44,6 @@ RESOURCES += application.qrc
 SOURCES += about.cc \
            add-data.cc \
            app.cc \
-           dbus-adaptor.cc \
            details.cc \
            favicon.cc \
            file-tree.cc \
@@ -74,6 +72,13 @@ SOURCES += about.cc \
            triconpushbutton.cc \
            utils.cc \
            watchdir.cc
+
+qdbus {
+  win32:DEFINES += QT_DBUS
+  SOURCES += dbus-adaptor.cc
+  DEFINES += WITH_DBUS
+}
+
 HEADERS += $$replace(SOURCES, .cc, .h)
 HEADERS += speed.h types.h
 
