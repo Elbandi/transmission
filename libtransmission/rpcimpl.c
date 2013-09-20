@@ -29,6 +29,7 @@
 #include "completion.h"
 #include "fdlimit.h"
 #include "json.h"
+#include "peer-mgr.h"
 #include "platform.h"
 #include "rpcimpl.h"
 #include "session.h"
@@ -1120,6 +1121,31 @@ removeTrackers (tr_torrent * tor, tr_benc * ids)
     return errmsg;
 }
 
+static void
+addPeer( tr_torrent * tor,
+         const char * str )
+{
+    const char * delim = strchr( str, ':' );
+    if( delim )
+    {
+        tr_pex pex;
+        char * host;
+        int    port = atoi( delim + 1 );
+	
+        if ( port < 0 || port > USHRT_MAX )
+            return;
+
+        host = tr_strndup( str, delim - str );
+        if ( tr_address_from_string( &pex.addr, host ) )
+        {
+            pex.port = htons( port );
+            tr_peerMgrAddPex( tor, TR_PEER_FROM_PEX , &pex, -1 );
+        }
+        tr_free( host );
+    }
+    return;
+}
+
 static const char*
 torrentSet (tr_session               * session,
             tr_benc                  * args_in,
@@ -1136,11 +1162,14 @@ torrentSet (tr_session               * session,
     {
         int64_t      tmp;
         double       d;
+        const char * str;
         tr_benc *    files;
         tr_benc *    trackers;
         bool         boolVal;
         tr_torrent * tor = torrents[i];
 
+        if (tr_bencDictFindStr (args_in, "add-peer", &str))
+            addPeer (tor, str);
         if (tr_bencDictFindInt (args_in, "bandwidthPriority", &tmp))
             if (tr_isPriority (tmp))
                 tr_torrentSetPriority (tor, tmp);

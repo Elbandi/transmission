@@ -315,6 +315,7 @@ static tr_option opts[] =
     { 'y', "lpd",                    "Enable local peer discovery (LPD)", "y",  0, NULL },
     { 'Y', "no-lpd",                 "Disable local peer discovery (LPD)", "Y",  0, NULL },
     { 941, "peer-info",              "List the current torrent (s)' peers", "pi",  0, NULL },
+    { 944, "add-peer",               "Add peer", "apr", 1, "<ip:port>" },
     {   0, NULL,                     NULL, NULL, 0, NULL }
 };
 
@@ -415,6 +416,7 @@ getOptMode (int val)
 
         case 'L': /* labels */
         case 712: /* tracker-remove */
+        case 944: /* add-peer */
         case 950: /* seedratio */
         case 951: /* seedratio-default */
         case 952: /* no-seedratio */
@@ -2261,6 +2263,8 @@ processArgs (const char * rpcurl, int argc, const char ** argv)
                 case 'L': addLabels (args, "labels", optarg);
                           break;
                 case 712: tr_bencListAddInt (tr_bencDictAddList (args, "trackerRemove", 1), atoi (optarg));
+                          break;
+                case 944: tr_bencDictAddStr (args, "add-peer", optarg);
                           break;
                 case 950: tr_bencDictAddReal (args, "seedRatioLimit", atof (optarg));
                           tr_bencDictAddInt (args, "seedRatioMode", TR_RATIOLIMIT_SINGLE);
