@@ -21,6 +21,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
+#include <QMimeData>
 #include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
@@ -113,8 +114,8 @@ MakeDialog :: makeTorrent( )
 
     // get the tiers
     int tier = 0;
-    QList<tr_tracker_info> trackers;
-    foreach( QString line, myTrackerEdit->toPlainText().split(QChar::fromAscii('\n')) ) {
+    QVector<tr_tracker_info> trackers;
+    foreach( QString line, myTrackerEdit->toPlainText().split("\n") ) {
         line = line.trimmed( );
         if( line.isEmpty( ) )
             ++tier;
@@ -147,10 +148,9 @@ MakeDialog :: makeTorrent( )
     myTimer.start( 100 );
 
     // the file to create
-    const QString path = QString::fromLocal8Bit( myBuilder->top );
-    const QString torrentName = QFileInfo(path).completeBaseName() + QString::fromAscii(".torrent");
+    const QString path = QString::fromUtf8( myBuilder->top );
+    const QString torrentName = QFileInfo(path).completeBaseName() + ".torrent";
     myTarget = QDir( myDestination ).filePath( torrentName );
-    std::cerr << qPrintable(myTarget) << std::endl;
 
     // comment
     QString comment;
@@ -160,7 +160,7 @@ MakeDialog :: makeTorrent( )
     // start making the torrent
     tr_makeMetaInfo( myBuilder,
                      myTarget.toUtf8().constData(),
-                     (trackers.isEmpty() ? 0 : &trackers.front()),
+                     (trackers.isEmpty() ? NULL : trackers.data()),
                      trackers.size(),
                      (comment.isEmpty() ? NULL : comment.toUtf8().constData()),
                      myPrivateCheck->isChecked() );
@@ -343,7 +343,7 @@ MakeDialog :: MakeDialog( Session & session, QWidget * parent ):
         const QPixmap folderPixmap = folderIcon.pixmap( iconSize );
         QPushButton * b = new QPushButton;
         b->setIcon( folderPixmap );
-        b->setStyleSheet( QString::fromAscii( "text-align: left; padding-left: 5; padding-right: 5" ) );
+        b->setStyleSheet( QString::fromUtf8( "text-align: left; padding-left: 5; padding-right: 5" ) );
         myDestination = QDir::homePath();
         b->setText( myDestination );
         connect( b, SIGNAL(clicked(bool)),
@@ -357,7 +357,7 @@ MakeDialog :: MakeDialog( Session & session, QWidget * parent ):
         myFolderButton = new QPushButton;
         myFolderButton->setIcon( folderPixmap );
         myFolderButton->setText( tr( "(None)" ) );
-        myFolderButton->setStyleSheet( QString::fromAscii( "text-align: left; padding-left: 5; padding-right: 5" ) );
+        myFolderButton->setStyleSheet( QString::fromUtf8( "text-align: left; padding-left: 5; padding-right: 5" ) );
         connect( myFolderButton, SIGNAL(clicked(bool)),
                  this, SLOT(onFolderClicked(void)) );
         hig->addRow( myFolderRadio, myFolderButton );
@@ -372,7 +372,7 @@ MakeDialog :: MakeDialog( Session & session, QWidget * parent ):
         myFileButton = new QPushButton;
         myFileButton->setText( tr( "(None)" ) );
         myFileButton->setIcon( filePixmap );
-        myFileButton->setStyleSheet( QString::fromAscii( "text-align: left; padding-left: 5; padding-right: 5" ) );
+        myFileButton->setStyleSheet( QString::fromUtf8( "text-align: left; padding-left: 5; padding-right: 5" ) );
         connect( myFileButton, SIGNAL(clicked(bool)),
                  this, SLOT(onFileClicked(void)) );
         hig->addRow( myFileRadio, myFileButton );
@@ -385,7 +385,7 @@ MakeDialog :: MakeDialog( Session & session, QWidget * parent ):
     hig->addSectionTitle( tr( "Properties" ) );
 
         hig->addWideControl( myTrackerEdit = new ShortPlainTextEdit );
-        const int height = fontMetrics().size( 0, QString::fromAscii("\n\n\n\n") ).height( );
+        const int height = fontMetrics().size( 0, QString::fromUtf8("\n\n\n\n") ).height( );
         myTrackerEdit->setMinimumHeight( height );
         hig->addTallRow( tr( "&Trackers:" ), myTrackerEdit );
         QLabel * l = new QLabel( tr( "To add a backup URL, add it on the line after the primary URL.\nTo add another primary URL, add it after a blank line." ) );

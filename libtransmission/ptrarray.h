@@ -37,7 +37,11 @@ typedef struct tr_ptrArray
 }
 tr_ptrArray;
 
+typedef int (*PtrArrayCompareFunc)(const void * a, const void * b);
+
 typedef void (*PtrArrayForeachFunc)(void *);
+
+#define TR_PTR_ARRAY_INIT_STATIC { NULL, 0, 0 }
 
 extern const tr_ptrArray TR_PTR_ARRAY_INIT;
 
@@ -126,11 +130,11 @@ int tr_ptrArrayInsertSorted (tr_ptrArray * array,
                              void        * value,
                              int compare (const void*, const void*));
 
-/** @brief Remove a pointer from an array sorted by the specified sort function
-    @return the matching pointer, or NULL if no match was found */
-void* tr_ptrArrayRemoveSorted (tr_ptrArray * array,
-                               const void  * value,
-                               int compare (const void*, const void*));
+/** @brief Remove this specific pointer from a sorted ptrarray */
+void tr_ptrArrayRemoveSortedPointer (tr_ptrArray * t,
+                                     const void  * ptr,
+                                     int           compare (const void*, const void*));
+
 
 /** @brief Find a pointer from an array sorted by the specified sort function
     @return the matching pointer, or NULL if no match was found */

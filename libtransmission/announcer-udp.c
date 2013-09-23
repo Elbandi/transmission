@@ -12,6 +12,7 @@
 
 #define __LIBTRANSMISSION_ANNOUNCER_MODULE___
 
+#include <errno.h> /* errno, EAFNOSUPPORT */
 #include <string.h> /* memcpy (), memset () */
 
 #include <event2/buffer.h>
@@ -22,6 +23,7 @@
 #include "announcer.h"
 #include "announcer-common.h"
 #include "crypto.h" /* tr_cryptoRandBuf () */
+#include "log.h"
 #include "peer-io.h"
 #include "peer-mgr.h" /* tr_peerMgrCompactToPex () */
 #include "ptrarray.h"
@@ -29,9 +31,12 @@
 #include "utils.h"
 
 #define dbgmsg(name, ...) \
-if (tr_deepLoggingIsActive ()) do { \
-  tr_deepLog (__FILE__, __LINE__, name, __VA_ARGS__); \
-} while (0)
+  do \
+    { \
+      if (tr_logGetDeepEnabled ()) \
+        tr_logAddDeep (__FILE__, __LINE__, name, __VA_ARGS__); \
+    } \
+  while (0)
 
 /****
 *****
@@ -675,7 +680,6 @@ tau_tracker_upkeep (struct tau_tracker * tracker)
         struct evutil_addrinfo hints;
         memset (&hints, 0, sizeof (hints));
         hints.ai_family = AF_UNSPEC;
-        hints.ai_flags = EVUTIL_AI_CANONNAME;
         hints.ai_socktype = SOCK_DGRAM;
         hints.ai_protocol = IPPROTO_UDP;
         tracker->is_asking_dns = true;

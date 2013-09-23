@@ -30,7 +30,7 @@
 #import "BonjourController.h"
 #import "NSApplicationAdditions.h"
 #import "NSStringAdditions.h"
-#import "UKKQueue.h"
+#import "VDKQueue.h"
 
 #import "transmission.h"
 #import "utils.h"
@@ -108,7 +108,10 @@
         //set auto import
         NSString * autoPath;
         if ([fDefaults boolForKey: @"AutoImport"] && (autoPath = [fDefaults stringForKey: @"AutoImportDirectory"]))
-            [[UKKQueue sharedFileWatcher] addPath: [autoPath stringByExpandingTildeInPath]];
+            [[(Controller *)[NSApp delegate] fileWatcherQueue] addPath: [autoPath stringByExpandingTildeInPath] notifyingAbout: VDKQueueNotifyAboutWrite];
+        
+        //set special-handling of magnet link add window checkbox
+        [self updateShowAddMagnetWindowField];
         
         //set blocklist scheduler
         [[BlocklistScheduler scheduler] updateSchedule];
@@ -820,6 +823,7 @@
 - (void) setDownloadLocation: (id) sender
 {
     [fDefaults setBool: [fFolderPopUp indexOfSelectedItem] == DOWNLOAD_FOLDER forKey: @"DownloadLocationConstant"];
+    [self updateShowAddMagnetWindowField];
 }
 
 - (void) folderSheetShow: (id) sender
@@ -839,7 +843,8 @@
             
             NSString * folder = [[[panel URLs] objectAtIndex: 0] path];
             [fDefaults setObject: folder forKey: @"DownloadFolder"];
-            [fDefaults setObject: @"Constant" forKey: @"DownloadChoice"];
+            [fDefaults setBool: YES forKey: @"DownloadLocationConstant"];
+            [self updateShowAddMagnetWindowField];
             
             tr_sessionSetDownloadDir(fHandle, [folder UTF8String]);
         }
@@ -908,6 +913,26 @@
     tr_sessionSetIncompleteFileNamingEnabled(fHandle, [fDefaults boolForKey: @"RenamePartialFiles"]);
 }
 
+- (void) setShowAddMagnetWindow: (id) sender
+{
+    [fDefaults setBool: ([fShowMagnetAddWindowCheck state] == NSOnState) forKey: @"MagnetOpenAsk"];
+}
+
+- (void) updateShowAddMagnetWindowField
+{
+    if (![fDefaults boolForKey: @"DownloadLocationConstant"])
+    {
+        //always show the add window for magnet links when the download location is the same as the torrent file
+        [fShowMagnetAddWindowCheck setState: NSOnState];
+        [fShowMagnetAddWindowCheck setEnabled: NO];
+    }
+    else
+    {
+        [fShowMagnetAddWindowCheck setState: [fDefaults boolForKey: @"MagnetOpenAsk"]];
+        [fShowMagnetAddWindowCheck setEnabled: YES];
+    }
+}
+
 - (void) setDoneScriptEnabled: (id) sender
 {
     if ([fDefaults boolForKey: @"DoneScriptEnabled"] && ![[NSFileManager defaultManager] fileExistsAtPath: [fDefaults stringForKey:@"DoneScriptPath"]])
@@ -924,11 +949,14 @@
     NSString * path;
     if ((path = [fDefaults stringForKey: @"AutoImportDirectory"]))
     {
-        path = [path stringByExpandingTildeInPath];
+        VDKQueue * watcherQueue = [(Controller *)[NSApp delegate] fileWatcherQueue];
         if ([fDefaults boolForKey: @"AutoImport"])
-            [[UKKQueue sharedFileWatcher] addPath: path];
+        {
+            path = [path stringByExpandingTildeInPath];
+            [watcherQueue addPath: path notifyingAbout: VDKQueueNotifyAboutWrite];
+        }
         else
-            [[UKKQueue sharedFileWatcher] removePathFromQueue: path];
+            [watcherQueue removeAllPaths];
         
         [[NSNotificationCenter defaultCenter] postNotificationName: @"AutoImportSettingChange" object: self];
     }
@@ -947,21 +975,23 @@
     [panel setCanCreateDirectories: YES];
 
     [panel beginSheetModalForWindow: [self window] completionHandler: ^(NSInteger result) {
-        NSString * path = [fDefaults stringForKey: @"AutoImportDirectory"];
         if (result == NSFileHandlingPanelOKButton)
         {
-            UKKQueue * sharedQueue = [UKKQueue sharedFileWatcher];
-            if (path)
-                [sharedQueue removePathFromQueue: [path stringByExpandingTildeInPath]];
+            VDKQueue * watcherQueue = [(Controller *)[NSApp delegate] fileWatcherQueue];
+            [watcherQueue removeAllPaths];
             
-            path = [[[panel URLs] objectAtIndex: 0] path];
+            NSString * path = [[[panel URLs] objectAtIndex: 0] path];
             [fDefaults setObject: path forKey: @"AutoImportDirectory"];
-            [sharedQueue addPath: [path stringByExpandingTildeInPath]];
+            [watcherQueue addPath: [path stringByExpandingTildeInPath] notifyingAbout: VDKQueueNotifyAboutWrite];
             
             [[NSNotificationCenter defaultCenter] postNotificationName: @"AutoImportSettingChange" object: self];
         }
-        else if (!path)
-            [fDefaults setBool: NO forKey: @"AutoImport"];
+        else
+        {
+            NSString * path = [fDefaults stringForKey: @"AutoImportDirectory"];
+            if (!path)
+                [fDefaults setBool: NO forKey: @"AutoImport"];
+        }
         
         [fImportFolderPopUp selectItemAtIndex: 0];
     }];

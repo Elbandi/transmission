@@ -130,6 +130,21 @@ tr_bitfieldCountRange (const tr_bitfield * b, size_t begin, size_t end)
   return countRange (b, begin, end);
 }
 
+bool
+tr_bitfieldHas (const tr_bitfield * b, size_t n)
+{
+  if (tr_bitfieldHasAll (b))
+    return true;
+
+  if (tr_bitfieldHasNone (b))
+    return false;
+
+  if (n>>3u >= b->alloc_count)
+    return false;
+
+  return (b->bits[n>>3u] << (n & 7u) & 0x80) != 0;
+}
+
 /***
 ****
 ***/
@@ -164,9 +179,12 @@ set_all_true (uint8_t * array, size_t bit_count)
   const uint8_t val = 0xFF;
   const size_t n = get_bytes_needed (bit_count);
 
-  memset (array, val, n-1);
+  if (n > 0)
+    {
+      memset (array, val, n-1);
 
-  array[n-1] = val << (n*8 - bit_count);
+      array[n-1] = val << (n*8 - bit_count);
+    }
 }
 
 void*

@@ -143,7 +143,7 @@ decodeBitCometClient (char * buf, size_t buflen, const uint8_t * id)
     return true;
 }
 
-void
+char *
 tr_clientForId (char * buf, size_t buflen, const void * id_in)
 {
     const uint8_t * id = id_in;
@@ -151,7 +151,7 @@ tr_clientForId (char * buf, size_t buflen, const void * id_in)
     *buf = '\0';
 
     if (!id)
-        return;
+        return buf;
 
     /* Azureus-style */
     if (id[0] == '-' && id[7] == '-')
@@ -308,7 +308,7 @@ tr_clientForId (char * buf, size_t buflen, const void * id_in)
         }
 
         if (*buf)
-            return;
+            return buf;
     }
 
     /* uTorrent will replace the trailing dash with an extra digit for longer version numbers */
@@ -331,7 +331,7 @@ tr_clientForId (char * buf, size_t buflen, const void * id_in)
         }
 
         if (*buf)
-            return;
+            return buf;
     }
 
     /* Mainline */
@@ -339,11 +339,11 @@ tr_clientForId (char * buf, size_t buflen, const void * id_in)
     {
         if (*id=='M') mainline_style (buf, buflen, "BitTorrent", id);
         if (*id=='Q') mainline_style (buf, buflen, "Queen Bee", id);
-        if (*buf) return;
+        if (*buf) return buf;
     }
 
     if (decodeBitCometClient (buf, buflen, id))
-        return;
+        return buf;
 
     /* Clients with no version */
          if (!memcmp (id, "AZ2500BT", 8))  no_version (buf, buflen, "BitTyrant (Azureus Mod)");
@@ -415,8 +415,13 @@ tr_clientForId (char * buf, size_t buflen, const void * id_in)
     {
         four_digits (buf, buflen, "BT Next Evolution", id+3);
     }
+    else if (!memcmp (id, "TIX", 3))
+    {
+        two_major_two_minor (buf, buflen, "Tixati", id+3);
+    }
 
     /* Shad0w-style */
+    if (!*buf)
     {
         int a, b, c;
         if (strchr ("AOQRSTU", id[0])
@@ -440,7 +445,7 @@ tr_clientForId (char * buf, size_t buflen, const void * id_in)
             if (name)
             {
                 tr_snprintf (buf, buflen, "%s %d.%d.%d", name, a, b, c);
-                return;
+                return buf;
             }
         }
     }
@@ -461,4 +466,6 @@ tr_clientForId (char * buf, size_t buflen, const void * id_in)
         *walk = '\0';
         tr_strlcpy (buf, out, buflen);
     }
+
+  return buf;
 }
