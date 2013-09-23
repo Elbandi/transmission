@@ -1,0 +1,13 @@
+diff --git a/qt/torrent.cc b/qt/torrent.cc
+--- a/qt/torrent.cc
++++ b/qt/torrent.cc
+@@ -554,7 +554,9 @@ Torrent :: update (tr_variant * d)
+       tr_variant * child;
+ 
+       myFiles.clear ();
++#if QT_VERSION >= QT_VERSION_CHECK(4, 7, 0)
+       myFiles.reserve (tr_variantListSize (files));
++#endif
+ 
+       while ((child = tr_variantListChild (files, i)))
+         {
