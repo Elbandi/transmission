@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2009-2014 Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2. Works owned by the
- * Transmission project are granted a special exemption to clause 2 (b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -14,7 +11,7 @@
  #define _GNU_SOURCE /* glibc's string.h needs this to pick up memmem */
 #endif
 
-#if defined (SYS_DARWIN)
+#if defined (XCODE_BUILD)
  #define HAVE_GETPAGESIZE
  #define HAVE_ICONV_OPEN
  #define HAVE_MKDTEMP
@@ -27,7 +24,6 @@
 #include <float.h> /* DBL_EPSILON */
 #include <locale.h> /* localeconv () */
 #include <math.h> /* pow (), fabs (), floor () */
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h> /* strerror (), memset (), memmem () */
@@ -45,11 +41,11 @@
 #include <event2/buffer.h>
 #include <event2/event.h>
 
-#ifdef WIN32
+#ifdef _WIN32
  #include <w32api.h>
  #define WINVER WindowsXP /* freeaddrinfo (), getaddrinfo (), getnameinfo () */
  #include <direct.h> /* _getcwd () */
- #include <windows.h> /* Sleep () */
+ #include <windows.h> /* Sleep (), GetSystemTimeAsFileTime () */
 #endif
 
 #include "transmission.h"
@@ -80,6 +76,41 @@ tr_localtime_r (const time_t *_clock, struct tm *_result)
   if (p)
     * (_result) = *p;
   return p;
+#endif
+}
+
+int
+tr_gettimeofday (struct timeval * tv)
+{
+#ifdef _MSC_VER
+#define DELTA_EPOCH_IN_MICROSECS 11644473600000000Ui64
+
+  FILETIME ft;
+  uint64_t tmp = 0;
+
+  if (tv == NULL)
+    {
+      errno = EINVAL;
+      return -1;
+    }
+
+  GetSystemTimeAsFileTime(&ft);
+  tmp |= ft.dwHighDateTime;
+  tmp <<= 32;
+  tmp |= ft.dwLowDateTime;
+  tmp /= 10; /* to microseconds */
+  tmp -= DELTA_EPOCH_IN_MICROSECS;
+
+  tv->tv_sec = tmp / 1000000UL;
+  tv->tv_usec = tmp % 1000000UL;
+
+  return 0;
+
+#undef DELTA_EPOCH_IN_MICROSECS
+#else
+
+  return gettimeofday (tv, NULL);
+
 #endif
 }
 
@@ -248,19 +279,69 @@ tr_loadFile (const char * path,
 char*
 tr_basename (const char * path)
 {
+#ifdef _MSC_VER
+
+  char fname[_MAX_FNAME], ext[_MAX_EXT];
+  if (_splitpath_s (path, NULL, 0, NULL, 0, fname, sizeof (fname), ext, sizeof (ext)) == 0)
+    {
+      const size_t tmpLen = strlen(fname) + strlen(ext) + 2;
+      char * const tmp = tr_malloc (tmpLen);
+      if (tmp != NULL)
+        {
+          if (_makepath_s (tmp, tmpLen, NULL, NULL, fname, ext) == 0)
+            return tmp;
+
+          tr_free (tmp);
+        }
+    }
+
+  return tr_strdup (".");
+
+#else
+
   char * tmp = tr_strdup (path);
   char * ret = tr_strdup (basename (tmp));
   tr_free (tmp);
   return ret;
+
+#endif
 }
 
 char*
 tr_dirname (const char * path)
 {
+#ifdef _MSC_VER
+
+  char drive[_MAX_DRIVE], dir[_MAX_DIR];
+  if (_splitpath_s (path, drive, sizeof (drive), dir, sizeof (dir), NULL, 0, NULL, 0) == 0)
+    {
+      const size_t tmpLen = strlen(drive) + strlen(dir) + 2;
+      char * const tmp = tr_malloc (tmpLen);
+      if (tmp != NULL)
+        {
+          if (_makepath_s (tmp, tmpLen, drive, dir, NULL, NULL) == 0)
+            {
+              size_t len = strlen(tmp);
+              while (len > 0 && (tmp[len - 1] == '/' || tmp[len - 1] == '\\'))
+                tmp[--len] = '\0';
+
+              return tmp;
+            }
+
+          tr_free (tmp);
+        }
+    }
+
+  return tr_strdup (".");
+
+#else
+
   char * tmp = tr_strdup (path);
   char * ret = tr_strdup (dirname (tmp));
   tr_free (tmp);
   return ret;
+
+#endif
 }
 
 char*
@@ -287,7 +368,7 @@ tr_mkdtemp (char * template)
 static int
 tr_mkdir (const char * path, int permissions UNUSED)
 {
-#ifdef WIN32
+#ifdef _WIN32
   if (path && isalpha (path[0]) && path[1] == ':' && !path[2])
     return 0;
   return mkdir (path);
@@ -413,7 +494,7 @@ tr_buildPath (const char *first_element, ...)
   return buf;
 }
 
-#ifdef SYS_DARWIN
+#ifdef __APPLE__
  #define TR_STAT_MTIME(sb)((sb).st_mtimespec.tv_sec)
 #else
  #define TR_STAT_MTIME(sb)((sb).st_mtime)
@@ -520,26 +601,21 @@ tr_strdup_printf (const char * fmt, ...)
 {
   va_list ap;
   char * ret;
-  size_t len;
-  char statbuf[2048];
 
   va_start (ap, fmt);
-  len = evutil_vsnprintf (statbuf, sizeof (statbuf), fmt, ap);
+  ret = tr_strdup_vprintf (fmt, ap);
   va_end (ap);
 
-  if (len < sizeof (statbuf))
-    {
-      ret = tr_strndup (statbuf, len);
-    }
-  else
-    {
-      ret = tr_new (char, len + 1);
-      va_start (ap, fmt);
-      evutil_vsnprintf (ret, len + 1, fmt, ap);
-      va_end (ap);
-    }
-
   return ret;
+}
+
+char *
+tr_strdup_vprintf (const char * fmt,
+                   va_list      args)
+{
+  struct evbuffer * buf = evbuffer_new ();
+  evbuffer_add_vprintf (buf, fmt, args);
+  return evbuffer_free_to_str (buf);
 }
 
 const char*
@@ -647,14 +723,14 @@ tr_time_msec (void)
 {
   struct timeval tv;
 
-  gettimeofday (&tv, NULL);
+  tr_gettimeofday (&tv);
   return (uint64_t) tv.tv_sec * 1000 + (tv.tv_usec / 1000);
 }
 
 void
 tr_wait_msec (long int msec)
 {
-#ifdef WIN32
+#ifdef _WIN32
   Sleep ((DWORD)msec);
 #else
   struct timespec ts;
@@ -1240,6 +1316,98 @@ tr_utf8clean (const char * str, int max_len)
   return ret;
 }
 
+#ifdef WIN32
+
+char *
+tr_win32_native_to_utf8 (const wchar_t * text,
+                         int             text_size)
+{
+  char * ret = NULL;
+  int size;
+
+  size = WideCharToMultiByte (CP_UTF8, 0, text, text_size, NULL, 0, NULL, NULL);
+  if (size == 0)
+    goto fail;
+
+  ret = tr_new (char, size + 1);
+  size = WideCharToMultiByte (CP_UTF8, 0, text, text_size, ret, size, NULL, NULL);
+  if (size == 0)
+    goto fail;
+
+  ret[size] = '\0';
+
+  return ret;
+
+fail:
+  tr_free (ret);
+
+  return NULL;
+}
+
+wchar_t *
+tr_win32_utf8_to_native (const char * text,
+                         int          text_size)
+{
+  return tr_win32_utf8_to_native_ex (text, text_size, 0);
+}
+
+wchar_t *
+tr_win32_utf8_to_native_ex (const char * text,
+                            int          text_size,
+                            int          extra_chars)
+{
+  wchar_t * ret = NULL;
+  int size;
+
+  size = MultiByteToWideChar (CP_UTF8, 0, text, text_size, NULL, 0);
+  if (size == 0)
+    goto fail;
+
+  ret = tr_new (wchar_t, size + extra_chars + 1);
+  size = MultiByteToWideChar (CP_UTF8, 0, text, text_size, ret, size);
+  if (size == 0)
+    goto fail;
+
+  ret[size] = L'\0';
+
+  return ret;
+
+fail:
+  tr_free (ret);
+
+  return NULL;
+}
+
+char *
+tr_win32_format_message (uint32_t code)
+{
+  wchar_t * wide_text = NULL;
+  DWORD wide_size;
+  char * text = NULL;
+  size_t text_size;
+
+  wide_size = FormatMessageW (FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                              FORMAT_MESSAGE_FROM_SYSTEM |
+                              FORMAT_MESSAGE_IGNORE_INSERTS,
+                              NULL, code, 0, (LPWSTR)&wide_text, 0, NULL);
+
+  if (wide_size != 0 && wide_text != NULL)
+    text = tr_win32_native_to_utf8 (wide_text, wide_size);
+
+  LocalFree (wide_text);
+
+  /* Most (all?) messages contain "\r\n" in the end, chop it */
+  text_size = strlen (text);
+  while (text_size > 0 &&
+         text[text_size - 1] >= '\0' &&
+         text[text_size - 1] <= ' ')
+    text[--text_size] = '\0';
+
+  return text;
+}
+
+#endif
+
 /***
 ****
 ***/
@@ -1542,7 +1710,7 @@ tr_remove (const char * pathname)
 bool
 tr_is_same_file (const char * filename1, const char * filename2)
 {
-#ifdef WIN32
+#ifdef _WIN32
 
   bool res;
   HANDLE fh1, fh2;
@@ -1619,7 +1787,7 @@ tr_valloc (size_t bufLen)
 char *
 tr_realpath (const char * path, char * resolved_path)
 {
-#ifdef WIN32
+#ifdef _WIN32
   /* From a message to the Mingw-msys list, Jun 2, 2005 by Mark Junker. */
   if (GetFullPathNameA (path, TR_PATH_MAX, resolved_path, NULL) == 0)
     return NULL;

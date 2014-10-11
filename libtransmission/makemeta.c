@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2010-2014 Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2. Works owned by the
- * Transmission project are granted a special exemption to clause 2 (b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -129,7 +126,7 @@ tr_metaInfoBuilderCreate (const char * topFileArg)
   {
     struct stat sb;
     stat (topFile, &sb);
-    ret->isSingleFile = !S_ISDIR (sb.st_mode);
+    ret->isFolder = S_ISDIR (sb.st_mode);
   }
 
   /* build a list of files containing topFile and,
@@ -168,15 +165,37 @@ tr_metaInfoBuilderCreate (const char * topFileArg)
   return ret;
 }
 
-void
+static bool
+isValidPieceSize (uint32_t n)
+{
+  const bool isPowerOfTwo = !(n == 0) && !(n & (n - 1));
+
+  return isPowerOfTwo;
+}
+
+bool
 tr_metaInfoBuilderSetPieceSize (tr_metainfo_builder * b,
                                 uint32_t              bytes)
 {
+  if (!isValidPieceSize (bytes))
+    {
+      char wanted[32];
+      char gotten[32];
+      tr_formatter_mem_B (wanted, bytes, sizeof(wanted));
+      tr_formatter_mem_B (gotten, b->pieceSize, sizeof(gotten));
+      tr_logAddError (_("Failed to set piece size to %s, leaving it at %s"),
+                      wanted,
+                      gotten);
+      return false;
+    }
+
   b->pieceSize = bytes;
 
   b->pieceCount = (int)(b->totalSize / b->pieceSize);
   if (b->totalSize % b->pieceSize)
     ++b->pieceCount;
+
+  return true;
 }
 
 
@@ -323,7 +342,8 @@ getFileInfo (const char                      * topFile,
       char * walk = filename;
       const char * token;
       while ((token = tr_strsep (&walk, TR_PATH_DELIMITER_STR)))
-        tr_variantListAddStr (uninitialized_path, token);
+        if (*token)
+          tr_variantListAddStr (uninitialized_path, token);
       tr_free (filename);
     }
 }
@@ -337,11 +357,7 @@ makeInfoDict (tr_variant          * dict,
 
   tr_variantDictReserve (dict, 5);
 
-  if (builder->isSingleFile)
-    {
-      tr_variantDictAddInt (dict, TR_KEY_length, builder->files[0].size);
-    }
-  else /* root node is a directory */
+  if (builder->isFolder) /* root node is a directory */
     {
       uint32_t  i;
       tr_variant * list = tr_variantDictAddList (dict, TR_KEY_files,
@@ -353,6 +369,10 @@ makeInfoDict (tr_variant          * dict,
           tr_variant * pathVal = tr_variantDictAdd (d, TR_KEY_path);
           getFileInfo (builder->top, &builder->files[i], length, pathVal);
         }
+    }
+  else
+    {
+      tr_variantDictAddInt (dict, TR_KEY_length, builder->files[0].size);
     }
 
   base = tr_basename (builder->top);
@@ -449,7 +469,7 @@ tr_realMakeMetaInfo (tr_metainfo_builder * builder)
   tr_variantFree (&top);
   if (builder->abortFlag)
     builder->result = TR_MAKEMETA_CANCELLED;
-  builder->isDone = 1;
+  builder->isDone = true;
 }
 
 /***
@@ -506,10 +526,12 @@ tr_makeMetaInfo (tr_metainfo_builder   * builder,
                  const tr_tracker_info * trackers,
                  int                     trackerCount,
                  const char            * comment,
-                 int                     isPrivate)
+                 bool                    isPrivate)
 {
   int i;
   tr_lock * lock;
+
+  assert (tr_isBool (isPrivate));
 
   /* free any variables from a previous run */
   for (i=0; i<builder->trackerCount; ++i)
@@ -519,9 +541,9 @@ tr_makeMetaInfo (tr_metainfo_builder   * builder,
   tr_free (builder->outputFile);
 
   /* initialize the builder variables */
-  builder->abortFlag = 0;
+  builder->abortFlag = false;
   builder->result = 0;
-  builder->isDone = 0;
+  builder->isDone = false;
   builder->pieceIndex = 0;
   builder->trackerCount = trackerCount;
   builder->trackers = tr_new0 (tr_tracker_info, builder->trackerCount);

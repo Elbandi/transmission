@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2009-2014 Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2. Works owned by the
- * Transmission project are granted a special exemption to clause 2 (b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -80,7 +77,7 @@ void tr_lockUnlock (tr_lock *);
 /** @brief return nonzero if the specified lock is locked */
 int tr_lockHave (const tr_lock *);
 
-#ifdef WIN32
+#ifdef _WIN32
 void * mmap (void *ptr, long  size, long  prot, long  type, long  handle, long  arg);
 
 long munmap (void *ptr, long  size);

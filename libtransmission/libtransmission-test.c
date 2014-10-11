@@ -1,5 +1,17 @@
+/*
+ * This file Copyright (C) 2013-2014 Mnemosyne LLC
+ *
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
+ *
+ * $Id$
+ */
+
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h> /* mkstemp() */
+
+#include <unistd.h>
 
 #include "transmission.h"
 #include "platform.h" /* TR_PATH_DELIMETER */
@@ -113,10 +125,9 @@ runTests (const testFunc * const tests, int numTests)
 
 #include "variant.h"
 
-tr_session * session = NULL;
-char * sandbox = NULL;
-char * downloadDir = NULL;
-char * blocklistDir = NULL;
+/***
+****
+***/
 
 static char*
 tr_getcwd (void)
@@ -124,7 +135,7 @@ tr_getcwd (void)
   char * result;
   char buf[2048];
 
-#ifdef WIN32
+#ifdef _WIN32
   result = _getcwd (buf, sizeof (buf));
 #else
   result = getcwd (buf, sizeof (buf));
@@ -137,6 +148,16 @@ tr_getcwd (void)
     }
 
   return tr_strdup (buf);
+}
+
+char *
+libtest_sandbox_create (void)
+{
+  char * path = tr_getcwd ();
+  char * sandbox = tr_buildPath (path, "sandbox-XXXXXX", NULL);
+  tr_free (path);
+  tr_mkdtemp (sandbox);
+  return sandbox;
 }
 
 static void
@@ -169,6 +190,16 @@ rm_rf (const char * killme)
       tr_remove (killme);
     }
 }
+
+void
+libtest_sandbox_destroy (const char * sandbox)
+{
+  rm_rf (sandbox);
+}
+
+/***
+****
+***/
 
 #define MEM_K 1024
 #define MEM_B_STR   "B"
@@ -208,10 +239,7 @@ libttest_session_init (tr_variant * settings)
   if (settings == NULL)
     settings = &local_settings;
 
-  path = tr_getcwd ();
-  sandbox = tr_buildPath (path, "sandbox-XXXXXX", NULL);
-  tr_mkdtemp (sandbox);
-  tr_free (path);
+  sandbox = libtest_sandbox_create ();
 
   if (!formatters_inited)
     {
@@ -266,15 +294,15 @@ libttest_session_init (tr_variant * settings)
 void
 libttest_session_close (tr_session * session)
 {
-  char * path;
+  char * sandbox;
 
-  path = tr_strdup (tr_sessionGetConfigDir (session));
+  sandbox = tr_strdup (tr_sessionGetConfigDir (session));
   tr_sessionClose (session);
   tr_logFreeQueue (tr_logGetQueue ());
   session = NULL;
 
-  rm_rf (path);
-  tr_free (path);
+  libtest_sandbox_destroy (sandbox);
+  tr_free (sandbox);
 }
 
 /***
@@ -405,4 +433,70 @@ libttest_blockingTorrentVerify (tr_torrent * tor)
   tr_torrentVerify (tor, onVerifyDone, &done);
   while (!done)
     tr_wait_msec (10);
+}
+
+static void
+build_parent_dir (const char* path)
+{
+  char * dir;
+  const int tmperr = errno;
+
+  dir = tr_dirname (path);
+  errno = 0;
+  tr_mkdirp (dir, 0700);
+  assert (errno == 0);
+  tr_free (dir);
+
+  errno = tmperr;
+}
+
+void
+libtest_create_file_with_contents (const char* path, const void* payload, size_t n)
+{
+  FILE * fp;
+  const int tmperr = errno;
+
+  build_parent_dir (path);
+
+  tr_remove (path);
+  fp = fopen (path, "wb");
+  fwrite (payload, 1, n, fp);
+  fclose (fp);
+
+  sync ();
+
+  errno = tmperr;
+}
+
+void
+libtest_create_file_with_string_contents (const char * path, const char* str)
+{
+  libtest_create_file_with_contents (path, str, strlen(str));
+}
+
+void
+libtest_create_tmpfile_with_contents (char* tmpl, const void* payload, size_t n)
+{
+  int fd;
+  const int tmperr = errno;
+  size_t n_left = n;
+
+  build_parent_dir (tmpl);
+
+  fd = mkstemp (tmpl);
+  while (n_left > 0)
+    {
+      const ssize_t n = write (fd, payload, n_left);
+      if (n == -1)
+        {
+          fprintf (stderr, "Error writing '%s': %s\n", tmpl, tr_strerror(errno));
+          break;
+        }
+      n_left -= n;
+    }
+  close (fd);
+
+  sync ();
+
+  errno = tmperr;
 }

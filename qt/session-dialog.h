@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2010-2014 Mnemosyne LLC
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
- *
- * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -25,30 +22,30 @@ class QSpinBox;
 
 class SessionDialog: public QDialog
 {
-        Q_OBJECT
+    Q_OBJECT
 
-    public:
-        SessionDialog( Session& session, Prefs& prefs, QWidget * parent = 0 );
-        ~SessionDialog( ) { }
+  public:
+    SessionDialog (Session& session, Prefs& prefs, QWidget * parent = 0);
+    ~SessionDialog () {}
 
-    private slots:
-        void onAccepted( );
-        void resensitize( );
+  private slots:
+    void onAccepted ();
+    void resensitize ();
 
-    private:
-        QCheckBox * myAuthCheckBox;
-        QRadioButton * myRemoteRadioButton;
-        QLineEdit * myHostLineEdit;
-        QSpinBox * myPortSpinBox;
-        QLineEdit * myUsernameLineEdit;
-        QLineEdit * myPasswordLineEdit;
-        QCheckBox * myAutomaticCheckBox;
+  private:
+    QCheckBox * myAuthCheckBox;
+    QRadioButton * myRemoteRadioButton;
+    QLineEdit * myHostLineEdit;
+    QSpinBox * myPortSpinBox;
+    QLineEdit * myUsernameLineEdit;
+    QLineEdit * myPasswordLineEdit;
+    QCheckBox * myAutomaticCheckBox;
 
-    private:
-        Session& mySession;
-        Prefs& myPrefs;
-        QWidgetList myRemoteWidgets;
-        QWidgetList myAuthWidgets;
+  private:
+    Session& mySession;
+    Prefs& myPrefs;
+    QWidgetList myRemoteWidgets;
+    QWidgetList myAuthWidgets;
 };
 
 #endif

@@ -28,6 +28,7 @@ libtransmission_a_SOURCES = \
   completion.c \
   ConvertUTF.c \
   crypto.c \
+  error.c \
   fdlimit.c \
   handshake.c \
   history.c \
@@ -71,6 +72,12 @@ libtransmission_a_SOURCES = \
   webseed.c \
   wildmat.c
 
+if WIN32
+libtransmission_a_SOURCES += file-win32.c
+else
+libtransmission_a_SOURCES += file-posix.c
+endif
+
 noinst_HEADERS = \
   announcer.h \
   announcer-common.h \
@@ -82,7 +89,9 @@ noinst_HEADERS = \
   ConvertUTF.h \
   crypto.h \
   completion.h \
+  error.h \
   fdlimit.h \
+  file.h \
   handshake.h \
   history.h \
   inout.h \
@@ -132,16 +141,20 @@ TESTS = \
   bitfield-test \
   blocklist-test \
   clients-test \
+  crypto-test \
+  error-test \
+  file-test \
   history-test \
   json-test \
   magnet-test \
+  makemeta-test \
   metainfo-test \
   move-test \
   peer-msgs-test \
   quark-test \
   rename-test \
   rpc-test \
-  test-peer-id \
+  session-test \
   tr-getopt-test \
   utils-test \
   variant-test
@@ -178,6 +191,18 @@ clients_test_SOURCES = clients-test.c $(TEST_SOURCES)
 clients_test_LDADD = ${apps_ldadd}
 clients_test_LDFLAGS = ${apps_ldflags}
 
+crypto_test_SOURCES = crypto-test.c $(TEST_SOURCES)
+crypto_test_LDADD = ${apps_ldadd}
+crypto_test_LDFLAGS = ${apps_ldflags}
+
+error_test_SOURCES = error-test.c $(TEST_SOURCES)
+error_test_LDADD = ${apps_ldadd}
+error_test_LDFLAGS = ${apps_ldflags}
+
+file_test_SOURCES = file-test.c $(TEST_SOURCES)
+file_test_LDADD = ${apps_ldadd}
+file_test_LDFLAGS = ${apps_ldflags}
+
 history_test_SOURCES = history-test.c $(TEST_SOURCES)
 history_test_LDADD = ${apps_ldadd}
 history_test_LDFLAGS = ${apps_ldflags}
@@ -198,6 +223,10 @@ metainfo_test_SOURCES = metainfo-test.c $(TEST_SOURCES)
 metainfo_test_LDADD = ${apps_ldadd}
 metainfo_test_LDFLAGS = ${apps_ldflags}
 
+makemeta_test_SOURCES = makemeta-test.c $(TEST_SOURCES)
+makemeta_test_LDADD = ${apps_ldadd}
+makemeta_test_LDFLAGS = ${apps_ldflags}
+
 move_test_SOURCES = move-test.c $(TEST_SOURCES)
 move_test_LDADD = ${apps_ldadd}
 move_test_LDFLAGS = ${apps_ldflags}
@@ -210,9 +239,9 @@ rpc_test_SOURCES = rpc-test.c $(TEST_SOURCES)
 rpc_test_LDADD = ${apps_ldadd}
 rpc_test_LDFLAGS = ${apps_ldflags}
 
-test_peer_id_SOURCES = test-peer-id.c $(TEST_SOURCES)
-test_peer_id_LDADD = ${apps_ldadd}
-test_peer_id_LDFLAGS = ${apps_ldflags}
+session_test_SOURCES = session-test.c $(TEST_SOURCES)
+session_test_LDADD = ${apps_ldadd}
+session_test_LDFLAGS = ${apps_ldflags}
 
 tr_getopt_test_SOURCES = tr-getopt-test.c $(TEST_SOURCES)
 tr_getopt_test_LDADD = ${apps_ldadd}

@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2005-2014 Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2. Works owned by the
- * Transmission project are granted a special exemption to clause 2 (b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -21,7 +18,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <string.h>
-#ifdef SYS_DARWIN
+#ifdef __APPLE__
  #include <fcntl.h>
 #endif
 
@@ -101,7 +98,7 @@ preallocate_file_full (const char * filename, uint64_t length)
 {
   bool success = 0;
 
-#ifdef WIN32
+#ifdef _WIN32
 
   HANDLE hFile = CreateFile (filename, GENERIC_WRITE, 0, 0, CREATE_NEW, FILE_FLAG_RANDOM_ACCESS, 0);
   if (hFile != INVALID_HANDLE_VALUE)
@@ -132,7 +129,7 @@ preallocate_file_full (const char * filename, uint64_t length)
           success = !xfsctl (NULL, fd, XFS_IOC_RESVSP64, &fl);
         }
 # endif
-# ifdef SYS_DARWIN
+# ifdef __APPLE__
       if (!success)
         {
           fstore_t fst;
@@ -175,7 +172,7 @@ preallocate_file_full (const char * filename, uint64_t length)
 int
 tr_fsync (int fd)
 {
-#ifdef WIN32
+#ifdef _WIN32
   return _commit (fd);
 #else
   return fsync (fd);
@@ -200,7 +197,7 @@ tr_fsync (int fd)
 #endif
 #endif
 
-#ifdef SYS_DARWIN
+#ifdef __APPLE__
  #define HAVE_PREAD
  #define HAVE_PWRITE
 #endif
@@ -236,7 +233,7 @@ tr_prefetch (int fd UNUSED, off_t offset UNUSED, size_t count UNUSED)
 {
 #ifdef HAVE_POSIX_FADVISE
   return posix_fadvise (fd, offset, count, POSIX_FADV_WILLNEED);
-#elif defined (SYS_DARWIN)
+#elif defined (__APPLE__)
   struct radvisory radv;
   radv.ra_offset = offset;
   radv.ra_count = count;
@@ -257,7 +254,7 @@ tr_set_file_for_single_pass (int fd)
 #ifdef HAVE_POSIX_FADVISE
       posix_fadvise (fd, 0, 0, POSIX_FADV_SEQUENTIAL);
 #endif
-#ifdef SYS_DARWIN
+#ifdef __APPLE__
       fcntl (fd, F_RDAHEAD, 1);
       fcntl (fd, F_NOCACHE, 1);
 #endif
@@ -587,7 +584,7 @@ tr_fdFileGetCached (tr_session * s, int torrent_id, tr_file_index_t i, bool writ
   return o->fd;
 }
 
-#ifdef SYS_DARWIN
+#ifdef __APPLE__
  #define TR_STAT_MTIME(sb)((sb).st_mtimespec.tv_sec)
 #else
  #define TR_STAT_MTIME(sb)((sb).st_mtime)

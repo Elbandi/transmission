@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2009-2014 Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2. Works owned by the
- * Transmission project are granted a special exemption to clause 2 (b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -14,8 +11,10 @@
 #define TR_UTILS_H 1
 
 #include <inttypes.h>
+#include <stdarg.h>
 #include <stddef.h> /* size_t */
 #include <time.h> /* time_t */
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,7 +77,7 @@ extern "C" {
 const char * tr_strip_positional_args (const char * fmt);
 
 #if !defined (_)
- #if defined (HAVE_LIBINTL_H) && !defined (SYS_DARWIN)
+ #if defined (HAVE_LIBINTL_H) && !defined (__APPLE__)
   #include <libintl.h>
   #define _(a) gettext (a)
  #else
@@ -88,7 +87,7 @@ const char * tr_strip_positional_args (const char * fmt);
 
 /* #define DISABLE_GETTEXT */
 #ifndef DISABLE_GETTEXT
- #if defined (WIN32) || defined (TR_LIGHTWEIGHT)
+ #if defined (_WIN32) || defined (TR_LIGHTWEIGHT)
    #define DISABLE_GETTEXT
  #endif
 #endif
@@ -179,6 +178,18 @@ void tr_wait_msec (long int delay_milliseconds);
  */
 char* tr_utf8clean (const char * str, int len) TR_GNUC_MALLOC;
 
+#ifdef WIN32
+
+char    * tr_win32_native_to_utf8    (const wchar_t * text,
+                                      int             text_size);
+wchar_t * tr_win32_utf8_to_native    (const char    * text,
+                                      int             text_size);
+wchar_t * tr_win32_utf8_to_native_ex (const char    * text,
+                                      int             text_size,
+                                      int             extra_chars);
+char    * tr_win32_format_message    (uint32_t        code);
+
+#endif
 
 /***
 ****
@@ -269,6 +280,8 @@ void tr_quickfindFirstK (void * base, size_t nmemb, size_t size,
  */
 char* tr_strdup_printf (const char * fmt, ...) TR_GNUC_PRINTF (1, 2)
                                                 TR_GNUC_MALLOC;
+char * tr_strdup_vprintf (const char * fmt,
+                          va_list      args) TR_GNUC_MALLOC;
 
 /**
  * @brief Translate a block of bytes into base64
@@ -388,6 +401,11 @@ char* tr_strratio (char * buf, size_t buflen, double ratio, const char * infinit
 /** @brief Portability wrapper for localtime_r () that uses the system implementation if available */
 struct tm * tr_localtime_r (const time_t *_clock, struct tm *_result);
 
+struct timeval;
+
+/** @brief Portability wrapper for gettimeofday (), with tz argument dropped */
+int tr_gettimeofday (struct timeval * tv);
+
 
 /**
  * @brief move a file
@@ -433,7 +451,7 @@ static inline time_t tr_time (void) { return __tr_current_time; }
 /** @brief Private libtransmission function to update tr_time ()'s counter */
 static inline void tr_timeUpdate (time_t now) { __tr_current_time = now; }
 
-#ifdef WIN32
+#ifdef _WIN32
  #include <windef.h> /* MAX_PATH */
  #define TR_PATH_MAX (MAX_PATH + 1)
 #else

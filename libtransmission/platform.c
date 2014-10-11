@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2009-2014 Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2. Works owned by the
- * Transmission project are granted a special exemption to clause 2 (b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -22,13 +19,13 @@
 #include <unistd.h> /* getuid(), close() */
 #include <sys/stat.h>
 
-#ifdef WIN32
+#ifdef _WIN32
  #include <w32api.h>
  #define WINVER  WindowsXP
  #include <windows.h>
  #include <shlobj.h> /* for CSIDL_APPDATA, CSIDL_MYDOCUMENTS */
 #else
- #ifdef SYS_DARWIN
+ #ifdef BUILD_MAC_CLIENT
   #include <CoreFoundation/CoreFoundation.h>
  #endif
  #ifdef __HAIKU__
@@ -37,7 +34,7 @@
  #include <pthread.h>
 #endif
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <libgen.h> /* dirname() */
 #endif
 
@@ -51,7 +48,7 @@
 ****  THREADS
 ***/
 
-#ifdef WIN32
+#ifdef _WIN32
 typedef DWORD tr_thread_id;
 #else
 typedef pthread_t tr_thread_id;
@@ -60,7 +57,7 @@ typedef pthread_t tr_thread_id;
 static tr_thread_id
 tr_getCurrentThread (void)
 {
-#ifdef WIN32
+#ifdef _WIN32
   return GetCurrentThreadId ();
 #else
   return pthread_self ();
@@ -70,7 +67,7 @@ tr_getCurrentThread (void)
 static bool
 tr_areThreadsEqual (tr_thread_id a, tr_thread_id b)
 {
-#ifdef WIN32
+#ifdef _WIN32
   return a == b;
 #else
   return pthread_equal (a, b) != 0;
@@ -83,7 +80,7 @@ struct tr_thread
   void          (* func)(void *);
   void           * arg;
   tr_thread_id     thread;
-#ifdef WIN32
+#ifdef _WIN32
   HANDLE           thread_handle;
 #endif
 };
@@ -94,7 +91,7 @@ tr_amInThread (const tr_thread * t)
   return tr_areThreadsEqual (tr_getCurrentThread (), t->thread);
 }
 
-#ifdef WIN32
+#ifdef _WIN32
  #define ThreadFuncReturnType unsigned WINAPI
 #else
  #define ThreadFuncReturnType void
@@ -108,7 +105,7 @@ ThreadFunc (void * _t)
   t->func (t->arg);
 
   tr_free (t);
-#ifdef WIN32
+#ifdef _WIN32
   _endthreadex (0);
   return 0;
 #endif
@@ -122,7 +119,7 @@ tr_threadNew (void (*func)(void *), void * arg)
   t->func = func;
   t->arg  = arg;
 
-#ifdef WIN32
+#ifdef _WIN32
   {
     unsigned int id;
     t->thread_handle = (HANDLE) _beginthreadex (NULL, 0, &ThreadFunc, t, 0, &id);
@@ -144,7 +141,7 @@ tr_threadNew (void (*func)(void *), void * arg)
 struct tr_lock
 {
   int                 depth;
-#ifdef WIN32
+#ifdef _WIN32
   CRITICAL_SECTION    lock;
   DWORD               lockThread;
 #else
@@ -158,7 +155,7 @@ tr_lockNew (void)
 {
   tr_lock * l = tr_new0 (tr_lock, 1);
 
-#ifdef WIN32
+#ifdef _WIN32
   InitializeCriticalSection (&l->lock); /* supports recursion */
 #else
   pthread_mutexattr_t attr;
@@ -173,7 +170,7 @@ tr_lockNew (void)
 void
 tr_lockFree (tr_lock * l)
 {
-#ifdef WIN32
+#ifdef _WIN32
     DeleteCriticalSection (&l->lock);
 #else
     pthread_mutex_destroy (&l->lock);
@@ -184,7 +181,7 @@ tr_lockFree (tr_lock * l)
 void
 tr_lockLock (tr_lock * l)
 {
-#ifdef WIN32
+#ifdef _WIN32
   EnterCriticalSection (&l->lock);
 #else
   pthread_mutex_lock (&l->lock);
@@ -211,7 +208,7 @@ tr_lockUnlock (tr_lock * l)
 
   --l->depth;
   assert (l->depth >= 0);
-#ifdef WIN32
+#ifdef _WIN32
   LeaveCriticalSection (&l->lock);
 #else
   pthread_mutex_unlock (&l->lock);
@@ -222,7 +219,7 @@ tr_lockUnlock (tr_lock * l)
 ****  PATHS
 ***/
 
-#ifndef WIN32
+#ifndef _WIN32
  #include <pwd.h>
 #endif
 
@@ -237,7 +234,7 @@ getHomeDir (void)
 
       if (!home)
         {
-#ifdef WIN32
+#ifdef _WIN32
           char appdata[MAX_PATH]; /* SHGetFolderPath () requires MAX_PATH */
           *appdata = '\0';
           SHGetFolderPath (NULL, CSIDL_PERSONAL, NULL, 0, appdata);
@@ -257,7 +254,7 @@ getHomeDir (void)
   return home;
 }
 
-#if defined (SYS_DARWIN) || defined (WIN32)
+#if defined (__APPLE__) || defined (WIN32)
  #define RESUME_SUBDIR  "Resume"
  #define TORRENT_SUBDIR "Torrents"
 #else
@@ -315,9 +312,9 @@ tr_getDefaultConfigDir (const char * appname)
         }
       else
         {
-#ifdef SYS_DARWIN
+#ifdef __APPLE__
           s = tr_buildPath (getHomeDir (), "Library", "Application Support", appname, NULL);
-#elif defined (WIN32)
+#elif defined (_WIN32)
           char appdata[TR_PATH_MAX]; /* SHGetFolderPath () requires MAX_PATH */
           SHGetFolderPath (NULL, CSIDL_APPDATA, NULL, 0, appdata);
           s = tr_buildPath (appdata, appname, NULL);
@@ -429,7 +426,7 @@ tr_getWebClientDir (const tr_session * session UNUSED)
       else
         {
 
-#ifdef SYS_DARWIN /* on Mac, look in the Application Support folder first, then in the app bundle. */
+#ifdef BUILD_MAC_CLIENT /* on Mac, look in the Application Support folder first, then in the app bundle. */
 
           /* Look in the Application Support folder */
           s = tr_buildPath (tr_sessionGetConfigDir (session), "web", NULL);
@@ -461,7 +458,7 @@ tr_getWebClientDir (const tr_session * session UNUSED)
               tr_free (appString);
             }
 
-#elif defined (WIN32)
+#elif defined (_WIN32)
 
           /* SHGetFolderPath explicitly requires MAX_PATH length */
           char dir[MAX_PATH];
@@ -568,7 +565,7 @@ tr_getWebClientDir (const tr_session * session UNUSED)
 }
 
 
-#ifdef WIN32
+#ifdef _WIN32
 
 /* The following mmap functions are by Joerg Walter, and were taken from
  * his paper at: http://www.genesys-e.de/jwalter/mix4win.htm */

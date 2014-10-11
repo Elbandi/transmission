@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2009-2014 Mnemosyne LLC
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
- *
- * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -24,34 +21,33 @@ class Torrent;
 
 class TorrentDelegate: public QStyledItemDelegate
 {
-        Q_OBJECT
+    Q_OBJECT
 
-    public:
-      static QColor blueBrush, greenBrush, silverBrush;
-      static QColor blueBack,  greenBack, silverBack;
+  public:
+    static QColor blueBrush, greenBrush, silverBrush;
+    static QColor blueBack,  greenBack, silverBack;
 
-    protected:
-        QStyleOptionProgressBar * myProgressBarStyle;
+  protected:
+    QStyleOptionProgressBar * myProgressBarStyle;
 
-    protected:
-        QString statusString( const Torrent& tor ) const;
-        QString progressString( const Torrent& tor ) const;
-        QString shortStatusString( const Torrent& tor ) const;
-        QString shortTransferString( const Torrent& tor ) const;
+  protected:
+    QString statusString (const Torrent& tor) const;
+    QString progressString (const Torrent& tor) const;
+    QString shortStatusString (const Torrent& tor) const;
+    QString shortTransferString (const Torrent& tor) const;
 
-    protected:
-        QSize margin( const QStyle& style ) const;
-        virtual QSize sizeHint( const QStyleOptionViewItem&, const Torrent& ) const;
-        virtual void setProgressBarPercentDone( const QStyleOptionViewItem& option, const Torrent& ) const;
-        virtual void drawTorrent( QPainter* painter, const QStyleOptionViewItem& option, const Torrent& ) const;
+  protected:
+    QSize margin (const QStyle& style) const;
+    virtual QSize sizeHint (const QStyleOptionViewItem&, const Torrent&) const;
+    virtual void setProgressBarPercentDone (const QStyleOptionViewItem& option, const Torrent&) const;
+    virtual void drawTorrent (QPainter* painter, const QStyleOptionViewItem& option, const Torrent&) const;
 
-    public:
-        explicit TorrentDelegate( QObject * parent=0 );
-        virtual ~TorrentDelegate( );
+  public:
+    explicit TorrentDelegate (QObject * parent=0);
+    virtual ~TorrentDelegate ();
 
-        QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const;
-        void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const;
-
+    QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const;
+    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const;
 };
 
 #endif

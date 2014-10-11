@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2007-2014 Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2. Works owned by the
- * Transmission project are granted a special exemption to clause 2 (b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -24,7 +21,7 @@
 #include "net.h"
 #include "session.h"
 
-#ifdef WIN32
+#ifdef _WIN32
 
 #include "utils.h"
 #include <winsock2.h>
@@ -160,9 +157,9 @@ struct tr_run_data
     } while (0)
 
 static void
-readFromPipe (int    fd,
-              short  eventType,
-              void * veh)
+readFromPipe (evutil_socket_t   fd,
+              short             eventType,
+              void            * veh)
 {
     char              ch;
     int               ret;
@@ -225,7 +222,7 @@ libeventThreadFunc (void * veh)
     struct event_base * base;
     tr_event_handle * eh = veh;
 
-#ifndef WIN32
+#ifndef _WIN32
     /* Don't exit when writing on a broken socket */
     signal (SIGPIPE, SIG_IGN);
 #endif

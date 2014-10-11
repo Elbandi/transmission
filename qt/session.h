@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2009-2014 Mnemosyne LLC
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
- *
- * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -21,6 +18,7 @@
 #include <QString>
 #include <QStringList>
 #include <QUrl>
+#include <QNetworkReply>
 
 class QStringList;
 
@@ -144,6 +142,8 @@ class Session: public QObject
     void torrentsRemoved (struct tr_variant * torrentList);
     void dataReadProgress ();
     void dataSendProgress ();
+    void error (QNetworkReply::NetworkError);
+    void errorMessage (const QString);
     void httpAuthenticationRequired ();
 
   private:

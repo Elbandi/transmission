@@ -33,7 +33,7 @@
 #include <signal.h> /* sig_atomic_t */
 #include <sys/time.h>
 #include <unistd.h> /* close () */
-#ifdef WIN32
+#ifdef _WIN32
   #include <inttypes.h>
   #define _WIN32_WINNT  0x0501	/* freeaddrinfo (),getaddrinfo (),getnameinfo () */
   #include <ws2tcpip.h>
@@ -66,7 +66,7 @@ static struct event *dht_timer = NULL;
 static unsigned char myid[20];
 static tr_session *session = NULL;
 
-static void timer_callback (int s, short type, void *ignore);
+static void timer_callback (evutil_socket_t s, short type, void *ignore);
 
 struct bootstrap_closure {
     tr_session *session;
@@ -514,7 +514,7 @@ tr_dhtPrintableStatus (int status)
 
 static void
 callback (void *ignore UNUSED, int event,
-          unsigned char *info_hash, void *data, size_t data_len)
+          const unsigned char *info_hash, const void *data, size_t data_len)
 {
     if (event == DHT_EVENT_VALUES || event == DHT_EVENT_VALUES6) {
         tr_torrent *tor;
@@ -657,7 +657,7 @@ tr_dhtCallback (unsigned char *buf, int buflen,
 }
 
 static void
-timer_callback (int s UNUSED, short type UNUSED, void *session)
+timer_callback (evutil_socket_t s UNUSED, short type UNUSED, void *session)
 {
     tr_dhtCallback (NULL, 0, NULL, 0, session);
 }

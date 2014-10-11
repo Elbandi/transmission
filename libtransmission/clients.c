@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2008-2014 Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2. Works owned by the
- * Transmission project are granted a special exemption to clause 2 (b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -166,10 +163,14 @@ tr_clientForId (char * buf, size_t buflen, const void * id_in)
                 tr_snprintf (buf, buflen, "Transmission %d.%02d%s", strint (id+3,1), strint (id+4,2),
                           id[6]=='Z' || id[6]=='X' ? "+" : "");
         }
-
         else if (!memcmp (id+1, "UT", 2))
         {
             tr_snprintf (buf, buflen, "\xc2\xb5Torrent %d.%d.%d%s",
+                         strint (id+3,1), strint (id+4,1), strint (id+5,1), getMnemonicEnd (id[6]));
+        }
+        else if (!memcmp (id+1, "BT", 2))
+        {
+            tr_snprintf (buf, buflen, "BitTorrent %d.%d.%d%s",
                          strint (id+3,1), strint (id+4,1), strint (id+5,1), getMnemonicEnd (id[6]));
         }
         else if (!memcmp (id+1, "UM", 2))

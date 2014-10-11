@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2009-2014 Mnemosyne LLC
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
- *
- * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -22,31 +19,30 @@ class QFileSystemWatcher;
 
 class WatchDir: public QObject
 {
-        Q_OBJECT
+    Q_OBJECT
 
-    public:
-        WatchDir( const TorrentModel& );
-        ~WatchDir( );
+  public:
+    WatchDir (const TorrentModel&);
+    ~WatchDir ();
 
-    public:
-        void setPath( const QString& path, bool isEnabled );
+  public:
+    void setPath (const QString& path, bool isEnabled);
 
-    private:
-        enum { OK, DUPLICATE, ERROR };
-        int metainfoTest( const QString& filename ) const;
+  private:
+    enum { OK, DUPLICATE, ERROR };
+    int metainfoTest (const QString& filename) const;
 
+  signals:
+    void torrentFileAdded (QString filename);
 
-    signals:
-        void torrentFileAdded( QString filename );
+  private slots:
+    void watcherActivated (const QString& path);
+    void onTimeout ();
 
-    private slots:
-        void watcherActivated( const QString& path );
-        void onTimeout( );
-
-    private:
-        const TorrentModel& myModel;
-        QSet<QString> myWatchDirFiles;
-        QFileSystemWatcher * myWatcher;
+  private:
+    const TorrentModel& myModel;
+    QSet<QString> myWatchDirFiles;
+    QFileSystemWatcher * myWatcher;
 };
 
 #endif

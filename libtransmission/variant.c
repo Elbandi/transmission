@@ -1,13 +1,10 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2008-2014 Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2. Works owned by the
- * Transmission project are granted a special exemption to clause 2 (b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
- * $Id:$
+ * $Id$
  */
 
 #include <assert.h>
@@ -16,7 +13,7 @@
 #include <stdlib.h> /* strtod(), realloc(), qsort(), mkstemp() */
 #include <string.h>
 
-#ifdef WIN32 /* tr_mkstemp() */
+#ifdef _WIN32 /* tr_mkstemp() */
  #include <fcntl.h>
  #include <share.h>
  #include <sys/stat.h>
@@ -1132,7 +1129,7 @@ tr_variantToStr (const tr_variant * v, tr_variant_fmt fmt, int * len)
 static int
 tr_mkstemp (char * template)
 {
-#ifdef WIN32
+#ifdef _WIN32
 
   const int n = strlen (template) + 1;
   const int flags = O_RDWR | O_BINARY | O_CREAT | O_EXCL | _O_SHORT_LIVED;

@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2008-2014 Mnemosyne LLC
  *
- * This file is licensed by the GPL version 2. Works owned by the
- * Transmission project are granted a special exemption to clause 2 (b)
- * so that the bulk of its code can remain under the MIT license.
- * This exemption does not extend to derived works not owned by
- * the Transmission project.
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -58,8 +55,6 @@ struct tr_cache;
 struct tr_fdInfo;
 struct tr_device_info;
 
-typedef void (tr_web_config_func)(tr_session * session, void * curl_pointer, const char * url, void * user_data);
-
 struct tr_turtle_info
 {
     /* TR_UP and TR_DOWN speed limits */
@@ -81,7 +76,7 @@ struct tr_turtle_info
     tr_sched_day days;
 
     /* called when isEnabled changes */
-    tr_altSpeedFunc * callback;
+    tr_altSpeedFunc callback;
 
     /* the callback's user_data argument */
     void * callbackUserData;

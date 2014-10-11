@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2012-2014 Mnemosyne LLC
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
- *
- * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -19,29 +16,28 @@
 
 class AddData
 {
-    public:
+  public:
 
-        enum { NONE, MAGNET, URL, FILENAME, METAINFO };
-        int type;
+    enum { NONE, MAGNET, URL, FILENAME, METAINFO };
+    int type;
 
-        QByteArray metainfo;
-        QString filename;
-        QString magnet;
-        QUrl url;
+    QByteArray metainfo;
+    QString filename;
+    QString magnet;
+    QUrl url;
 
-    public:
+  public:
 
-        int set( const QString& );
-        AddData( const QString& str ) { set(str); }
-        AddData( ): type(NONE) { }
+    int set (const QString&);
+    AddData (const QString& str) { set(str); }
+    AddData (): type(NONE) {}
 
-        QByteArray toBase64( ) const;
+    QByteArray toBase64 () const;
+    QString readableName () const;
 
-        QString readableName( ) const;
+  public:
 
-    public:
-
-        static bool isSupported( const QString& str ) { return AddData(str).type != NONE; }
+    static bool isSupported (const QString& str) { return AddData(str).type != NONE; }
 };
 
 #endif

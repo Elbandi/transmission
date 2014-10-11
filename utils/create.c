@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2012-2014 Mnemosyne LLC
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
- *
- * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -20,6 +17,8 @@
 #include <libtransmission/tr-getopt.h>
 #include <libtransmission/utils.h>
 #include <libtransmission/version.h>
+
+#include "units.h"
 
 #define MY_NAME "transmission-create"
 
@@ -114,7 +113,7 @@ tr_getcwd (void)
   char * result;
   char buf[2048];
 
-#ifdef WIN32
+#ifdef _WIN32
   result = _getcwd (buf, sizeof (buf));
 #else
   result = getcwd (buf, sizeof (buf));
@@ -136,6 +135,9 @@ main (int argc, char * argv[])
   tr_metainfo_builder * b = NULL;
 
   tr_logSetLevel (TR_LOG_ERROR);
+  tr_formatter_mem_init (MEM_K, MEM_K_STR, MEM_M_STR, MEM_G_STR, MEM_T_STR);
+  tr_formatter_size_init (DISK_K, DISK_K_STR, DISK_M_STR, DISK_G_STR, DISK_T_STR);
+  tr_formatter_speed_init (SPEED_K, SPEED_K_STR, SPEED_M_STR, SPEED_G_STR, SPEED_T_STR);
 
   if (parseCommandLine (argc, (const char**)argv))
     return EXIT_FAILURE;

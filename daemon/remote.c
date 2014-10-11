@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2008-2014 Mnemosyne LLC
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
- *
- * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * It may be used under the GNU GPL versions 2 or 3
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -18,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h> /* strcmp */
 
-#ifdef WIN32
+#ifdef _WIN32
  #include <direct.h> /* getcwd */
 #else
  #include <unistd.h> /* getcwd */
@@ -503,7 +500,7 @@ tr_getcwd (void)
   char * result;
   char buf[2048];
 
-#ifdef WIN32
+#ifdef _WIN32
   result = _getcwd (buf, sizeof (buf));
 #else
   result = getcwd (buf, sizeof (buf));
@@ -1060,7 +1057,7 @@ printDetails (tr_variant * top)
                         break;
                     case TR_RATIOLIMIT_SINGLE:
                         if (tr_variantDictFindReal (t, TR_KEY_seedRatioLimit, &d))
-                            printf ("  Ratio Limit: %.2f\n", d);
+                            printf ("  Ratio Limit: %s\n", strlratio2 (buf, d, sizeof(buf)));
                         break;
                     case TR_RATIOLIMIT_UNLIMITED:
                         printf ("  Ratio Limit: Unlimited\n");
@@ -1569,7 +1566,7 @@ printSession (tr_variant * top)
                 printf ("  Peer limit: %" PRId64 "\n", peerLimit);
 
                 if (seedRatioLimited)
-                    tr_snprintf (buf, sizeof (buf), "%.2f", seedRatioLimit);
+                    strlratio2 (buf, seedRatioLimit, sizeof(buf));
                 else
                     tr_strlcpy (buf, "Unlimited", sizeof (buf));
                 printf ("  Default seed ratio limit: %s\n", buf);
@@ -1772,7 +1769,10 @@ tr_curl_easy_init (struct evbuffer * writebuf)
     if (auth)
         curl_easy_setopt (curl, CURLOPT_USERPWD, auth);
     if (UseSSL)
+    {
+        curl_easy_setopt (curl, CURLOPT_SSL_VERIFYHOST, 0); /* do not verify subject/hostname */
         curl_easy_setopt (curl, CURLOPT_SSL_VERIFYPEER, 0); /* since most certs will be self-signed, do not verify against CA */		
+    }
     if (sessionId) {
         char * h = tr_strdup_printf ("%s: %s", TR_RPC_SESSION_ID_HEADER, sessionId);
         struct curl_slist * custom_headers = curl_slist_append (NULL, h);

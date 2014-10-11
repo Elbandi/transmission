@@ -1,11 +1,8 @@
 /*
- * This file Copyright (C) Mnemosyne LLC
+ * This file Copyright (C) 2009-2014 Mnemosyne LLC
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation.
- *
- * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * It may be used under the GNU Public License v2 or v3 licenses,
+ * or any future license endorsed by Mnemosyne LLC.
  *
  * $Id$
  */
@@ -157,6 +154,13 @@ FileTreeItem :: data (int column, int role) const
            value.setValue (priorityString());
            break;
         }
+    }
+  else if (role == Qt::DecorationRole && column == COL_NAME)
+    {
+      if (childCount () > 0)
+        value = QApplication::style ()->standardIcon (QStyle::SP_DirOpenIcon);
+      else
+        value = Utils::guessMimeIcon (name ());
     }
 
   return value;
@@ -380,6 +384,30 @@ FileTreeItem :: twiddleWanted (QSet<int>& ids, bool& wanted)
   setSubtreeWanted (wanted, ids);
 }
 
+QString
+FileTreeItem :: path () const
+{
+  QString itemPath;
+  const FileTreeItem * item = this;
+
+  while (item != NULL && !item->name().isEmpty())
+    {
+      if (itemPath.isEmpty())
+        itemPath = item->name();
+      else
+        itemPath = item->name() + "/" + itemPath;
+      item = item->parent ();
+    }
+
+  return itemPath;
+}
+
+bool
+FileTreeItem :: isComplete () const
+{
+  return myHaveSize == totalSize ();
+}
+
 /***
 ****
 ****
@@ -435,19 +463,9 @@ FileTreeModel :: setData (const QModelIndex& index, const QVariant& newname, int
 {
   if (role == Qt::EditRole)
     {
-      QString oldpath;
       FileTreeItem * item = itemFromIndex (index);
 
-      while (item && !item->name().isEmpty())
-        {
-          if (oldpath.isEmpty())
-            oldpath = item->name();
-          else
-            oldpath = item->name() + "/" + oldpath;
-          item = item->parent ();
-        }
-
-      emit pathEdited (oldpath, newname.toString());
+      emit pathEdited (item->path (), newname.toString ());
     }
 
   return false; // don't update the view until the session confirms the change
@@ -739,6 +757,22 @@ FileTreeModel :: clicked (const QModelIndex& index)
     }
 }
 
+void
+FileTreeModel :: doubleClicked (const QModelIndex& index)
+{
+  if (!index.isValid())
+    return;
+
+  const int column (index.column());
+  if (column == COL_WANTED || column == COL_PRIORITY)
+    return;
+
+  FileTreeItem * item = itemFromIndex (index);
+
+  if (item->childCount () == 0 && item->isComplete ())
+    emit openRequested (item->path ());
+}
+
 /****
 *****
 ****/
@@ -750,27 +784,13 @@ FileTreeDelegate :: sizeHint(const QStyleOptionViewItem& item, const QModelIndex
 
   switch(index.column())
     {
-      case COL_NAME:
-        {
-          const QFontMetrics fm(item.font);
-          const int iconSize = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
-          size.rwidth() = HIG::PAD_SMALL + iconSize;
-          size.rheight() = std::max(iconSize, fm.height());
-          break;
-        }
-
       case COL_PROGRESS:
       case COL_WANTED:
         size = QSize(20, 1);
         break;
 
       default:
-        {
-          const QFontMetrics fm(item.font);
-          const QString text = index.data().toString();
-          size = fm.size(0, text);
-          break;
-        }
+        size = QItemDelegate::sizeHint (item, index);
     }
 
   size.rheight() += 8; // make the spacing a little nicer
@@ -784,45 +804,18 @@ FileTreeDelegate :: paint (QPainter                    * painter,
 {
   const int column(index.column());
 
-  if ((column != COL_PROGRESS) && (column != COL_WANTED) && (column != COL_NAME))
+  if ((column != COL_PROGRESS) && (column != COL_WANTED))
     {
       QItemDelegate::paint(painter, option, index);
       return;
     }
 
   QStyle * style (QApplication :: style());
-  if (option.state & QStyle::State_Selected)
-    painter->fillRect (option.rect, option.palette.highlight());
+
   painter->save();
-  if (option.state & QStyle::State_Selected)
-    painter->setBrush (option.palette.highlightedText());
+  QItemDelegate::drawBackground (painter, option, index);
 
-  if (column == COL_NAME)
-    {
-      // draw the file icon
-      static const int iconSize (style->pixelMetric(QStyle :: PM_SmallIconSize));
-      const QRect iconArea (option.rect.x(),
-                            option.rect.y() + (option.rect.height()-iconSize)/2,
-                            iconSize, iconSize);
-      QIcon icon;
-      if (index.model()->hasChildren(index))
-        {
-          icon = style->standardIcon(QStyle::StandardPixmap(QStyle::SP_DirOpenIcon));
-        }
-      else
-        {
-          QString name = index.data().toString();
-          icon = Utils :: guessMimeIcon (name);
-        }
-      icon.paint (painter, iconArea, Qt::AlignCenter, QIcon::Normal, QIcon::On);
-
-      // draw the name
-      QStyleOptionViewItem tmp (option);
-      tmp.rect.setWidth (option.rect.width() - iconArea.width() - HIG::PAD_SMALL);
-      tmp.rect.moveRight (option.rect.right());
-      QItemDelegate::paint (painter, tmp, index);
-    }
-  else if(column == COL_PROGRESS)
+  if(column == COL_PROGRESS)
     {
       QStyleOptionProgressBar p;
       p.state = option.state | QStyle::State_Small;
@@ -856,6 +849,7 @@ FileTreeDelegate :: paint (QPainter                    * painter,
       style->drawControl (QStyle::CE_CheckBox, &o, painter);
     }
 
+  QItemDelegate::drawFocus (painter, option, option.rect);
   painter->restore();
 }
 
@@ -896,6 +890,9 @@ FileTreeView :: FileTreeView (QWidget * parent, bool isEditable):
   connect (this, SIGNAL(clicked(const QModelIndex&)),
            this, SLOT(onClicked(const QModelIndex&)));
 
+  connect (this, SIGNAL(doubleClicked(const QModelIndex&)),
+           this, SLOT(onDoubleClicked(const QModelIndex&)));
+
   connect (&myModel, SIGNAL(priorityChanged(const QSet<int>&, int)),
            this,     SIGNAL(priorityChanged(const QSet<int>&, int)));
 
@@ -904,6 +901,10 @@ FileTreeView :: FileTreeView (QWidget * parent, bool isEditable):
 
   connect (&myModel, SIGNAL(pathEdited(const QString&, const QString&)),
            this,     SIGNAL(pathEdited(const QString&, const QString&)));
+
+  connect (&myModel, SIGNAL (openRequested (const QString&)),
+           this,     SLOT (onOpenRequested (const QString&)),
+           Qt::QueuedConnection);
 }
 
 FileTreeView :: ~FileTreeView ()
@@ -916,6 +917,22 @@ FileTreeView :: onClicked (const QModelIndex& proxyIndex)
 {
   const QModelIndex modelIndex = myProxy->mapToSource (proxyIndex);
   myModel.clicked (modelIndex);
+}
+
+void
+FileTreeView :: onDoubleClicked (const QModelIndex& proxyIndex)
+{
+  const QModelIndex modelIndex = myProxy->mapToSource (proxyIndex);
+  myModel.doubleClicked (modelIndex);
+}
+
+void
+FileTreeView :: onOpenRequested (const QString& path)
+{
+  if (state () == EditingState)
+    return;
+
+  emit openRequested (path);
 }
 
 bool
@@ -948,6 +965,25 @@ FileTreeView :: eventFilter (QObject * o, QEvent * event)
         }
       left -= 20; // not sure why this is necessary.  it works in different themes + font sizes though...
       setColumnWidth(COL_NAME, std::max(left,0));
+    }
+
+  // handle using the keyboard to toggle the
+  // wanted/unwanted state or the file priority
+  else if (event->type () == QEvent::KeyPress && state () != EditingState)
+    {
+      switch (static_cast<QKeyEvent*> (event)->key ())
+        {
+        case Qt::Key_Space:
+          foreach (const QModelIndex& i, selectionModel ()->selectedRows (COL_WANTED))
+            clicked (i);
+          break;
+
+        case Qt::Key_Enter:
+        case Qt::Key_Return:
+          foreach (const QModelIndex& i, selectionModel ()->selectedRows (COL_PRIORITY))
+            clicked (i);
+          break;
+        }
     }
 
   return false;
