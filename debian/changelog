@@ -1,3 +1,31 @@
+transmission (2.84-0+elbandi1) unstable; urgency=low
+
+  [ Andras Elso ]
+  * Revert "(trunk) only make .xz tarballs in make-dist. anyone who
+    doesn't have xz by now has no excuse."
+  * Revert "in 'make distcheck', build xz and bz2 instead of gz"
+  * Disable Gtk and Qt build in some distribution
+  * Daemon can force use of syslog
+  * Block status over rpc
+  * pieces complete count over rpc
+  * Next DHT announce query over rpc
+  * get the availablePeersFrom over rpc
+  * Send hostname in rpc query
+  * Disable dbus support in Qt client
+  * Fix: use syslog is needed
+  * Use older AC_PROG_LIBTOOL
+  * Fix build on old QT
+  * Allow query diskstatus over rpc
+  * T remote query the diskstatus
+  * WebClient query the diskstatus too
+  * Torrent label feature
+  * T remote get/set the labels
+  * "This if statement is redundant" -- Suggested by wereHamster
+  * Can add peer to torrent
+  * T remote add peer feature
+
+ -- Andras Elso <ea333@freemail.hu>  Wed, 12 Nov 2014 02:13:49 +0100
+
 transmission (2.84-0) unstable; urgency=low
 
   * new upstream release
