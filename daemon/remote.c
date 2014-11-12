@@ -312,6 +312,7 @@ static tr_option opts[] =
     { 'y', "lpd",                    "Enable local peer discovery (LPD)", "y",  0, NULL },
     { 'Y', "no-lpd",                 "Disable local peer discovery (LPD)", "Y",  0, NULL },
     { 941, "peer-info",              "List the current torrent(s)' peers", "pi",  0, NULL },
+    { 944, "add-peer",               "Add peer", "apr", 1, "<ip:port>" },
     {   0, NULL,                     NULL, NULL, 0, NULL }
 };
 
@@ -413,6 +414,7 @@ getOptMode (int val)
 
       case 'L': /* labels */
       case 712: /* tracker-remove */
+      case 944: /* add-peer */
       case 950: /* seedratio */
       case 951: /* seedratio-default */
       case 952: /* no-seedratio */
@@ -2287,6 +2289,8 @@ processArgs (const char * rpcurl, int argc, const char ** argv)
                 case 'L': addLabels (args, TR_KEY_labels, optarg);
                           break;
                 case 712: tr_variantListAddInt (tr_variantDictAddList (args, TR_KEY_trackerRemove, 1), atoi (optarg));
+                          break;
+                case 944: tr_variantDictAddStr (args, TR_KEY_add_peer, optarg);
                           break;
                 case 950: tr_variantDictAddReal (args, TR_KEY_seedRatioLimit, atof (optarg));
                           tr_variantDictAddInt (args, TR_KEY_seedRatioMode, TR_RATIOLIMIT_SINGLE);
