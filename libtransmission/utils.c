@@ -533,6 +533,27 @@ tr_getDirFreeSpace (const char * dir)
   return free_space;
 }
 
+int64_t
+tr_getDirDiskSpace (const char * dir, int64_t * disk_used, int64_t * disk_soft, int64_t * disk_hard, int64_t * disk_timeleft)
+{
+  int64_t ret;
+
+  if (!dir || !*dir)
+    {
+      errno = EINVAL;
+      ret = -1;
+    }
+  else
+    {
+      struct tr_device_info * info;
+      info = tr_device_info_create (dir);
+      ret = tr_device_info_get_space (info, disk_used, disk_soft, disk_hard, disk_timeleft);
+      tr_device_info_free (info);
+    }
+
+  return ret;
+}
+
 /****
 *****
 ****/

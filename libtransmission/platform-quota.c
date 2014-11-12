@@ -239,12 +239,10 @@ getquota (const char * device)
 }
 #else
 static int64_t
-getquota (const char * device)
+getquota (const char * device, int64_t * disk_used, int64_t * disk_soft, int64_t * disk_hard, int64_t * disk_timeleft)
 {
+  int64_t ret = -1;
   struct dqblk dq;
-  int64_t limit;
-  int64_t freespace;
-  int64_t spaceused;
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
   if (quotactl(device, QCMD(Q_GETQUOTA, USRQUOTA), getuid(), (caddr_t) &dq) == 0)
@@ -253,7 +251,7 @@ getquota (const char * device)
   struct quotctl  op; 
   int fd = open(device, O_RDONLY); 
   if (fd < 0) 
-    return -1; 
+    return ret; 
   op.op = Q_GETQUOTA; 
   op.uid = getuid(); 
   op.addr = (caddr_t) &dq; 
@@ -264,83 +262,67 @@ getquota (const char * device)
   if (quotactl(QCMD(Q_GETQUOTA, USRQUOTA), device, getuid(), (caddr_t) &dq) == 0)
     {
 #endif
-      if (dq.dqb_bsoftlimit > 0)
+      if (dq.dqb_bsoftlimit > 0 || dq.dqb_bhardlimit > 0)
         {
-          /* Use soft limit first */
-          limit = dq.dqb_bsoftlimit;
-        }
-      else if (dq.dqb_bhardlimit > 0)
-        {
-          limit = dq.dqb_bhardlimit;
-        }
-      else
-        {
-          /* No quota enabled for this user */
-          return -1;
-        }
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
-      spaceused = (int64_t) dq.dqb_curblocks >> 1;
+          *disk_used = (int64_t) dq.dqb_curblocks >> 1;
 #elif defined(__APPLE__)
-      spaceused = (int64_t) dq.dqb_curbytes;
+          *disk_used = (int64_t) dq.dqb_curbytes / 1024;
 #elif defined(__UCLIBC__)
-      spaceused = (int64_t) btodb(dq.dqb_curblocks);
+          *disk_used = (int64_t) btodb(dq.dqb_curblocks);
 #elif defined(__sun) || (_LINUX_QUOTA_VERSION < 2)
-      spaceused = (int64_t) dq.dqb_curblocks >> 1;
+          *disk_used = (int64_t) dq.dqb_curblocks >> 1;
 #else
-      spaceused = btodb(dq.dqb_curspace);
+          *disk_used = btodb(dq.dqb_curspace);
 #endif
-      freespace = limit - spaceused;
-#ifdef __APPLE__
-      return (freespace < 0) ? 0 : freespace;
-#else
-      return (freespace < 0) ? 0 : freespace * 1024;
-#endif
+          *disk_soft = dq.dqb_bsoftlimit;
+          *disk_hard = dq.dqb_bhardlimit;
+          if (dq.dqb_btime > (uint64_t)time(NULL))
+            *disk_timeleft = (dq.dqb_btime - time(NULL)) / 3600;
+          else
+            *disk_timeleft = 0;
+          ret = 0;
+        }
     }
 #if defined(__sun)
   close(fd);
 #endif
   /* something went wrong */
-  return -1;
+  return ret;
 }
 #endif
 
 #ifdef HAVE_XQM
 static int64_t
-getxfsquota (char * device)
+getxfsquota (char * device, int64_t * disk_used, int64_t * disk_soft, int64_t * disk_hard, int64_t * disk_timeleft)
 {
+  int64_t ret = -1;
   int64_t limit;
-  int64_t freespace;
   struct fs_disk_quota dq;
 
   if (quotactl(QCMD(Q_XGETQUOTA, USRQUOTA), device, getuid(), (caddr_t) &dq) == 0)
     {
-      if (dq.d_blk_softlimit > 0)
+      if (dq.d_blk_softlimit > 0 || dq.d_blk_hardlimit > 0)
         {
-          /* Use soft limit first */
-          limit = dq.d_blk_softlimit >> 1;
+          *disk_used = dq.d_bcount >> 1;
+          *disk_soft = dq.d_blk_softlimit >> 1;
+          *disk_hard = dq.d_blk_hardlimit >> 1;
+          if (dq.d_btimer > time(NULL))
+            *disk_timeleft = (dq.d_btimer - time(NULL)) / 3600;
+          else
+            *disk_timeleft = 0;
+          ret = 0;
         }
-      else if (dq.d_blk_hardlimit > 0)
-        {
-          limit = dq.d_blk_hardlimit >> 1;
-        }
-      else
-        {
-          /* No quota enabled for this user */
-          return -1;
-        }
-
-      freespace = limit - (dq.d_bcount >> 1);
-      return (freespace < 0) ? 0 : freespace * 1024;
     }
 
   /* something went wrong */
-  return -1;
+  return ret;
 }
 #endif /* HAVE_XQM */
 #endif /* _WIN32 */
 
 static int64_t
-tr_getQuotaFreeSpace (const struct tr_device_info * info)
+tr_getQuotaSpace (const struct tr_device_info * info, int64_t * disk_used, int64_t * disk_soft, int64_t * disk_hard, int64_t * disk_timeleft)
 {
   int64_t ret = -1;
 
@@ -349,12 +331,12 @@ tr_getQuotaFreeSpace (const struct tr_device_info * info)
   if (info->fstype && !evutil_ascii_strcasecmp(info->fstype, "xfs"))
     {
 #ifdef HAVE_XQM
-      ret = getxfsquota (info->device);
+      ret = getxfsquota (info->device, disk_used, disk_soft, disk_hard, disk_timeleft);
 #endif
     }
   else
     {
-      ret = getquota (info->device);
+      ret = getquota (info->device, disk_used, disk_soft, disk_hard, disk_timeleft);
     }
 #endif /* _WIN32 */
 
@@ -362,26 +344,38 @@ tr_getQuotaFreeSpace (const struct tr_device_info * info)
 }
 
 static int64_t
-tr_getDiskFreeSpace (const char * path)
+tr_getDiskSpace (const char * path, int64_t * disk_used, int64_t * disk_soft, int64_t * disk_hard, int64_t * disk_timeleft)
 {
 #ifdef _WIN32
 
-  uint64_t freeBytesAvailable = 0;
-  return GetDiskFreeSpaceEx (path, &freeBytesAvailable, NULL, NULL)
-    ? (int64_t)freeBytesAvailable
-    : -1;
+  ULARGE_INTEGER freeBytesAvailable = 0, totalNumberOfBytes = 0;
+  if (GetDiskFreeSpaceEx (path, &freeBytesAvailable, &totalNumberOfBytes, NULL))
+  {
+    *disk_used = (totalNumberOfBytes.QuadPart - freeBytesAvailable.QuadPart) / 1024;
+    *disk_hard = *disk_soft = totalNumberOfBytes.QuadPart / 1024;
+    *disk_timeleft = 0;    
+    return 0;
+  }
 
 #elif defined(HAVE_STATVFS)
 
   struct statvfs buf;
-  return statvfs(path, &buf) ? -1 : (int64_t)buf.f_bavail * (int64_t)buf.f_frsize;
+  if (!statvfs(path, &buf))
+  {
+    int64_t div = (int64_t)buf.f_bsize / 1024;
+    *disk_used = (int64_t)(buf.f_blocks - buf.f_bavail) * div;
+    *disk_soft = (int64_t)buf.f_blocks * div;
+    *disk_hard = (int64_t)buf.f_blocks * div;
+    *disk_timeleft = 0;
+    return 0;
+  }
 
 #else
 
   #warning FIXME: not implemented
-  return -1;
 
 #endif
+  return -1;
 }
 
 struct tr_device_info *
@@ -414,22 +408,40 @@ tr_device_info_free (struct tr_device_info * info)
 int64_t
 tr_device_info_get_free_space (const struct tr_device_info * info)
 {
-  int64_t free_space;
+  int64_t disk_used;
+  int64_t disk_soft;
+  int64_t disk_hard;
+  int64_t disk_timeleft;
+  int64_t free_space = -1;
+
+  if (tr_device_info_get_space(info, &disk_used, &disk_soft, &disk_hard, &disk_timeleft) != -1)
+    {
+      if (disk_timeleft > 0) free_space = (disk_soft - disk_used) * 1024;
+      else free_space = (disk_hard - disk_used) * 1024;
+    }
+
+  return free_space;
+}
+
+int64_t
+tr_device_info_get_space (const struct tr_device_info * info, int64_t * disk_used, int64_t * disk_soft, int64_t * disk_hard, int64_t * disk_timeleft)
+{
+  int64_t ret;
 
   if ((info == NULL) || (info->path == NULL))
     {
       errno = EINVAL;
-      free_space = -1;
+      ret = -1;
     }
   else
     {
-      free_space = tr_getQuotaFreeSpace (info);
+      ret = tr_getQuotaSpace (info, disk_used, disk_soft, disk_hard, disk_timeleft);
 
-      if (free_space < 0)
-        free_space = tr_getDiskFreeSpace (info->path);
+      if (ret < 0)
+        ret = tr_getDiskSpace (info->path, disk_used, disk_soft, disk_hard, disk_timeleft);
     }
 
-  return free_space;
+  return ret;
 }
 
 /***

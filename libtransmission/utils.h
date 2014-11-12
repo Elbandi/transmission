@@ -145,6 +145,15 @@ bool tr_fileExists (const char * filename, time_t * mtime);
  */
 int64_t tr_getDirFreeSpace (const char * path);
 
+/**
+ * @brief Get disk space (in kbytes) for the specified folder.
+ * @return zero or positive integer on success, -1 in case of error.
+ */
+int64_t tr_getDirDiskSpace (const char * path,
+                            int64_t * disk_used,
+                            int64_t * disk_soft,
+                            int64_t * disk_hard,
+                            int64_t * disk_timeleft);
 
 struct event;
 

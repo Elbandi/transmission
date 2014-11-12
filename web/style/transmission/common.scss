@@ -219,6 +219,17 @@ $statusbar-height: 26px;
 		#filter-count { margin-left: 8px; }
 	}
 
+	#quota-info
+	{
+		float: left;
+		margin-top: 7px;
+		margin-right: 100px;
+
+		#quota-hard-label {
+			margin-left: 10px;
+		}
+	}
+
 	#speed-info
 	{
 		float: right;

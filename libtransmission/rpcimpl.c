@@ -7,6 +7,7 @@
  * $Id$
  */
 
+#define _GNU_SOURCE
 #include <assert.h>
 #include <ctype.h> /* isdigit */
 #include <errno.h>
@@ -2147,6 +2148,30 @@ freeSpace (tr_session               * session,
   return err;
 }
 
+static const char*
+diskstatusGet (tr_session               * session,
+               tr_variant               * args_in UNUSED,
+               tr_variant               * args_out,
+               struct tr_rpc_idle_data  * idle_data UNUSED)
+{
+    int64_t block_used = -1, block_soft = -1, block_hard = -1, block_timeleft = -1;
+
+    assert (idle_data == NULL);
+
+    tr_getDirDiskSpace (tr_sessionGetDownloadDir (session), &block_used, &block_soft, &block_hard, &block_timeleft);
+    tr_variantDictAddInt (args_out, TR_KEY_disk_used, block_used);
+    tr_variantDictAddInt (args_out, TR_KEY_disk_soft, block_soft);
+    tr_variantDictAddInt (args_out, TR_KEY_disk_timeleft, block_timeleft);
+    tr_variantDictAddInt (args_out, TR_KEY_disk_hard, block_hard);
+    /* not supported yet */
+    tr_variantDictAddInt (args_out, TR_KEY_file_used, -1);
+    tr_variantDictAddInt (args_out, TR_KEY_file_soft, -1);
+    tr_variantDictAddInt (args_out, TR_KEY_file_leftday, -1);
+    tr_variantDictAddInt (args_out, TR_KEY_file_hard, -1);
+
+    return NULL;
+}
+
 /***
 ****
 ***/
@@ -2175,6 +2200,7 @@ static struct method
 }
 methods[] =
 {
+  { "diskstatus-get",        true,  diskstatusGet       },
   { "port-test",             false, portTest            },
   { "blocklist-update",      false, blocklistUpdate     },
   { "free-space",            true,  freeSpace           },

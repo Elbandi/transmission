@@ -193,7 +193,8 @@ enum
     TAG_PIECES,
     TAG_PORTTEST,
     TAG_TORRENT_ADD,
-    TAG_TRACKERS
+    TAG_TRACKERS,
+    TAG_DISKSTATUS
 };
 
 static const char*
@@ -238,6 +239,7 @@ static tr_option opts[] =
     { 'c', "incomplete-dir",         "Where to store new torrents until they're complete", "c", 1, "<dir>" },
     { 'C', "no-incomplete-dir",      "Don't store incomplete torrents in a different location", "C", 0, NULL },
     { 'b', "debug",                  "Print debugging information", "b",  0, NULL },
+    { 979, "diskstatus",             "Get the disk status", "ds", 0, NULL },
     { 'd', "downlimit",              "Set the max download speed in "SPEED_K_STR" for the current torrent(s) or globally", "d", 1, "<speed>" },
     { 'D', "no-downlimit",           "Disable max download speed for the current torrent(s) or globally", "D", 0, NULL },
     { 'e', "cache",                  "Set the maximum size of the session's memory cache (in " MEM_M_STR ")", "e", 1, "<size>" },
@@ -350,7 +352,8 @@ enum
   MODE_SESSION_STATS         = (1<<11),
   MODE_SESSION_CLOSE         = (1<<12),
   MODE_BLOCKLIST_UPDATE      = (1<<13),
-  MODE_PORT_TEST             = (1<<14)
+  MODE_PORT_TEST             = (1<<14),
+  MODE_DISKSTATUS_GET        = (1<<15)
 };
 
 static int
@@ -464,6 +467,9 @@ getOptMode (int val)
 
       case 921: /* session-stats */
         return MODE_SESSION_STATS;
+
+      case 979: /* diskstatus-get */
+        return MODE_DISKSTATUS_GET;
 
       case 'v': /* verify */
         return MODE_TORRENT_VERIFY;
@@ -1674,6 +1680,74 @@ printSessionStats (tr_variant * top)
     }
 }
 
+static void
+printDiskStatus (tr_variant * top)
+{
+    tr_variant *args;
+    if ((tr_variantDictFindDict(top, TR_KEY_arguments, &args)))
+    {
+        int64_t      i;
+        char buf[32];
+
+        printf ("BLOCK STATUS\n");
+        if (tr_variantDictFindInt (args, TR_KEY_disk_used, &i))
+        {
+	    if (i >= 0)
+                strlsize (buf, i * 1024, sizeof (buf));
+	    else
+		strcpy (buf, "NA");
+            printf ("  Used: %s\n", buf);
+        }
+        if (tr_variantDictFindInt (args, TR_KEY_disk_soft, &i))
+        {
+	    if (i >= 0)
+                strlsize (buf, i * 1024, sizeof (buf));
+	    else
+		strcpy (buf, "NA");
+            printf ("  Soft: %s\n", buf);
+        }
+        if (tr_variantDictFindInt (args, TR_KEY_disk_timeleft, &i))
+            printf ("  Time Left: %" PRId64 "\n", i);
+        if (tr_variantDictFindInt (args, TR_KEY_disk_hard, &i))
+        {
+	    if (i >= 0)
+                strlsize (buf, i * 1024, sizeof (buf));
+	    else
+		strcpy (buf, "NA");
+            printf ("  Hard: %s\n", buf);
+        }
+        printf ("\n");
+
+        printf ("FILE STATUS\n");
+        if (tr_variantDictFindInt (args, TR_KEY_file_used, &i))
+        {
+	    if (i >= 0)
+                strlsize (buf, i * 1024, sizeof (buf));
+	    else
+		strcpy (buf, "NA");
+            printf ("  Used: %s\n", buf);
+        }
+        if (tr_variantDictFindInt (args, TR_KEY_file_soft, &i))
+        {
+	    if (i >= 0)
+                strlsize (buf, i * 1024, sizeof (buf));
+	    else
+		strcpy (buf, "NA");
+            printf ("  Soft: %s\n", buf);
+        }
+        if (tr_variantDictFindInt (args, TR_KEY_file_leftday, &i))
+            printf ("  Time Left: %" PRId64 "\n", i);
+        if (tr_variantDictFindInt (args, TR_KEY_file_hard, &i))
+        {
+	    if (i >= 0)
+                strlsize (buf, i * 1024, sizeof (buf));
+	    else
+		strcpy (buf, "NA");
+            printf ("  Hard: %s\n", buf);
+        }
+    }
+}
+
 static char id[4096];
 
 static int
@@ -1736,6 +1810,9 @@ processResponse (const char * rpcurl, const void * response, size_t len)
 
             case TAG_TRACKERS:
                 printTrackers (&top); break;
+
+            case TAG_DISKSTATUS:
+                printDiskStatus (&top); break;
 
             case TAG_TORRENT_ADD: {
                 int64_t i;
@@ -2365,6 +2442,15 @@ processArgs (const char * rpcurl, int argc, const char ** argv)
                 tr_variantDictAddStr (args, TR_KEY_location, optarg);
                 tr_variantDictAddBool (args, TR_KEY_move, true);
                 addIdArg (args, id, NULL);
+                status |= flush (rpcurl, &top);
+                break;
+            }
+            case 979:
+            {
+                tr_variant * top = tr_new0 (tr_variant, 1);
+                tr_variantInitDict (top, 2);
+                tr_variantDictAddStr (top, TR_KEY_method, "diskstatus-get");
+                tr_variantDictAddInt (top, TR_KEY_tag, TAG_DISKSTATUS);
                 status |= flush (rpcurl, &top);
                 break;
             }
