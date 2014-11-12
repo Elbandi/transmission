@@ -590,8 +590,34 @@ addField (tr_torrent       * const tor,
         tr_variantDictAddInt (d, key, st->addedDate);
         break;
 
+      case TR_KEY_availablepeersFrom:
+        {
+          tr_variant * tmp = tr_variantDictAddDict (d, key, 7);
+          const int * f = st->availablepeersFrom;
+          tr_variantDictAddInt (tmp, TR_KEY_fromCache,    f[TR_PEER_FROM_RESUME]);
+          tr_variantDictAddInt (tmp, TR_KEY_fromDht,      f[TR_PEER_FROM_DHT]);
+          tr_variantDictAddInt (tmp, TR_KEY_fromIncoming, f[TR_PEER_FROM_INCOMING]);
+          tr_variantDictAddInt (tmp, TR_KEY_fromLpd,      f[TR_PEER_FROM_LPD]);
+          tr_variantDictAddInt (tmp, TR_KEY_fromLtep,     f[TR_PEER_FROM_LTEP]);
+          tr_variantDictAddInt (tmp, TR_KEY_fromPex,      f[TR_PEER_FROM_PEX]);
+          tr_variantDictAddInt (tmp, TR_KEY_fromTracker,  f[TR_PEER_FROM_TRACKER]);
+          break;
+        }
+
       case TR_KEY_bandwidthPriority:
         tr_variantDictAddInt (d, key, tr_torrentGetPriority (tor));
+        break;
+
+      case TR_KEY_blockCount:
+        tr_variantDictAddInt (d, key, tor->blockCount);
+        break;
+
+      case TR_KEY_blockSize:
+        tr_variantDictAddInt (d, key, tor->blockSize);
+        break;
+
+      case TR_KEY_blockComplete:
+        tr_variantDictAddInt (d, key, tr_bitfieldCountTrueBits (&tor->completion.blockBitfield));
         break;
 
       case TR_KEY_comment:
@@ -612,6 +638,10 @@ addField (tr_torrent       * const tor,
 
       case TR_KEY_desiredAvailable:
         tr_variantDictAddInt (d, key, st->desiredAvailable);
+        break;
+
+      case TR_KEY_dhtAnnounceTime:
+        tr_variantDictAddInt (d, key, st->dhtAnnounceTime);
         break;
 
       case TR_KEY_doneDate:
@@ -772,6 +802,10 @@ addField (tr_torrent       * const tor,
 
       case TR_KEY_pieceSize:
         tr_variantDictAddInt (d, key, inf->pieceSize);
+        break;
+
+      case TR_KEY_pieceComplete:
+        tr_variantDictAddInt (d, key, tr_cpCompletePieceBitfield (&tor->completion));
         break;
 
       case TR_KEY_priorities:

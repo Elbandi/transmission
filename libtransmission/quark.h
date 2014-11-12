@@ -44,11 +44,15 @@ enum
   TR_KEY_announce_list, /* metainfo */
   TR_KEY_announceState, /* rpc */
   TR_KEY_arguments, /* rpc */
+  TR_KEY_availablepeersFrom,
   TR_KEY_bandwidth_priority,
   TR_KEY_bandwidthPriority,
   TR_KEY_bind_address_ipv4,
   TR_KEY_bind_address_ipv6,
   TR_KEY_bitfield,
+  TR_KEY_blockComplete,
+  TR_KEY_blockCount,
+  TR_KEY_blockSize,
   TR_KEY_blocklist_date,
   TR_KEY_blocklist_enabled,
   TR_KEY_blocklist_size,
@@ -80,6 +84,7 @@ enum
   TR_KEY_desiredAvailable,
   TR_KEY_destination,
   TR_KEY_dht_enabled,
+  TR_KEY_dhtAnnounceTime,
   TR_KEY_display_name,
   TR_KEY_dnd,
   TR_KEY_done_date,
@@ -238,6 +243,7 @@ enum
   TR_KEY_pex_enabled,
   TR_KEY_piece,
   TR_KEY_piece_length,
+  TR_KEY_pieceComplete,
   TR_KEY_pieceCount,
   TR_KEY_pieceSize,
   TR_KEY_pieces,
