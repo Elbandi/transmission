@@ -866,6 +866,7 @@ torrentInit (tr_torrent * tor, const tr_ctor * ctor)
   tor->uniqueId = nextUniqueId++;
   tor->magicNumber = TORRENT_MAGIC_NUMBER;
   tor->queuePosition = session->torrentCount;
+  tor->labels = tr_ptrArrayNew ();
 
   tr_sha1 (tor->obfuscatedHash, "req2", 4,
            tor->info.hash, SHA_DIGEST_LENGTH,
@@ -1616,6 +1617,7 @@ freeTorrent (tr_torrent * tor)
   assert (queueIsSequenced (session));
 
   tr_bandwidthDestruct (&tor->bandwidth);
+  tr_ptrArrayFree (tor->labels, (PtrArrayForeachFunc)tr_free);
 
   tr_metainfoFree (inf);
   memset (tor, ~0, sizeof (tr_torrent));
