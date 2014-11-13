@@ -7,9 +7,11 @@ Build-Depends: debhelper (>= 7), autotools-dev, dh-autoreconf,
  libevent-dev (>= 2.0), libglib2.0-dev, libssl-dev,
  libcurl4-gnutls-dev | libcurl4-dev | libcurl-dev,
  intltool (>= 0.37),
- libqt4-dev,
+ qt5-default | qt4-qtconfig,
+ qtbase5-dev | libqt4-dev,
+ qttools5-dev-tools | libqt4-dev,
  libminiupnpc-dev, libnatpmp-dev (>= 20110808),
- chrpath, quilt, automake, git-core
+ chrpath, quilt, automake, git-core, gdb
 Standards-Version: 3.9.3
 Vcs-Browser: http://git.debian.org/?p=collab-maint/transmission.git
 Vcs-Git: git://git.debian.org/git/collab-maint/transmission.git

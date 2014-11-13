@@ -92,7 +92,7 @@ configure-stamp:
 
 ifeq ($(filter $(DEBIAN_DIST_NAME), hardy),)
 	# Qt client
-	( cd qt && qmake-qt4 qtr.pro )
+	( cd qt && qmake qtr.pro )
 endif
 
 	touch $@
