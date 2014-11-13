@@ -687,7 +687,7 @@ Session :: exec (const char * json)
     {
       QNetworkRequest request;
       request.setUrl (myUrl);
-      request.setRawHeader( "Host", myUrl.host().toAscii() );
+      request.setRawHeader( "Host", myUrl.host().toUtf8() );
       request.setRawHeader ("User-Agent", QString (QCoreApplication::instance ()->applicationName () + "/" + LONG_VERSION_STRING).toUtf8 ());
       request.setRawHeader ("Content-Type", "application/json; charset=UTF-8");
 
