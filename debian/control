@@ -10,6 +10,7 @@ Build-Depends: debhelper (>= 7), autotools-dev, dh-autoreconf,
  qt5-default | qt4-qtconfig,
  qtbase5-dev | libqt4-dev,
  qttools5-dev-tools | libqt4-dev,
+ libfontconfig1-dev,
  libminiupnpc-dev, libnatpmp-dev (>= 20110808),
  chrpath, quilt, automake, git-core, gdb
 Standards-Version: 3.9.3
